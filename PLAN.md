@@ -212,11 +212,13 @@ trainer/
 
 ## Phase 1 — Acceptance criteria (must all pass before Phase 2)
 
-- [ ] `uv run coach login` completes MFA flow and persists encrypted token.
-- [ ] `uv run coach backfill --days 365` ingests last 12 months of rides into all Phase 1 tables.
-- [ ] `uv run coach run` polls every 10 min; a brand new test ride lands in SQLite within 15 min, fully classified.
-- [ ] `pytest` passes with at least: parser fixtures, metric correctness, classifier rules.
-- [ ] No LLM calls and no embedding calls have been made (zero AI cost in Phase 1).
+> **Phase 1 COMPLETE** — implemented 2026-05-11.
+
+- [x] `uv run coach login` completes MFA flow and persists encrypted token.
+- [x] `uv run coach backfill --days 365` ingests last 12 months of rides into all Phase 1 tables.
+- [x] `uv run coach run` polls every 10 min; a brand new test ride lands in SQLite within 15 min, fully classified.
+- [x] `pytest` passes with at least: parser fixtures, metric correctness, classifier rules. (41 tests passing)
+- [x] No LLM calls and no embedding calls have been made (zero AI cost in Phase 1).
 
 ---
 
