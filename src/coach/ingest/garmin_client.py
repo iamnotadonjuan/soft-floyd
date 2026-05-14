@@ -40,7 +40,7 @@ class GarminClient:
 
         client = garth.Client()
         try:
-            client.login(email, password, prompt=mfa_callback)
+            client.login(email, password, prompt_mfa=mfa_callback)
         except Exception as exc:
             raise ReauthRequired(f"Garmin login failed: {exc}") from exc
 
