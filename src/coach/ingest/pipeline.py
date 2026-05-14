@@ -154,4 +154,14 @@ def ingest_activity(
 
     session.commit()
     log.info("pipeline.activity_ingested", activity_id=activity_id, bike_type=activity.bike_type)
+
+    # Step 7 — embed (Phase 2; silently skips if OpenAI key not configured)
+    if cfg.openai_api_key:
+        try:
+            from coach.rag.embedder import embed_activity
+
+            embed_activity(session, cfg, activity_id)
+        except Exception as exc:
+            log.warning("pipeline.embed_failed", activity_id=activity_id, error=str(exc))
+
     return activity

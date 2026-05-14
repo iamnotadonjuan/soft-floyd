@@ -1,5 +1,4 @@
 """FIT parser golden tests using real fixture files."""
-import pytest
 
 
 def test_road_session_fields(road_parsed):

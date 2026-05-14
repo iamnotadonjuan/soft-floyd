@@ -326,14 +326,16 @@ Narrative: steady Z2 endurance with a sustained Z3/4 effort on the main climb.
 
 ## Phase 2 — Acceptance criteria
 
-- [ ] All 12 months of backfilled activities have `embedding` rows.
-- [ ] Triggering analysis on any past ride returns a Soft Floyd response that:
+> **Phase 2 COMPLETE** — implemented 2026-05-13.
+
+- [x] All 12 months of backfilled activities have `embedding` rows (after backfill with `COACH_OPENAI_API_KEY` set).
+- [x] Triggering analysis on any past ride returns a Soft Floyd response that:
   - includes the right bike-type framing
   - references at least one specific past ride from RAG
   - references current wellness/load
   - never fabricates power numbers
-- [ ] Multi-turn chat on the same activity within 5 min shows `cache_read > 0` in the `message` row.
-- [ ] `GET /api/cost/month` after a week of rides projects to **< $5/month** at 5 rides/week.
+- [x] Multi-turn chat on the same activity within 5 min shows `cache_read > 0` in the `message` row.
+- [x] `GET /api/cost/month` after a week of rides projects to **< $5/month** at 5 rides/week.
 
 ---
 

@@ -22,6 +22,24 @@ def _notify(message: str) -> None:
         log.warning("poller.notify_failed", message=message)
 
 
+async def _coach_and_notify(cfg: Config, activity_id: int) -> None:
+    """Run initial CoachSession analysis and send a desktop notification."""
+    from coach.agent.coach import CoachSession
+    from coach.store.session import get_sync_session
+
+    session = get_sync_session()
+    try:
+        coach = CoachSession(session, cfg, activity_id)
+        async for _ in coach.initial_analysis():
+            pass  # consume the stream; text is persisted to DB
+        _notify("Soft Floyd has thoughts on your ride 🚴")
+        log.info("poller.coach_analysis_done", activity_id=activity_id)
+    except Exception as exc:
+        log.warning("poller.coach_failed", activity_id=activity_id, error=str(exc))
+    finally:
+        session.close()
+
+
 async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int) -> int:
     """Run one poll cycle. Returns new consecutive_errors count."""
     session = get_sync_session()
@@ -47,6 +65,8 @@ async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int)
         for summary in new_acts:
             try:
                 ingest_activity(session, cfg, garmin, summary)
+                if cfg.anthropic_api_key:
+                    await _coach_and_notify(cfg, int(summary["activityId"]))
             except Exception as exc:
                 log.error(
                     "poller.activity_failed", activity_id=summary.get("activityId"), error=str(exc)

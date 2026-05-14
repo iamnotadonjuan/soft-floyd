@@ -1,29 +1,31 @@
 """Unit tests for HR metrics with hand-computed expected values."""
+
 import math
+
 import pytest
 
-from coach.metrics.zones import make_zones, zone_for_hr
+from coach.ingest.fit_parser import ParsedFit, RecordData, SessionSummary
 from coach.metrics.compute import compute_metrics
-from coach.ingest.fit_parser import ParsedFit, SessionSummary, RecordData, LapData
-
+from coach.metrics.zones import make_zones, zone_for_hr
 
 # ---- HR Zone tests -------------------------------------------------------
 
+
 def test_zone_boundaries_lthr_165():
     z = make_zones(165)
-    assert z.z1_max == pytest.approx(165 * 0.80)   # 132
-    assert z.z2_max == pytest.approx(165 * 0.89)   # 146.85
-    assert z.z3_max == pytest.approx(165 * 0.94)   # 155.1
-    assert z.z4_max == pytest.approx(165 * 0.99)   # 163.35
+    assert z.z1_max == pytest.approx(165 * 0.80)  # 132
+    assert z.z2_max == pytest.approx(165 * 0.89)  # 146.85
+    assert z.z3_max == pytest.approx(165 * 0.94)  # 155.1
+    assert z.z4_max == pytest.approx(165 * 0.99)  # 163.35
 
 
 def test_zone_classification():
     z = make_zones(165)
-    assert zone_for_hr(100.0, z) == 1   # < 132
-    assert zone_for_hr(135.0, z) == 2   # 132 ≤ hr < 146.85
-    assert zone_for_hr(150.0, z) == 3   # 146.85 ≤ hr < 155.1
-    assert zone_for_hr(160.0, z) == 4   # 155.1 ≤ hr < 163.35
-    assert zone_for_hr(165.0, z) == 5   # ≥ 163.35
+    assert zone_for_hr(100.0, z) == 1  # < 132
+    assert zone_for_hr(135.0, z) == 2  # 132 ≤ hr < 146.85
+    assert zone_for_hr(150.0, z) == 3  # 146.85 ≤ hr < 155.1
+    assert zone_for_hr(160.0, z) == 4  # 155.1 ≤ hr < 163.35
+    assert zone_for_hr(165.0, z) == 5  # ≥ 163.35
 
 
 def test_zone_boundary_z2_exactly():
@@ -34,7 +36,10 @@ def test_zone_boundary_z2_exactly():
 
 # ---- compute_metrics tests -----------------------------------------------
 
-def _make_parsed_fit_with_records(records: list[RecordData], session: SessionSummary | None = None) -> ParsedFit:
+
+def _make_parsed_fit_with_records(
+    records: list[RecordData], session: SessionSummary | None = None
+) -> ParsedFit:
     p = ParsedFit()
     p.records = records
     p.session = session or SessionSummary(
@@ -47,8 +52,7 @@ def test_hr_drift_pct_hand_computed():
     """HR drift = (avg_HR_2nd_half - avg_HR_1st_half) / avg_HR_1st_half × 100."""
     # 10 records: first 5 avg=130, second 5 avg=143
     records = [
-        RecordData(t_offset_s=float(i), hr=130, speed_mps=6.0, altitude_m=100.0)
-        for i in range(5)
+        RecordData(t_offset_s=float(i), hr=130, speed_mps=6.0, altitude_m=100.0) for i in range(5)
     ] + [
         RecordData(t_offset_s=float(i + 5), hr=143, speed_mps=6.0, altitude_m=100.0)
         for i in range(5)
@@ -61,8 +65,7 @@ def test_hr_drift_pct_hand_computed():
 def test_decoupling_pct_no_drift():
     """When HR and speed are perfectly proportional, decoupling should be near 0."""
     records = [
-        RecordData(t_offset_s=float(i), hr=140, speed_mps=7.0, altitude_m=100.0)
-        for i in range(20)
+        RecordData(t_offset_s=float(i), hr=140, speed_mps=7.0, altitude_m=100.0) for i in range(20)
     ]
     result = compute_metrics(_make_parsed_fit_with_records(records))
     assert result["decoupling_pct"] == pytest.approx(0.0, abs=0.01)
@@ -72,8 +75,11 @@ def test_time_in_zones_sums_correctly(road_parsed):
     """Sum of zone times should approximately equal ride duration."""
     result = compute_metrics(road_parsed)
     total_zone_time = (
-        result["time_in_z1"] + result["time_in_z2"] + result["time_in_z3"]
-        + result["time_in_z4"] + result["time_in_z5"]
+        result["time_in_z1"]
+        + result["time_in_z2"]
+        + result["time_in_z3"]
+        + result["time_in_z4"]
+        + result["time_in_z5"]
     )
     # Should be > 0
     assert total_zone_time > 0

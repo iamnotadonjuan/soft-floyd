@@ -3,10 +3,11 @@
 Run once: uv run python tests/make_fixtures.py
 Verifiable with: uv run python -c "from coach.ingest.fit_parser import parse_fit; ..."
 """
+
 from __future__ import annotations
 
-import struct
 import datetime
+import struct
 from pathlib import Path
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -19,8 +20,22 @@ def _fit_timestamp(dt: datetime.datetime) -> int:
 
 def _crc16(data: bytes) -> int:
     table = [
-        0x0000, 0xCC01, 0xD801, 0x1400, 0xF001, 0x3C00, 0x2800, 0xE401,
-        0xA001, 0x6C00, 0x7800, 0xB401, 0x5000, 0x9C01, 0x8801, 0x4400,
+        0x0000,
+        0xCC01,
+        0xD801,
+        0x1400,
+        0xF001,
+        0x3C00,
+        0x2800,
+        0xE401,
+        0xA001,
+        0x6C00,
+        0x7800,
+        0xB401,
+        0x5000,
+        0x9C01,
+        0x8801,
+        0x4400,
     ]
     crc = 0
     for byte in data:
@@ -42,6 +57,7 @@ def _pack_header(data_size: int) -> bytes:
 # field_defs: list of (field_def_num, size_bytes, base_type_byte)
 #   base types: 0=enum, 1=sint8, 2=uint8, 4=uint16, 6=uint32, 7=string
 #               128=enum, 131=sint16, 132=uint16, 133=sint32, 134=uint32
+
 
 def _def_msg(local_num: int, global_num: int, field_defs: list[tuple[int, int, int]]) -> bytes:
     hdr = 0x40 | (local_num & 0x0F)
@@ -68,22 +84,35 @@ RECORD_NO_GPS_LOCAL = 3
 # 253=timestamp(uint32), 5=sport(uint8), 6=sub_sport(uint8),
 # 7=total_elapsed_time(uint32, ms*1000), 9=total_distance(uint32, cm*100),
 # 22=total_ascent(uint16), 16=avg_heart_rate(uint8), 17=max_heart_rate(uint8)
-SESSION_DEF = _def_msg(SESSION_LOCAL, 18, [
-    (253, 4, 134), (5, 1, 2), (6, 1, 2),
-    (7, 4, 134), (9, 4, 134), (22, 2, 132),
-    (16, 1, 2), (17, 1, 2),
-])
+SESSION_DEF = _def_msg(
+    SESSION_LOCAL,
+    18,
+    [
+        (253, 4, 134),
+        (5, 1, 2),
+        (6, 1, 2),
+        (7, 4, 134),
+        (9, 4, 134),
+        (22, 2, 132),
+        (16, 1, 2),
+        (17, 1, 2),
+    ],
+)
 # Struct: I B B I I H B B = 4+1+1+4+4+2+1+1 = 18 bytes
 
 
 def session_data(dt, sport, sub_sport, elapsed_s, distance_m, ascent_m, avg_hr, max_hr) -> bytes:
-    return _data_msg(SESSION_LOCAL, "<BBBIIHBB",
-        sport, sub_sport,
+    return _data_msg(
+        SESSION_LOCAL,
+        "<BBBIIHBB",
+        sport,
+        sub_sport,
         _fit_timestamp(dt),
         int(elapsed_s * 1000),
         int(distance_m * 100),
         int(ascent_m),
-        avg_hr, max_hr,
+        avg_hr,
+        max_hr,
     )
 
 
@@ -92,6 +121,7 @@ def session_data(dt, sport, sub_sport, elapsed_s, distance_m, ascent_m, avg_hr, 
 # Let me rebuild with correct ordering (timestamp first as 253 is always first in practice).
 
 # I'll restart with a cleaner approach using a simple ordered field list.
+
 
 class FitBuilder:
     """Minimal FIT file builder. Writes definition messages once, data messages many times."""
@@ -128,25 +158,33 @@ class FitBuilder:
     def session(self, dt, sport, sub_sport, elapsed_s, distance_m, ascent_m, avg_hr, max_hr):
         # fields order matches definition order
         # fmt: <IBBIIIHBB = 4+1+1+4+4+2+1+1 = 18 bytes
-        self._def(0, 18, [
-            (253, 4, 134),  # timestamp, uint32
-            (5, 1, 2),      # sport, uint8
-            (6, 1, 2),      # sub_sport, uint8
-            (7, 4, 134),    # total_elapsed_time, uint32 (ms×1000)
-            (9, 4, 134),    # total_distance, uint32 (m×100)
-            (22, 2, 132),   # total_ascent, uint16
-            (16, 1, 2),     # avg_heart_rate, uint8
-            (17, 1, 2),     # max_heart_rate, uint8
-        ])
+        self._def(
+            0,
+            18,
+            [
+                (253, 4, 134),  # timestamp, uint32
+                (5, 1, 2),  # sport, uint8
+                (6, 1, 2),  # sub_sport, uint8
+                (7, 4, 134),  # total_elapsed_time, uint32 (ms×1000)
+                (9, 4, 134),  # total_distance, uint32 (m×100)
+                (22, 2, 132),  # total_ascent, uint16
+                (16, 1, 2),  # avg_heart_rate, uint8
+                (17, 1, 2),  # max_heart_rate, uint8
+            ],
+        )
         # fmt: I(ts) B(sport) B(sub_sport) I(elapsed) I(distance) H(ascent) B(avg_hr) B(max_hr)
         # = 4+1+1+4+4+2+1+1 = 18 bytes
-        self._data(0, "<IBBIIHBB",
+        self._data(
+            0,
+            "<IBBIIHBB",
             _fit_timestamp(dt),
-            sport, sub_sport,
+            sport,
+            sub_sport,
             int(elapsed_s * 1000),
             int(distance_m * 100),
             int(ascent_m),
-            avg_hr, max_hr,
+            avg_hr,
+            max_hr,
         )
 
     # ------------------------------------------------------------------
@@ -156,16 +194,22 @@ class FitBuilder:
     # ------------------------------------------------------------------
     def lap(self, dt, elapsed_s, distance_m, ascent_m, avg_hr, avg_speed_mps):
         # FIT lap (global 19) field numbers verified from fitdecode profile
-        self._def(1, 19, [
-            (253, 4, 134),  # timestamp, uint32
-            (7, 4, 134),    # total_elapsed_time, uint32 (ms×1000)
-            (9, 4, 134),    # total_distance, uint32 (m×100)
-            (21, 2, 132),   # total_ascent, uint16 (field 21, NOT 22)
-            (15, 1, 2),     # avg_heart_rate, uint8 (field 15, NOT 16)
-            (13, 2, 132),   # avg_speed, uint16 (mm/s)
-        ])
+        self._def(
+            1,
+            19,
+            [
+                (253, 4, 134),  # timestamp, uint32
+                (7, 4, 134),  # total_elapsed_time, uint32 (ms×1000)
+                (9, 4, 134),  # total_distance, uint32 (m×100)
+                (21, 2, 132),  # total_ascent, uint16 (field 21, NOT 22)
+                (15, 1, 2),  # avg_heart_rate, uint8 (field 15, NOT 16)
+                (13, 2, 132),  # avg_speed, uint16 (mm/s)
+            ],
+        )
         # fmt: I(ts) I(elapsed) I(distance) H(ascent) B(avg_hr) H(speed) = 17 bytes
-        self._data(1, "<IIIHBH",
+        self._data(
+            1,
+            "<IIIHBH",
             _fit_timestamp(dt),
             int(elapsed_s * 1000),
             int(distance_m * 100),
@@ -179,19 +223,26 @@ class FitBuilder:
     # fmt: <IiiHHB = 4+4+4+2+2+1 = 17 bytes
     # ------------------------------------------------------------------
     def record_gps(self, dt, hr, speed_mps, altitude_m, lat, lon):
-        self._def(2, 20, [
-            (253, 4, 134),  # timestamp, uint32
-            (0, 4, 133),    # position_lat, sint32 (semicircles)
-            (1, 4, 133),    # position_long, sint32 (semicircles)
-            (6, 2, 132),    # altitude, uint16 (scale 5, offset 500)
-            (7, 2, 132),    # speed, uint16 (mm/s)
-            (3, 1, 2),      # heart_rate, uint8
-        ])
+        self._def(
+            2,
+            20,
+            [
+                (253, 4, 134),  # timestamp, uint32
+                (0, 4, 133),  # position_lat, sint32 (semicircles)
+                (1, 4, 133),  # position_long, sint32 (semicircles)
+                (6, 2, 132),  # altitude, uint16 (scale 5, offset 500)
+                (7, 2, 132),  # speed, uint16 (mm/s)
+                (3, 1, 2),  # heart_rate, uint8
+            ],
+        )
         lat_semi = int(lat * (2**31 / 180.0))
         lon_semi = int(lon * (2**31 / 180.0))
-        self._data(2, "<IiiHHB",
+        self._data(
+            2,
+            "<IiiHHB",
             _fit_timestamp(dt),
-            lat_semi, lon_semi,
+            lat_semi,
+            lon_semi,
             int((altitude_m + 500.0) * 5.0),
             int(speed_mps * 1000.0),
             hr,
@@ -202,13 +253,19 @@ class FitBuilder:
     # fmt: <IHHB = 4+2+2+1 = 9 bytes
     # ------------------------------------------------------------------
     def record_no_gps(self, dt, hr, speed_mps, altitude_m):
-        self._def(3, 20, [
-            (253, 4, 134),  # timestamp, uint32
-            (6, 2, 132),    # altitude, uint16
-            (7, 2, 132),    # speed, uint16 (mm/s)
-            (3, 1, 2),      # heart_rate, uint8
-        ])
-        self._data(3, "<IHHB",
+        self._def(
+            3,
+            20,
+            [
+                (253, 4, 134),  # timestamp, uint32
+                (6, 2, 132),  # altitude, uint16
+                (7, 2, 132),  # speed, uint16 (mm/s)
+                (3, 1, 2),  # heart_rate, uint8
+            ],
+        )
+        self._data(
+            3,
+            "<IHHB",
             _fit_timestamp(dt),
             int((altitude_m + 500.0) * 5.0),
             int(speed_mps * 1000.0),
@@ -224,10 +281,11 @@ class FitBuilder:
 
 # ---- Fixture generators -----------------------------------------------
 
+
 def make_road_fit() -> bytes:
     """~62 km road ride, 2 laps, GPS, avg HR 142, sub_sport=road."""
     b = FitBuilder()
-    base = datetime.datetime(2026, 4, 15, 8, 0, 0, tzinfo=datetime.timezone.utc)
+    base = datetime.datetime(2026, 4, 15, 8, 0, 0, tzinfo=datetime.UTC)
     n_records_per_lap = 50
     lap_elapsed_s = 4500.0
     interval_s = lap_elapsed_s / n_records_per_lap
@@ -242,7 +300,8 @@ def make_road_fit() -> bytes:
             lon = -75.5 + lap_i * 0.01 + j * 0.001
             b.record_gps(ts, hr=min(hr, 175), speed_mps=7.2, altitude_m=alt, lat=lat, lon=lon)
 
-        b.lap(lap_start,
+        b.lap(
+            lap_start,
             elapsed_s=lap_elapsed_s,
             distance_m=31200.0,
             ascent_m=425.0,
@@ -250,8 +309,10 @@ def make_road_fit() -> bytes:
             avg_speed_mps=6.93,
         )
 
-    b.session(base,
-        sport=2, sub_sport=7,  # cycling, road (FIT sub_sport=7 → 'road')
+    b.session(
+        base,
+        sport=2,
+        sub_sport=7,  # cycling, road (FIT sub_sport=7 → 'road')
         elapsed_s=9000.0,
         distance_m=62400.0,
         ascent_m=850.0,
@@ -264,7 +325,7 @@ def make_road_fit() -> bytes:
 def make_mtb_fit() -> bytes:
     """25 km MTB ride, 1 lap, GPS, high elev/km, sub_sport=mountain."""
     b = FitBuilder()
-    base = datetime.datetime(2026, 4, 10, 9, 0, 0, tzinfo=datetime.timezone.utc)
+    base = datetime.datetime(2026, 4, 10, 9, 0, 0, tzinfo=datetime.UTC)
 
     for j in range(40):
         ts = base + datetime.timedelta(seconds=j * 60)
@@ -274,15 +335,18 @@ def make_mtb_fit() -> bytes:
         lon = -75.4 + j * 0.0005
         b.record_gps(ts, hr=hr, speed_mps=3.5, altitude_m=alt, lat=lat, lon=lon)
 
-    b.lap(base,
+    b.lap(
+        base,
         elapsed_s=2400.0,
         distance_m=8400.0,
         ascent_m=900.0,
         avg_hr=158,
         avg_speed_mps=3.5,
     )
-    b.session(base,
-        sport=2, sub_sport=8,  # cycling, mountain
+    b.session(
+        base,
+        sport=2,
+        sub_sport=8,  # cycling, mountain
         elapsed_s=2400.0,
         distance_m=8400.0,
         ascent_m=900.0,
@@ -295,7 +359,7 @@ def make_mtb_fit() -> bytes:
 def make_indoor_fit() -> bytes:
     """1-hour indoor cycling, 3 laps, no GPS, sub_sport=virtual_activity→indoor."""
     b = FitBuilder()
-    base = datetime.datetime(2026, 4, 12, 7, 0, 0, tzinfo=datetime.timezone.utc)
+    base = datetime.datetime(2026, 4, 12, 7, 0, 0, tzinfo=datetime.UTC)
 
     for i in range(3):
         lap_start = base + datetime.timedelta(minutes=i * 20)
@@ -304,7 +368,8 @@ def make_indoor_fit() -> bytes:
             hr = min(130 + j + i * 10, 172)
             b.record_no_gps(ts, hr=hr, speed_mps=8.0, altitude_m=0.0)
 
-        b.lap(lap_start,
+        b.lap(
+            lap_start,
             elapsed_s=1200.0,
             distance_m=9600.0,
             ascent_m=0.0,
@@ -312,8 +377,10 @@ def make_indoor_fit() -> bytes:
             avg_speed_mps=8.0,
         )
 
-    b.session(base,
-        sport=2, sub_sport=58,  # cycling, virtual_activity → indoor
+    b.session(
+        base,
+        sport=2,
+        sub_sport=58,  # cycling, virtual_activity → indoor
         elapsed_s=3600.0,
         distance_m=28800.0,
         ascent_m=0.0,
@@ -325,7 +392,11 @@ def make_indoor_fit() -> bytes:
 
 if __name__ == "__main__":
     FIXTURES.mkdir(parents=True, exist_ok=True)
-    for name, fn in [("sample_road", make_road_fit), ("sample_mtb", make_mtb_fit), ("sample_indoor", make_indoor_fit)]:
+    for name, fn in [
+        ("sample_road", make_road_fit),
+        ("sample_mtb", make_mtb_fit),
+        ("sample_indoor", make_indoor_fit),
+    ]:
         path = FIXTURES / f"{name}.fit"
         path.write_bytes(fn())
         print(f"Created {path}")

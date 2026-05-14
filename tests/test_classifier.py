@@ -1,8 +1,7 @@
 """Golden tests for bike-type classifier rules in strict priority order."""
-import pytest
 
 from coach.classify.bike_type import classify
-from coach.ingest.fit_parser import ParsedFit, SessionSummary, RecordData
+from coach.ingest.fit_parser import ParsedFit, RecordData, SessionSummary
 
 
 def _parsed(sub_sport="", is_indoor=False, speed_kmh=25.0, elev_per_km=10.0, has_gps=True):

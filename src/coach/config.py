@@ -31,9 +31,9 @@ class Config(BaseSettings):
     # Poller
     poll_interval_minutes: int = 10
 
-    # Phase 2 (unused in Phase 1)
-    anthropic_api_key: str = ""
-    openai_api_key: str = ""
+    # Phase 2
+    anthropic_api_key: str | None = None
+    openai_api_key: str | None = None
 
     # Logging
     log_level: str = "INFO"

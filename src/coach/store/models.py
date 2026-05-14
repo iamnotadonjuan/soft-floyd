@@ -144,3 +144,65 @@ class GarthToken(Base):
         nullable=False,
         default=datetime.datetime.now,
     )
+
+
+class Embedding(Base):
+    """One text chunk + its vector (vector stored in embedding_vec via rowid)."""
+
+    __tablename__ = "embedding"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[int | None] = mapped_column(
+        Integer, ForeignKey("activity.id", ondelete="CASCADE"), nullable=True
+    )
+    chunk_type: Mapped[str] = mapped_column(String(16), nullable=False)  # summary|lap|wellness
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.datetime.now,
+    )
+
+
+class Conversation(Base):
+    __tablename__ = "conversation"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    activity_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("activity.id", ondelete="CASCADE"), nullable=False
+    )
+    started_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.datetime.now,
+    )
+
+    messages: Mapped[list[Message]] = relationship(
+        "Message",
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="Message.id",
+    )
+
+
+class Message(Base):
+    __tablename__ = "message"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int] = mapped_column(
+        Integer, ForeignKey("conversation.id", ondelete="CASCADE"), nullable=False
+    )
+    role: Mapped[str] = mapped_column(String(16), nullable=False)  # user|assistant
+    content_json: Mapped[dict | list | None] = mapped_column(JSON)
+    tokens_in: Mapped[int | None] = mapped_column(Integer)
+    tokens_out: Mapped[int | None] = mapped_column(Integer)
+    cache_read: Mapped[int | None] = mapped_column(Integer)
+    cache_write: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    created_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.datetime.now,
+    )
+
+    conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")

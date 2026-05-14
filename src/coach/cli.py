@@ -44,10 +44,26 @@ def backfill(
 
 @app.command()
 def run() -> None:
-    """Start the background poller (and HTTP server in Phase 2)."""
-    from coach.ingest.poller import run_poller
+    """Start the background poller and HTTP server (127.0.0.1:8000)."""
+    from uvicorn import Config as UvicornConfig
+    from uvicorn import Server
 
-    asyncio.run(run_poller(get_config()))
+    from coach.ingest.poller import run_poller
+    from coach.web.api import create_app
+
+    async def _main() -> None:
+        cfg = get_config()
+        uv_cfg = UvicornConfig(
+            app=create_app(cfg),
+            host="127.0.0.1",
+            port=8000,
+            log_level="warning",
+            loop="asyncio",
+        )
+        server = Server(uv_cfg)
+        await asyncio.gather(run_poller(cfg), server.serve())
+
+    asyncio.run(_main())
 
 
 @app.command(name="ingest-fit")
