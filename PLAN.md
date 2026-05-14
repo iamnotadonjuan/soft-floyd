@@ -222,7 +222,7 @@ trainer/
 
 ---
 
-# PHASE 2 — Coach Agent + RAG
+# PHASE 2 — Coach Agent + RAG ✅
 
 **Goal:** When Phase 1's pipeline ingests a new activity, automatically embed it, retrieve relevant history, and generate a Soft Floyd analysis via Claude Haiku 4.5 with prompt caching. Expose two HTTP endpoints (`GET activity analysis`, `POST activity chat`) so Phase 3 has something to talk to. Still no UI.
 
