@@ -1,4 +1,4 @@
-"""CoachSession: Anthropic streaming + tool loop for Soft Floyd."""
+"""CoachSession: OpenAI streaming + tool loop for Soft Floyd."""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from coach.web.cost import record_usage
 if TYPE_CHECKING:
     from coach.config import Config
 
-_MODEL = "claude-haiku-4-5-20251001"
+_MODEL = "gpt-4.1-mini"
 _MAX_TOKENS = 1500
 _MAX_TOOL_CALLS = 5
 _SYSTEM_MD = Path(__file__).parent / "prompts" / "system.md"
@@ -39,10 +39,10 @@ def _context_block(ctx: RetrievalContext) -> str:
     return "\n\n".join(parts)
 
 
-def _build_anthropic_client(cfg: Config):  # noqa: ANN201
-    import anthropic
+def _build_openai_client(cfg: Config):  # noqa: ANN201
+    import openai
 
-    return anthropic.AsyncAnthropic(api_key=cfg.anthropic_api_key or None)
+    return openai.AsyncOpenAI(api_key=cfg.openai_api_key)
 
 
 class CoachSession:
@@ -51,7 +51,7 @@ class CoachSession:
         self._cfg = cfg
         self._activity_id = activity_id
         self._system = _load_system()
-        self._client = _build_anthropic_client(cfg)
+        self._client = _build_openai_client(cfg)
         self._conversation: Conversation | None = None
 
     # ------------------------------------------------------------------
@@ -70,7 +70,6 @@ class CoachSession:
         self._session.flush()
         self._conversation = conv
 
-        # Persist user turn
         user_msg = Message(conversation_id=conv.id, role="user", content_json=user_content)
         self._session.add(user_msg)
         self._session.commit()
@@ -116,7 +115,6 @@ class CoachSession:
     # ------------------------------------------------------------------
 
     async def _bootstrap_chat_stream(self, user_message: str) -> AsyncIterator[tuple[str, str]]:
-        """Handle chat when no prior conversation exists — embed context then reply."""
         ctx = retrieve_for_activity(self._session, self._cfg, self._activity_id)
         combined = _context_block(ctx) + "\n\n" + user_message
         conv = Conversation(activity_id=self._activity_id)
@@ -133,7 +131,7 @@ class CoachSession:
             yield pair
 
     def _build_message_history(self, conv: Conversation) -> list[dict]:
-        """Reconstruct the Anthropic messages list from persisted Message rows."""
+        """Reconstruct the OpenAI messages list from persisted Message rows."""
         from sqlalchemy import select
 
         rows = list(
@@ -144,12 +142,17 @@ class CoachSession:
         messages: list[dict] = []
         for row in rows:
             content = row.content_json
-            if isinstance(content, str | list):
+            if isinstance(content, str):
                 messages.append({"role": row.role, "content": content})
+            elif isinstance(content, dict):
+                # Stored OpenAI message dict (assistant with tool_calls, or tool result)
+                messages.append(content)
+            elif isinstance(content, list):
+                # Tool result messages stored as a list of role+content dicts
+                messages.extend(content)
         return messages
 
     async def _run_loop(self, messages: list[dict], conversation_id: int) -> AsyncIterator[str]:
-        """Thin text-only wrapper around _run_loop_events."""
         async for event_type, data in self._run_loop_events(messages, conversation_id):
             if event_type == "token":
                 yield data
@@ -157,82 +160,112 @@ class CoachSession:
     async def _run_loop_events(
         self, messages: list[dict], conversation_id: int
     ) -> AsyncIterator[tuple[str, str]]:
-        """Core streaming + tool-use loop. Yields (event_type, data) pairs."""
-        system_block = [
-            {
-                "type": "text",
-                "text": self._system,
-                "cache_control": {"type": "ephemeral"},
-            }
-        ]
+        """Core OpenAI streaming + tool-use loop. Yields (event_type, data) pairs."""
+        system_messages = [{"role": "system", "content": self._system}]
 
         for call_count in range(_MAX_TOOL_CALLS + 1):
-            final_message = None
+            text_parts: list[str] = []
+            # Accumulate tool_calls deltas: {index: {"id", "name", "arguments"}}
+            tool_call_accum: dict[int, dict] = {}
+            finish_reason: str | None = None
+            usage_obj = None
 
-            async with self._client.messages.stream(
+            stream = await self._client.chat.completions.create(
                 model=_MODEL,
                 max_tokens=_MAX_TOKENS,
-                system=system_block,
-                messages=messages,
+                messages=system_messages + messages,
                 tools=TOOL_SCHEMAS,
-                tool_choice={"type": "auto"},
-            ) as stream:
-                async for text in stream.text_stream:
-                    yield ("token", text)
-                final_message = await stream.get_final_message()
+                tool_choice="auto",
+                stream=True,
+                stream_options={"include_usage": True},
+            )
 
-            # Persist assistant turn
-            assistant_content = self._content_to_json(final_message.content)
+            async for chunk in stream:
+                # Usage arrives on the final chunk
+                if chunk.usage is not None:
+                    usage_obj = chunk.usage
+
+                if not chunk.choices:
+                    continue
+
+                choice = chunk.choices[0]
+                finish_reason = choice.finish_reason or finish_reason
+                delta = choice.delta
+
+                if delta.content:
+                    text_parts.append(delta.content)
+                    yield ("token", delta.content)
+
+                if delta.tool_calls:
+                    for tc_delta in delta.tool_calls:
+                        idx = tc_delta.index
+                        if idx not in tool_call_accum:
+                            tool_call_accum[idx] = {"id": "", "name": "", "arguments": ""}
+                        if tc_delta.id:
+                            tool_call_accum[idx]["id"] += tc_delta.id
+                        if tc_delta.function:
+                            if tc_delta.function.name:
+                                tool_call_accum[idx]["name"] += tc_delta.function.name
+                            if tc_delta.function.arguments:
+                                tool_call_accum[idx]["arguments"] += tc_delta.function.arguments
+
+            # Build the assistant message dict for persistence + replay
+            tool_calls_list = [
+                {
+                    "id": v["id"],
+                    "type": "function",
+                    "function": {"name": v["name"], "arguments": v["arguments"]},
+                }
+                for v in tool_call_accum.values()
+            ]
+            assistant_msg_dict: dict = {
+                "role": "assistant",
+                "content": "".join(text_parts) or None,
+            }
+            if tool_calls_list:
+                assistant_msg_dict["tool_calls"] = tool_calls_list
+
             asst_msg = Message(
                 conversation_id=conversation_id,
                 role="assistant",
-                content_json=assistant_content,
+                content_json=assistant_msg_dict,
             )
             self._session.add(asst_msg)
             self._session.flush()
-            record_usage(self._session, asst_msg, final_message.usage)
+            if usage_obj is not None:
+                record_usage(self._session, asst_msg, usage_obj)
             self._session.commit()
 
-            if final_message.stop_reason != "tool_use":
+            if finish_reason != "tool_calls":
                 break
 
             if call_count >= _MAX_TOOL_CALLS:
                 log.warning("coach.tool_call_limit_reached", activity_id=self._activity_id)
                 break
 
-            # Execute tools and continue
-            tool_results = []
-            for block in final_message.content:
-                if block.type == "tool_use":
-                    log.debug("coach.tool_call", tool=block.name, activity_id=self._activity_id)
-                    yield ("tool", block.name)
-                    result = execute_tool(self._session, block.name, block.input)
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": json.dumps(result),
-                        }
-                    )
-
-            messages = messages + [
-                {"role": "assistant", "content": assistant_content},
-                {"role": "user", "content": tool_results},
-            ]
-
-    @staticmethod
-    def _content_to_json(content: list) -> list[dict]:
-        result = []
-        for block in content:
-            if block.type == "text":
-                result.append({"type": "text", "text": block.text})
-            elif block.type == "tool_use":
-                result.append(
+            # Execute tools and build tool-result messages
+            tool_result_messages: list[dict] = []
+            for tc in tool_calls_list:
+                tool_name = tc["function"]["name"]
+                log.debug("coach.tool_call", tool=tool_name, activity_id=self._activity_id)
+                yield ("tool", tool_name)
+                inputs = json.loads(tc["function"]["arguments"] or "{}")
+                result = execute_tool(self._session, tool_name, inputs)
+                tool_result_messages.append(
                     {
-                        "type": "tool_use",
-                        "id": block.id,
-                        "name": block.name,
-                        "input": block.input,
+                        "role": "tool",
+                        "tool_call_id": tc["id"],
+                        "content": json.dumps(result),
                     }
                 )
-        return result
+
+            # Persist tool results as a single Message row (list of dicts)
+            tool_msg = Message(
+                conversation_id=conversation_id,
+                role="tool",
+                content_json=tool_result_messages,
+            )
+            self._session.add(tool_msg)
+            self._session.commit()
+
+            messages = messages + [assistant_msg_dict, *tool_result_messages]

@@ -32,7 +32,6 @@ class Config(BaseSettings):
     poll_interval_minutes: int = 10
 
     # Phase 2
-    anthropic_api_key: str | None = None
     openai_api_key: str | None = None
 
     # Phase 3

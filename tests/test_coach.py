@@ -98,7 +98,7 @@ def test_tool_schemas_count():
 
 
 def test_tool_schema_names():
-    names = {t["name"] for t in TOOL_SCHEMAS}
+    names = {t["function"]["name"] for t in TOOL_SCHEMAS}
     assert names == {
         "fetch_ride_detail",
         "compare_to_ride",
@@ -108,10 +108,12 @@ def test_tool_schema_names():
     }
 
 
-def test_tool_schema_has_input_schema():
+def test_tool_schema_openai_shape():
     for tool in TOOL_SCHEMAS:
-        assert "input_schema" in tool
-        assert tool["input_schema"]["type"] == "object"
+        assert tool["type"] == "function"
+        assert "function" in tool
+        assert "parameters" in tool["function"]
+        assert tool["function"]["parameters"]["type"] == "object"
 
 
 # ---------------------------------------------------------------------------
@@ -288,33 +290,27 @@ def test_calculate_cost_zero():
 
 
 def test_calculate_cost_input_only():
-    # 1M input tokens at $1/MTok = $1.00
+    # 1M input tokens at $0.40/MTok
     cost = calculate_cost(tokens_in=1_000_000)
-    assert cost == Decimal("1.00")
+    assert cost == Decimal("0.40")
 
 
 def test_calculate_cost_output_only():
-    # 1M output tokens at $5/MTok = $5.00
+    # 1M output tokens at $1.60/MTok
     cost = calculate_cost(tokens_out=1_000_000)
-    assert cost == Decimal("5.00")
+    assert cost == Decimal("1.60")
 
 
 def test_calculate_cost_cache_read():
-    # 1M cache-read tokens at $0.10/MTok
+    # 1M cached tokens at $0.10/MTok
     cost = calculate_cost(cache_read=1_000_000)
     assert cost == Decimal("0.10")
 
 
-def test_calculate_cost_cache_write():
-    # 1M cache-write tokens at $1.25/MTok
-    cost = calculate_cost(cache_write=1_000_000)
-    assert cost == Decimal("1.25")
-
-
 def test_calculate_cost_combined():
     cost = calculate_cost(tokens_in=500_000, tokens_out=100_000)
-    # 0.5 * $1 + 0.1 * $5 = $0.50 + $0.50 = $1.00
-    assert cost == Decimal("1.00")
+    # 0.5 * $0.40 + 0.1 * $1.60 = $0.20 + $0.16 = $0.36
+    assert cost == Decimal("0.36")
 
 
 # ---------------------------------------------------------------------------
@@ -323,19 +319,23 @@ def test_calculate_cost_combined():
 
 
 def test_record_usage_populates_message():
+    from types import SimpleNamespace
+
     session = MagicMock()
     msg = Message(conversation_id=1, role="assistant", content_json="hi")
 
-    usage = MagicMock()
-    usage.input_tokens = 100
-    usage.output_tokens = 50
-    usage.cache_read_input_tokens = 0
-    usage.cache_creation_input_tokens = 0
+    usage = SimpleNamespace(
+        prompt_tokens=1500,
+        completion_tokens=400,
+        prompt_tokens_details=SimpleNamespace(cached_tokens=1200),
+    )
 
     cost = record_usage(session, msg, usage)
 
-    assert msg.tokens_in == 100
-    assert msg.tokens_out == 50
+    assert msg.tokens_in == 1500  # total prompt tokens stored
+    assert msg.tokens_out == 400
+    assert msg.cache_read == 1200
+    assert msg.cache_write == 0
     assert msg.cost_usd is not None
     assert cost > Decimal("0")
 

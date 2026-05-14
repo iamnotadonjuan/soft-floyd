@@ -20,14 +20,13 @@ uv run coach run
 
 ## Phase 2 Setup
 
-Add your API keys to `~/.coach/config.toml`:
+Set your OpenAI API key (used for both embeddings and the coach):
 
-```toml
-openai_api_key = "sk-..."       # for embeddings (text-embedding-3-small)
-anthropic_api_key = "sk-ant-..." # for Soft Floyd coach (Haiku 4.5)
+```bash
+export COACH_OPENAI_API_KEY=sk-...
 ```
 
-Or set `COACH_OPENAI_API_KEY` and `COACH_ANTHROPIC_API_KEY` environment variables.
+Or copy `.env.example` to `.env` and fill in the key.
 
 ## Commands
 

@@ -65,7 +65,7 @@ async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int)
         for summary in new_acts:
             try:
                 ingest_activity(session, cfg, garmin, summary)
-                if cfg.anthropic_api_key:
+                if cfg.openai_api_key:
                     await _coach_and_notify(cfg, int(summary["activityId"]))
             except Exception as exc:
                 log.error(

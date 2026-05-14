@@ -35,7 +35,7 @@ src/coach/
   metrics/           # HR zones, compute (drift, decoupling, GAP, VAM, TRIMP)
   classify/          # rule-based bike-type classifier
   rag/               # chunking, OpenAI embedder, sqlite-vec retriever
-  agent/             # CoachSession + Anthropic tool loop + prompts/system.md
+  agent/             # CoachSession + OpenAI tool loop + prompts/system.md
   web/               # FastAPI app, SSE streaming, cost meter
 frontend/            # React 18 + Vite + TypeScript (Phase 3)
 data/                # gitignored — trainer.db, *.fit files, garth tokens
@@ -54,7 +54,7 @@ tests/
 | FIT parsing | `fitdecode` (better Edge 1050 dev-field support than `fitparse`) |
 | Scheduler | `apscheduler` `AsyncIOScheduler`, 10-min interval |
 | Embeddings | OpenAI `text-embedding-3-small` (1536-dim) |
-| LLM | `claude-haiku-4-5-20251001` via Anthropic SDK with prompt caching |
+| LLM | `gpt-4.1-mini` via OpenAI SDK; prompt caching is automatic (≥1024-token prefixes) |
 | Web backend | FastAPI + `sse-starlette` for streaming chat |
 | Frontend | React 18 + Vite + TypeScript + Tailwind + Recharts |
 | Config | `pydantic-settings`, reads `~/.coach/config.toml` + env vars |
@@ -66,13 +66,13 @@ tests/
 - **No power meter**: never fabricate watts. Coach reasons exclusively in HR drift %, decoupling %, time-in-zone, GAP, VAM, TRIMP. If an analysis mentions watts, it's a bug.
 - **Single user**: no auth layer, no multi-tenancy. Bind FastAPI to `127.0.0.1` only.
 - **macOS only**: Keychain access via `keyring`, desktop notifications via `pync`.
-- **LLM cost cap $10/month**: ~22 rides/month. Prompt caching is mandatory on every Anthropic call. Target ~$0.04/ride. Log every API call to the `message` table with token counts and cost.
+- **LLM cost cap $10/month**: ~22 rides/month. Target ~$0.012/ride with GPT-4.1 mini (~$0.25/month). OpenAI caches repeated prompt prefixes automatically. Log every API call to the `message` table with token counts and cost.
 - **`garth` is unofficial**: pin the version (`>=0.5,<1.0`). On `GarthHTTPError(401)` raise `ReauthRequired` and notify the user — never silently retry.
 - **Storage budget**: store FIT time-series (`record` table) only when total size < 3 MB per activity to keep the DB small.
 
 ## Soft Floyd persona
 
-The coach is named "Soft Floyd." Tone: kind, encouraging, focuses on long-term progress, celebrates small wins, honest but never harsh. The system prompt lives at `src/coach/agent/prompts/system.md` and is sent as a cached block on every Anthropic call.
+The coach is named "Soft Floyd." Tone: kind, encouraging, focuses on long-term progress, celebrates small wins, honest but never harsh. The system prompt lives at `src/coach/agent/prompts/system.md` and is sent as the system message on every OpenAI call (auto-cached by OpenAI).
 
 ## Data model highlights
 

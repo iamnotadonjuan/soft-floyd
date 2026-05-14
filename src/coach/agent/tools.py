@@ -1,4 +1,4 @@
-"""Read-only Anthropic tool schemas and executor for CoachSession."""
+"""Read-only OpenAI tool schemas and executor for CoachSession."""
 
 from __future__ import annotations
 
@@ -15,81 +15,96 @@ if TYPE_CHECKING:
 
 TOOL_SCHEMAS: list[dict] = [
     {
-        "name": "fetch_ride_detail",
-        "description": (
-            "Get full lap breakdown and computed metrics for a specific activity. "
-            "Use when the rider asks about a particular past ride not already in context."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "activity_id": {
-                    "type": "integer",
-                    "description": "Garmin activity ID",
-                }
-            },
-            "required": ["activity_id"],
-        },
-    },
-    {
-        "name": "compare_to_ride",
-        "description": (
-            "Compare two activities side-by-side: HR metrics, duration, distance, zone distribution."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "activity_id_a": {"type": "integer", "description": "First activity ID"},
-                "activity_id_b": {"type": "integer", "description": "Second activity ID"},
-            },
-            "required": ["activity_id_a", "activity_id_b"],
-        },
-    },
-    {
-        "name": "get_recent_load",
-        "description": (
-            "Return ACWR and per-day TRIMP for the past N days. Useful for assessing training load."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {
-                    "type": "integer",
-                    "description": "Number of days to look back (default 28)",
-                    "default": 28,
-                }
+        "type": "function",
+        "function": {
+            "name": "fetch_ride_detail",
+            "description": (
+                "Get full lap breakdown and computed metrics for a specific activity. "
+                "Use when the rider asks about a particular past ride not already in context."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "activity_id": {
+                        "type": "integer",
+                        "description": "Garmin activity ID",
+                    }
+                },
+                "required": ["activity_id"],
             },
         },
     },
     {
-        "name": "get_wellness_window",
-        "description": "Return HRV, sleep score, and resting HR for the past N days.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "days": {
-                    "type": "integer",
-                    "description": "Number of days to look back (default 14)",
-                    "default": 14,
-                }
+        "type": "function",
+        "function": {
+            "name": "compare_to_ride",
+            "description": (
+                "Compare two activities side-by-side: HR metrics, duration, distance, zone distribution."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "activity_id_a": {"type": "integer", "description": "First activity ID"},
+                    "activity_id_b": {"type": "integer", "description": "Second activity ID"},
+                },
+                "required": ["activity_id_a", "activity_id_b"],
             },
         },
     },
     {
-        "name": "find_similar_routes",
-        "description": (
-            "Find past activities with similar distance and bike type. "
-            "Useful for route-level comparisons."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "activity_id": {
-                    "type": "integer",
-                    "description": "Reference activity ID",
-                }
+        "type": "function",
+        "function": {
+            "name": "get_recent_load",
+            "description": (
+                "Return ACWR and per-day TRIMP for the past N days. Useful for assessing training load."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back (default 28)",
+                        "default": 28,
+                    }
+                },
             },
-            "required": ["activity_id"],
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "get_wellness_window",
+            "description": "Return HRV, sleep score, and resting HR for the past N days.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "days": {
+                        "type": "integer",
+                        "description": "Number of days to look back (default 14)",
+                        "default": 14,
+                    }
+                },
+            },
+        },
+    },
+    {
+        "type": "function",
+        "function": {
+            "name": "find_similar_routes",
+            "description": (
+                "Find past activities with similar distance and bike type. "
+                "Useful for route-level comparisons."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "activity_id": {
+                        "type": "integer",
+                        "description": "Reference activity ID",
+                    }
+                },
+                "required": ["activity_id"],
+            },
         },
     },
 ]

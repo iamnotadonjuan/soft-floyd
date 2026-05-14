@@ -26,8 +26,7 @@ dependencies = [
     "typer>=0.12",
     # Logging
     "structlog>=24.0",
-    # Phase 2 (declared now, unused in Phase 1)
-    "anthropic>=0.30",
+    # Phase 2
     "openai>=1.30",
     "fastapi>=0.111",
     "uvicorn[standard]>=0.29",
