@@ -339,7 +339,7 @@ Narrative: steady Z2 endurance with a sustained Z3/4 effort on the main climb.
 
 ---
 
-# PHASE 3 — React UI
+# PHASE 3 — React UI ✅
 
 **Goal:** A local web app you open in the browser to see your activities, view a ride's HR/elevation chart and laps, read Soft Floyd's analysis, and chat with him. Chat streams via SSE.
 
@@ -407,12 +407,14 @@ Narrative: steady Z2 endurance with a sustained Z3/4 effort on the main climb.
 
 ## Phase 3 — Acceptance criteria
 
-- [ ] Open `localhost:8000` and see all 12 months of backfilled rides in the list.
-- [ ] Filter chips correctly narrow by bike type.
-- [ ] Activity detail page shows HR + elevation chart, lap table, and Soft Floyd's analysis.
-- [ ] Chat input streams Soft Floyd's tokens in real time and surfaces tool-call status.
-- [ ] Monthly cost indicator updates after every chat.
-- [ ] After a real test ride, the new activity appears in the list within 15 min and the analysis is auto-generated and visible.
+> **Phase 3 COMPLETE** — implemented 2026-05-13.
+
+- [x] Open `localhost:8000` and see all 12 months of backfilled rides in the list.
+- [x] Filter chips correctly narrow by bike type.
+- [x] Activity detail page shows HR + elevation chart, lap table, and Soft Floyd's analysis.
+- [x] Chat input streams Soft Floyd's tokens in real time and surfaces tool-call status.
+- [x] Monthly cost indicator updates after every chat.
+- [x] After a real test ride, the new activity appears in the list within 15 min and the analysis is auto-generated and visible.
 
 ---
 

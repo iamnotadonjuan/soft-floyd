@@ -20,8 +20,8 @@ uv run coach backfill --days 365   # seed 12 months of history
 uv run coach run            # start poller + FastAPI server
 
 # Frontend (Phase 3)
-cd frontend && npm install && npm run dev   # dev server at :5173
-cd frontend && npm run build               # outputs frontend/dist/
+cd frontend && pnpm install && pnpm dev   # dev server at :5173
+cd frontend && pnpm build                 # outputs frontend/dist/
 ```
 
 ## Project structure

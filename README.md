@@ -132,10 +132,26 @@ anthropic_api_key = "sk-ant-..."  # Phase 2: for Soft Floyd coach
 - **Single user** — no auth layer. FastAPI binds to `127.0.0.1` only.
 - **LLM cost cap $10/month** — prompt caching on every Anthropic call. Target ~$0.04/ride.
 
+## Frontend Development (Phase 3)
+
+```bash
+cd frontend
+pnpm install
+pnpm dev        # dev server at localhost:5173 (proxies /api → :8000)
+pnpm build      # outputs frontend/dist/
+```
+
+To serve the production build via FastAPI:
+
+```bash
+COACH_SERVE_FRONTEND=1 uv run coach run
+# → full app at http://localhost:8000
+```
+
 ## Implementation Phases
 
 - **Phase 1 ✅** — Ingest pipeline. Garmin auth, FIT parse, HR metrics, classifier, poller, backfill.
 - **Phase 2 ✅** — RAG + coach agent + FastAPI endpoints. Claude Haiku 4.5 with prompt caching.
-- **Phase 3** — React + Vite frontend, SSE-streamed chat, production build.
+- **Phase 3 ✅** — React + Vite frontend, SSE-streamed chat, production build served by FastAPI.
 
 See [PLAN.md](PLAN.md) for detailed acceptance criteria per phase.

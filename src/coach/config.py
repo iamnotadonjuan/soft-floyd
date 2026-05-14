@@ -35,6 +35,9 @@ class Config(BaseSettings):
     anthropic_api_key: str | None = None
     openai_api_key: str | None = None
 
+    # Phase 3
+    serve_frontend: bool = False  # set COACH_SERVE_FRONTEND=1 to serve built React app
+
     # Logging
     log_level: str = "INFO"
 

@@ -80,7 +80,13 @@ class CoachSession:
             yield chunk
 
     async def chat(self, user_message: str) -> AsyncIterator[str]:
-        """Continue an existing conversation with a new user message."""
+        """Continue an existing conversation. Yields text chunks only."""
+        async for event_type, data in self.chat_stream(user_message):
+            if event_type == "token":
+                yield data
+
+    async def chat_stream(self, user_message: str) -> AsyncIterator[tuple[str, str]]:
+        """Continue an existing conversation. Yields (event_type, data) pairs for SSE."""
         from sqlalchemy import select
 
         conv = self._session.execute(
@@ -90,9 +96,8 @@ class CoachSession:
         ).scalar_one_or_none()
 
         if conv is None:
-            # No prior conversation — start one with minimal context
-            async for chunk in self._bootstrap_chat(user_message):
-                yield chunk
+            async for pair in self._bootstrap_chat_stream(user_message):
+                yield pair
             return
 
         self._conversation = conv
@@ -103,14 +108,14 @@ class CoachSession:
         self._session.commit()
 
         messages = prior_messages + [{"role": "user", "content": user_message}]
-        async for chunk in self._run_loop(messages, conv.id):
-            yield chunk
+        async for pair in self._run_loop_events(messages, conv.id):
+            yield pair
 
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
 
-    async def _bootstrap_chat(self, user_message: str) -> AsyncIterator[str]:
+    async def _bootstrap_chat_stream(self, user_message: str) -> AsyncIterator[tuple[str, str]]:
         """Handle chat when no prior conversation exists — embed context then reply."""
         ctx = retrieve_for_activity(self._session, self._cfg, self._activity_id)
         combined = _context_block(ctx) + "\n\n" + user_message
@@ -124,8 +129,8 @@ class CoachSession:
         self._session.commit()
 
         messages = [{"role": "user", "content": combined}]
-        async for chunk in self._run_loop(messages, conv.id):
-            yield chunk
+        async for pair in self._run_loop_events(messages, conv.id):
+            yield pair
 
     def _build_message_history(self, conv: Conversation) -> list[dict]:
         """Reconstruct the Anthropic messages list from persisted Message rows."""
@@ -144,7 +149,15 @@ class CoachSession:
         return messages
 
     async def _run_loop(self, messages: list[dict], conversation_id: int) -> AsyncIterator[str]:
-        """Core streaming + tool-use loop. Yields text tokens."""
+        """Thin text-only wrapper around _run_loop_events."""
+        async for event_type, data in self._run_loop_events(messages, conversation_id):
+            if event_type == "token":
+                yield data
+
+    async def _run_loop_events(
+        self, messages: list[dict], conversation_id: int
+    ) -> AsyncIterator[tuple[str, str]]:
+        """Core streaming + tool-use loop. Yields (event_type, data) pairs."""
         system_block = [
             {
                 "type": "text",
@@ -154,7 +167,6 @@ class CoachSession:
         ]
 
         for call_count in range(_MAX_TOOL_CALLS + 1):
-            accumulated_text = ""
             final_message = None
 
             async with self._client.messages.stream(
@@ -166,8 +178,7 @@ class CoachSession:
                 tool_choice={"type": "auto"},
             ) as stream:
                 async for text in stream.text_stream:
-                    yield text
-                    accumulated_text += text
+                    yield ("token", text)
                 final_message = await stream.get_final_message()
 
             # Persist assistant turn
@@ -193,11 +204,8 @@ class CoachSession:
             tool_results = []
             for block in final_message.content:
                 if block.type == "tool_use":
-                    log.debug(
-                        "coach.tool_call",
-                        tool=block.name,
-                        activity_id=self._activity_id,
-                    )
+                    log.debug("coach.tool_call", tool=block.name, activity_id=self._activity_id)
+                    yield ("tool", block.name)
                     result = execute_tool(self._session, block.name, block.input)
                     tool_results.append(
                         {
