@@ -5,6 +5,7 @@ description = "Soft Floyd — Personal AI Cycling Coach"
 requires-python = ">=3.12"
 dependencies = [
     # Garmin
+    "garminconnect>=0.3,<0.4",
     "garth>=0.5,<1.0",
     # FIT parsing
     "fitdecode>=0.10,<1.0",

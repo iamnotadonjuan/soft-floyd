@@ -119,7 +119,7 @@ trainer/
 7. **`embedding`** — `id`, `activity_id` (FK), `chunk_type` (TEXT: `summary`|`lap`|`wellness`), `text` (TEXT), `created_at`. Vectors stored in a parallel `embedding_vec` `vec0` virtual table keyed by `id`.
 8. **`conversation`** — `id`, `activity_id` (FK), `started_at`
 9. **`message`** — `id`, `conversation_id` (FK), `role` (TEXT), `content_json` (JSON), `tokens_in`, `tokens_out`, `cache_read`, `cache_write`, `cost_usd`, `created_at`
-10. **`garth_token`** — single encrypted blob row + refresh metadata (created in Phase 1)
+10. **`garth_token`** — legacy schema placeholder for Garmin token metadata; active token storage is the encrypted local file at `~/.coach/garth.json`
 
 ---
 
@@ -133,7 +133,7 @@ trainer/
 
 | Purpose | Library | Pinned version family |
 |---|---|---|
-| Garmin Connect client | `garth` | `>=0.5,<1.0` |
+| Garmin Connect client | `python-garminconnect` | `>=0.3,<0.4` |
 | FIT parser | `fitdecode` | `>=0.10,<1.0` |
 | Scheduler | `apscheduler` | `>=3.10,<4.0` |
 | Numerics | `numpy`, `pandas` | latest stable |
@@ -157,9 +157,9 @@ trainer/
 - Acceptance: `alembic upgrade head` creates `data/trainer.db`; `sqlite3 data/trainer.db ".tables"` lists expected tables.
 
 **1.3 Garmin client wrapper (`ingest/garmin_client.py`)**
-- Class `GarminClient` wrapping `garth.Client`.
-- `login(email, password, mfa_callback)` — performs login, calls `client.dumps()`, encrypts via Fernet (key stored in macOS Keychain under service `coach-soft-floyd`, account `garth-token-key`, autocreated on first login), writes to `~/.coach/garth.json`.
-- `load_from_disk()` — decrypts and resumes session. On `GarthHTTPError(401)`, raise `ReauthRequired`.
+- Class `GarminClient` wrapping `python-garminconnect`.
+- `login(email, password, mfa_callback)` — performs MFA-aware Garmin Connect login, serializes DI token state from `python-garminconnect`, encrypts via Fernet (key stored in macOS Keychain under service `coach-soft-floyd`, account `garth-token-key`, autocreated on first login), writes to the legacy token path `~/.coach/garth.json`.
+- `load_from_disk()` — decrypts and resumes session. On Garmin auth failure/HTTP 401, raise `ReauthRequired`; on HTTP 429, raise `GarminRateLimited`.
 - `list_activities(start_dt, limit)` — returns list of summary dicts (id, start_time, sport, sub_sport, isIndoor, distance, duration, elevation_gain, avg_hr, max_hr, raw json).
 - `download_fit(activity_id, dest_path)` — saves the original FIT to `data/fit/{activity_id}.fit`.
 - `get_wellness(date)` — returns HRV, sleep, body battery, RHR for a date.
@@ -420,7 +420,7 @@ Narrative: steady Z2 endurance with a sustained Z3/4 effort on the main climb.
 
 ## Cross-phase Risks
 
-- **`garth` is unofficial** — pin the version, expect quarterly breakage, build the manual FIT-upload fallback path early in Phase 1 (one extra CLI command `coach ingest-fit <path>`).
+- **Garmin Connect access is unofficial** — `python-garminconnect` is the primary adapter and may still break when Garmin changes login or API behavior. Keep the manual FIT-upload fallback path available (`coach ingest-fit <path>`).
 - **MFA friction** — implement re-auth notification in Phase 1.7 on day one. Don't silently retry.
 - **`sqlite-vec` is young** — pin version. Keep `embedding.text` as the source of truth; vectors can be regenerated.
 - **Prompt cache TTL is 5 min** — multi-turn chat stays warm only if user replies quickly. Cost model already assumes some misses.

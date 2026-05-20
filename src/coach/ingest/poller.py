@@ -4,7 +4,12 @@ import asyncio
 import datetime
 
 from coach.config import Config
-from coach.ingest.garmin_client import GarminClient, ReauthRequired
+from coach.ingest.garmin_client import (
+    GarminApiError,
+    GarminClient,
+    GarminRateLimited,
+    ReauthRequired,
+)
 from coach.ingest.pipeline import ingest_activity
 from coach.log import log
 from coach.store.models import PollCursor
@@ -67,6 +72,8 @@ async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int)
                 ingest_activity(session, cfg, garmin, summary)
                 if cfg.openai_api_key:
                     await _coach_and_notify(cfg, int(summary["activityId"]))
+            except GarminApiError:
+                raise
             except Exception as exc:
                 log.error(
                     "poller.activity_failed", activity_id=summary.get("activityId"), error=str(exc)
@@ -84,6 +91,10 @@ async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int)
         log.error("poller.reauth_required", error=str(exc))
         _notify("Soft Floyd needs Garmin re-auth. Run `coach login`.")
         _update_cursor(session, None, "reauth_required")
+        return consecutive_errors + 1
+    except GarminRateLimited as exc:
+        log.warning("poller.rate_limited", error=str(exc), retry_after_s=exc.retry_after_s)
+        _update_cursor(session, None, "rate_limited")
         return consecutive_errors + 1
     except Exception as exc:
         log.error("poller.error", error=str(exc))

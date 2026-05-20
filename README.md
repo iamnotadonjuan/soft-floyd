@@ -32,7 +32,7 @@ Or copy `.env.example` to `.env` and fill in the key.
 
 | Command | Description |
 |---|---|
-| `coach login` | Authenticate with Garmin Connect (MFA-aware). Token encrypted in macOS Keychain. |
+| `coach login` | Authenticate with Garmin Connect (MFA-aware). Token encrypted on disk with a macOS Keychain key. |
 | `coach backfill --days N` | Import historical rides from Garmin Connect (idempotent). |
 | `coach run` | Start the 10-min poller + FastAPI server at `127.0.0.1:8000`. |
 | `coach ingest-fit <path>` | Manually ingest a local FIT file (offline fallback). |
@@ -80,7 +80,7 @@ src/coach/
     session.py       # engine factory + sqlite-vec loader
     migrations/      # Alembic migration scripts
   ingest/
-    garmin_client.py # garth client + Fernet token encryption
+    garmin_client.py # garminconnect adapter + Fernet token encryption
     fit_parser.py    # fitdecode-based FIT parser
     pipeline.py      # per-activity pipeline (parse → metrics → classify → embed)
     poller.py        # APScheduler 10-min poller + coach auto-trigger
@@ -130,6 +130,11 @@ anthropic_api_key = "sk-ant-..."  # Phase 2: for Soft Floyd coach
 - **macOS only** — Keychain via `keyring`, notifications via `pync`.
 - **Single user** — no auth layer. FastAPI binds to `127.0.0.1` only.
 - **LLM cost cap $10/month** — prompt caching on every Anthropic call. Target ~$0.04/ride.
+- **Garmin access is unofficial** — the primary adapter uses `python-garminconnect`, stores encrypted DI tokens at `~/.coach/garth.json`, and maps Garmin `401`/`429` responses to actionable CLI errors. Use `coach ingest-fit <path>` as the no-login fallback.
+
+## Garmin Auth Notes
+
+`coach login` reuses the encrypted token file when it can. After upgrading from the older direct-`garth` auth path, run `uv run coach login --force` once to create a fresh `python-garminconnect` token.
 
 ## Frontend Development (Phase 3)
 

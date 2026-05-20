@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from coach.classify.bike_type import classify
 from coach.ingest.fit_parser import parse_fit
+from coach.ingest.garmin_client import GarminApiError
 from coach.log import log
 from coach.metrics.compute import compute_metrics
 from coach.store.models import Activity, Lap, Metrics, Record, WellnessDaily
@@ -76,6 +77,8 @@ def ingest_activity(
     try:
         garmin.download_fit(activity_id, fit_path)
         activity.fit_path = str(fit_path)
+    except GarminApiError:
+        raise
     except Exception as exc:
         log.warning("pipeline.fit_download_failed", activity_id=activity_id, error=str(exc))
         session.commit()
@@ -143,6 +146,8 @@ def ingest_activity(
                 resting_hr=wellness_data.get("resting_hr"),
             )
             session.add(w)
+    except GarminApiError:
+        raise
     except Exception as exc:
         log.warning("pipeline.wellness_failed", activity_id=activity_id, error=str(exc))
 

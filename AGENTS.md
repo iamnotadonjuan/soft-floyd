@@ -19,7 +19,7 @@ Read `PLAN.md` before substantial implementation. It is the source of truth for 
 - This is macOS-only. Use Keychain through `keyring` for secrets and `pync` for desktop notifications where the plan calls for notifications.
 - No power meter is available. Never fabricate or infer watts. All coaching and metrics must use HR drift, decoupling, time in HR zones, GAP, VAM, TRIMP, wellness, and ride context.
 - Phase 1 paths must make zero LLM or embedding calls. Phase 2 must use Anthropic prompt caching on every call and log token/cost data for each message. The cost cap is about $5-10/month, with a target around $0.04/ride.
-- `garth` is unofficial. Keep it pinned to `>=0.5,<1.0`; on `GarthHTTPError(401)`, raise `ReauthRequired` and notify the user instead of silently retrying.
+- Garmin Connect access is unofficial. The primary wrapper is `python-garminconnect` through `src/coach/ingest/garmin_client.py`; map auth/rate-limit failures to `ReauthRequired` / `GarminRateLimited` and notify the user instead of silently retrying. Keep `garth` pinned only while it remains in the dependency set for legacy compatibility; do not add new direct `garth` calls.
 - Store FIT time-series records only when the total per-activity record payload is below 3 MB.
 - Use the shared per-activity ingest pipeline in `src/coach/ingest/pipeline.py` instead of duplicating ingest logic in poller, backfill, or future embedding hooks.
 
@@ -50,8 +50,8 @@ cd frontend && npm run build
 - Python 3.12 managed with `uv`
 - SQLite at `data/trainer.db` with `sqlite-vec`
 - SQLAlchemy 2.x typed `Mapped` models and Alembic migrations
-- Garmin access through `garth`
-- Garmin tokens encrypted with Fernet at `~/.coach/garth.json`; Fernet key stored in macOS Keychain under service `coach-soft-floyd`, account `garth-token-key`
+- Garmin access through `python-garminconnect` via the local `GarminClient` adapter
+- Garmin DI tokens encrypted with Fernet at the legacy path `~/.coach/garth.json`; Fernet key stored in macOS Keychain under service `coach-soft-floyd`, account `garth-token-key`
 - FIT parsing through `fitdecode`
 - Scheduling through the local poller with a 10-minute interval; `apscheduler` is available per the plan
 - Config through `pydantic-settings`, reading `~/.coach/config.toml` and `COACH_` environment variables

@@ -5,7 +5,7 @@ import datetime
 from pathlib import Path
 
 from coach.config import Config
-from coach.ingest.garmin_client import GarminClient, ReauthRequired
+from coach.ingest.garmin_client import GarminApiError, GarminClient, ReauthRequired
 from coach.ingest.pipeline import ingest_activity
 from coach.log import log
 from coach.store.session import get_sync_session, init_db
@@ -62,6 +62,8 @@ async def run_backfill(cfg: Config, days: int = 365) -> None:
             try:
                 ingest_activity(session, cfg, garmin, summary)
                 total += 1
+            except GarminApiError:
+                raise
             except Exception as exc:
                 log.error(
                     "backfill.activity_failed",

@@ -31,14 +31,14 @@ src/coach/
   config.py          # pydantic-settings; reads ~/.coach/config.toml
   cli.py             # typer entrypoint
   store/             # SQLAlchemy models + Alembic migrations
-  ingest/            # garth client, APScheduler poller, FIT parser, backfill
+  ingest/            # garminconnect adapter, APScheduler poller, FIT parser, backfill
   metrics/           # HR zones, compute (drift, decoupling, GAP, VAM, TRIMP)
   classify/          # rule-based bike-type classifier
   rag/               # chunking, OpenAI embedder, sqlite-vec retriever
   agent/             # CoachSession + OpenAI tool loop + prompts/system.md
   web/               # FastAPI app, SSE streaming, cost meter
 frontend/            # React 18 + Vite + TypeScript (Phase 3)
-data/                # gitignored — trainer.db, *.fit files, garth tokens
+data/                # gitignored — trainer.db, *.fit files
 tests/
   fixtures/          # sample_road.fit, sample_mtb.fit, sample_indoor.fit
 ```
@@ -50,7 +50,7 @@ tests/
 | Language / pkg mgr | Python 3.12, `uv` |
 | Database | SQLite + `sqlite-vec` extension (`data/trainer.db`) |
 | ORM / migrations | SQLAlchemy 2.x (typed `Mapped` syntax) + Alembic |
-| Garmin access | `garth` (unofficial); tokens Fernet-encrypted in `~/.coach/garth.json`, key in macOS Keychain |
+| Garmin access | `python-garminconnect` (unofficial Garmin Connect access); DI tokens Fernet-encrypted in legacy path `~/.coach/garth.json`, key in macOS Keychain |
 | FIT parsing | `fitdecode` (better Edge 1050 dev-field support than `fitparse`) |
 | Scheduler | `apscheduler` `AsyncIOScheduler`, 10-min interval |
 | Embeddings | OpenAI `text-embedding-3-small` (1536-dim) |
@@ -67,7 +67,7 @@ tests/
 - **Single user**: no auth layer, no multi-tenancy. Bind FastAPI to `127.0.0.1` only.
 - **macOS only**: Keychain access via `keyring`, desktop notifications via `pync`.
 - **LLM cost cap $10/month**: ~22 rides/month. Target ~$0.012/ride with GPT-4.1 mini (~$0.25/month). OpenAI caches repeated prompt prefixes automatically. Log every API call to the `message` table with token counts and cost.
-- **`garth` is unofficial**: pin the version (`>=0.5,<1.0`). On `GarthHTTPError(401)` raise `ReauthRequired` and notify the user — never silently retry.
+- **Garmin Connect access is unofficial**: `GarminClient` wraps `python-garminconnect` and maps Garmin auth/rate-limit failures to `ReauthRequired` / `GarminRateLimited`. Keep `garth` pinned only while it remains in the dependency set for legacy compatibility; new code should not call it directly.
 - **Storage budget**: store FIT time-series (`record` table) only when total size < 3 MB per activity to keep the DB small.
 
 ## Soft Floyd persona
@@ -93,7 +93,7 @@ The coach is named "Soft Floyd." Tone: kind, encouraging, focuses on long-term p
 
 ## Phasing
 
-- **Phase 1** — Ingest pipeline only. Garth + FIT parse + metrics + classifier + poller + backfill. No AI, zero LLM cost.
+- **Phase 1** — Ingest pipeline only. Garmin Connect adapter + FIT parse + metrics + classifier + poller + backfill. No AI, zero LLM cost.
 - **Phase 2** — RAG + coach agent + minimal FastAPI endpoints. Claude Haiku with prompt caching.
 - **Phase 3** — React + Vite frontend, SSE-streamed chat, production build served by FastAPI.
 
@@ -102,6 +102,6 @@ Each phase has its own acceptance criteria in `PLAN.md`. Do not start Phase 2 un
 ## Testing conventions
 
 - Use `pytest` + `pytest-asyncio`. Real FIT fixture files in `tests/fixtures/` — no mocking the parser.
-- Mock `garth` HTTP calls with `respx`.
+- Mock the `GarminClient` adapter or `python-garminconnect` exceptions for Garmin auth/rate-limit behavior; keep parser tests on real FIT files.
 - Golden / snapshot tests for `build_activity_card()` output (chunking must be deterministic).
 - Every metrics function has at least one test with a hand-computed expected value.

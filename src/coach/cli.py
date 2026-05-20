@@ -4,6 +4,7 @@ from pathlib import Path
 import typer
 
 from coach.config import get_config
+from coach.ingest.garmin_client import GarminApiError, GarminRateLimited, ReauthRequired
 from coach.log import configure_logging
 
 app = typer.Typer(name="coach", help="Soft Floyd — Personal AI Cycling Coach", no_args_is_help=True)
@@ -18,8 +19,18 @@ def main(ctx: typer.Context, verbose: bool = typer.Option(False, "--verbose", "-
 
 @app.command()
 def login(
-    email: str = typer.Option(..., prompt="Garmin email"),
-    password: str = typer.Option(..., prompt="Garmin password", hide_input=True),
+    email: str | None = typer.Option(None, "--email", "-e", help="Garmin account email"),
+    password: str | None = typer.Option(
+        None,
+        "--password",
+        help="Garmin account password. Omit this to use a hidden prompt.",
+        hide_input=True,
+    ),
+    force: bool = typer.Option(
+        False,
+        "--force",
+        help="Ignore any saved token and start a fresh Garmin SSO login.",
+    ),
 ) -> None:
     """Authenticate with Garmin Connect (MFA-aware). Persists an encrypted token."""
     from coach.ingest.garmin_client import GarminClient
@@ -27,8 +38,29 @@ def login(
     def mfa_prompt() -> str:
         return typer.prompt("Garmin MFA code")
 
-    client = GarminClient(get_config())
-    client.login(email, password, mfa_prompt)
+    cfg = get_config()
+    client = GarminClient(cfg)
+
+    if cfg.garth_token_path.exists() and not force:
+        try:
+            client.load_from_disk()
+        except ReauthRequired:
+            typer.echo("Saved Garmin token could not be loaded; starting a new login.", err=True)
+        except GarminApiError as exc:
+            _exit_with_garmin_error(exc)
+        else:
+            typer.echo(
+                "Saved Garmin token found. Use `coach login --force` to replace it with a fresh login."
+            )
+            return
+
+    email = email or typer.prompt("Garmin email")
+    password = password or typer.prompt("Garmin password", hide_input=True)
+
+    try:
+        client.login(email, password, mfa_prompt)
+    except GarminApiError as exc:
+        _exit_with_garmin_error(exc)
     typer.echo("Login successful. Token saved.")
 
 
@@ -39,7 +71,10 @@ def backfill(
     """Seed the database with historical rides from Garmin Connect."""
     from coach.ingest.backfill import run_backfill
 
-    asyncio.run(run_backfill(get_config(), days=days))
+    try:
+        asyncio.run(run_backfill(get_config(), days=days))
+    except GarminApiError as exc:
+        _exit_with_garmin_error(exc)
 
 
 @app.command()
@@ -73,6 +108,17 @@ def ingest_fit(path: Path) -> None:
 
     asyncio.run(ingest_single_fit(get_config(), path))
     typer.echo(f"Ingested {path}")
+
+
+def _exit_with_garmin_error(exc: GarminApiError) -> None:
+    typer.secho(str(exc), fg=typer.colors.RED, err=True)
+    if isinstance(exc, GarminRateLimited):
+        if exc.retry_after_s is not None:
+            minutes = max(1, round(exc.retry_after_s / 60))
+            typer.echo(f"Garmin sent Retry-After: about {minutes} minute(s).", err=True)
+        else:
+            typer.echo("Garmin did not send Retry-After; wait before trying again.", err=True)
+    raise typer.Exit(1)
 
 
 if __name__ == "__main__":
