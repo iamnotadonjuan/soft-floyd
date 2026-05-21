@@ -88,6 +88,10 @@ def run() -> None:
 
     async def _main() -> None:
         cfg = get_config()
+        from coach.ingest.daily_scheduler import start_daily_scheduler
+
+        start_daily_scheduler(cfg)
+
         uv_cfg = UvicornConfig(
             app=create_app(cfg),
             host="127.0.0.1",

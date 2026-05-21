@@ -17,6 +17,10 @@ from coach.store.session import get_sync_session, init_db
 
 _MAX_BACKOFF_S = 3600
 
+# Shared lock: prevents the background poller and the manual /api/sync/garmin
+# endpoint from running a Garmin poll cycle concurrently.
+_POLL_LOCK = asyncio.Lock()
+
 
 def _notify(message: str) -> None:
     try:
@@ -45,65 +49,6 @@ async def _coach_and_notify(cfg: Config, activity_id: int) -> None:
         session.close()
 
 
-async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int) -> int:
-    """Run one poll cycle. Returns new consecutive_errors count."""
-    session = get_sync_session()
-    try:
-        cursor = session.get(PollCursor, 1)
-        last_id = cursor.last_seen_activity_id if cursor else None
-
-        activities = garmin.list_activities(limit=20)
-
-        if not activities:
-            _update_cursor(session, last_id, "ok")
-            return 0
-
-        # Find new activities (higher ID than last seen)
-        new_acts = []
-        for a in activities:
-            aid = int(a.get("activityId", 0))
-            if last_id is None or aid > last_id:
-                new_acts.append(a)
-
-        new_acts.sort(key=lambda a: int(a.get("activityId", 0)))
-
-        for summary in new_acts:
-            try:
-                ingest_activity(session, cfg, garmin, summary)
-                if cfg.openai_api_key:
-                    await _coach_and_notify(cfg, int(summary["activityId"]))
-            except GarminApiError:
-                raise
-            except Exception as exc:
-                log.error(
-                    "poller.activity_failed", activity_id=summary.get("activityId"), error=str(exc)
-                )
-
-        if new_acts:
-            max_id = max(int(a["activityId"]) for a in new_acts)
-            _update_cursor(session, max_id, "ok")
-        else:
-            _update_cursor(session, last_id, "ok")
-
-        return 0
-
-    except ReauthRequired as exc:
-        log.error("poller.reauth_required", error=str(exc))
-        _notify("Soft Floyd needs Garmin re-auth. Run `coach login`.")
-        _update_cursor(session, None, "reauth_required")
-        return consecutive_errors + 1
-    except GarminRateLimited as exc:
-        log.warning("poller.rate_limited", error=str(exc), retry_after_s=exc.retry_after_s)
-        _update_cursor(session, None, "rate_limited")
-        return consecutive_errors + 1
-    except Exception as exc:
-        log.error("poller.error", error=str(exc))
-        _update_cursor(session, None, "error")
-        return consecutive_errors + 1
-    finally:
-        session.close()
-
-
 def _update_cursor(session, last_id, status: str) -> None:
     cursor = session.get(PollCursor, 1)
     if cursor is None:
@@ -113,6 +58,91 @@ def _update_cursor(session, last_id, status: str) -> None:
     cursor.last_poll_at = datetime.datetime.now(datetime.UTC)
     cursor.last_poll_status = status
     session.commit()
+
+
+async def _run_cycle(session, cfg: Config, garmin: GarminClient) -> list[int]:
+    """Core poll logic: find new activities, ingest them, trigger analysis.
+
+    Returns list of newly ingested activity IDs.
+    Raises GarminApiError / ReauthRequired / GarminRateLimited on hard errors.
+    """
+    cursor = session.get(PollCursor, 1)
+    last_id = cursor.last_seen_activity_id if cursor else None
+
+    activities = garmin.list_activities(limit=20)
+
+    if not activities:
+        _update_cursor(session, last_id, "ok")
+        return []
+
+    # Find new activities (higher ID than last seen)
+    new_acts = [a for a in activities if last_id is None or int(a.get("activityId", 0)) > last_id]
+    new_acts.sort(key=lambda a: int(a.get("activityId", 0)))
+
+    new_ids: list[int] = []
+    for summary in new_acts:
+        try:
+            ingest_activity(session, cfg, garmin, summary)
+            aid = int(summary["activityId"])
+            new_ids.append(aid)
+            if cfg.openai_api_key:
+                await _coach_and_notify(cfg, aid)
+        except GarminApiError:
+            raise
+        except Exception as exc:
+            log.error(
+                "poller.activity_failed", activity_id=summary.get("activityId"), error=str(exc)
+            )
+
+    if new_acts:
+        max_id = max(int(a["activityId"]) for a in new_acts)
+        _update_cursor(session, max_id, "ok")
+    else:
+        _update_cursor(session, last_id, "ok")
+
+    return new_ids
+
+
+async def _poll_once(cfg: Config, garmin: GarminClient, consecutive_errors: int) -> int:
+    """Run one poll cycle. Returns new consecutive_errors count."""
+    async with _POLL_LOCK:
+        session = get_sync_session()
+        try:
+            await _run_cycle(session, cfg, garmin)
+            return 0
+
+        except ReauthRequired as exc:
+            log.error("poller.reauth_required", error=str(exc))
+            _notify("Soft Floyd needs Garmin re-auth. Run `coach login`.")
+            _update_cursor(session, None, "reauth_required")
+            return consecutive_errors + 1
+        except GarminRateLimited as exc:
+            log.warning("poller.rate_limited", error=str(exc), retry_after_s=exc.retry_after_s)
+            _update_cursor(session, None, "rate_limited")
+            return consecutive_errors + 1
+        except Exception as exc:
+            log.error("poller.error", error=str(exc))
+            _update_cursor(session, None, "error")
+            return consecutive_errors + 1
+        finally:
+            session.close()
+
+
+async def poll_once(cfg: Config) -> list[int]:
+    """Public: run one Garmin sync cycle. Used by /api/sync/garmin endpoint.
+
+    Returns list of newly ingested activity IDs.
+    Raises ReauthRequired, GarminRateLimited, or other exceptions on error.
+    """
+    async with _POLL_LOCK:
+        garmin = GarminClient(cfg)
+        garmin.load_from_disk()  # raises ReauthRequired if token missing/invalid
+
+        session = get_sync_session()
+        try:
+            return await _run_cycle(session, cfg, garmin)
+        finally:
+            session.close()
 
 
 async def run_poller(cfg: Config) -> None:

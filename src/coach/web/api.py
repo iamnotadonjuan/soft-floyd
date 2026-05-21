@@ -1,7 +1,8 @@
-"""FastAPI application — Phase 3: CORS, SSE chat, activity list/detail, static serving."""
+"""FastAPI application — Phase 3/4: CORS, SSE chat, activity list/detail, profile, static serving."""
 
 from __future__ import annotations
 
+import datetime
 from pathlib import Path
 from typing import Any
 
@@ -17,6 +18,7 @@ from coach.log import log
 from coach.store.models import Activity, Conversation, Lap, Message, Metrics, Record
 from coach.store.session import get_sync_session, init_db
 from coach.web.cost import monthly_total
+from coach.web.profile import router as profile_router
 
 _FRONTEND_DIST = Path(__file__).parent.parent.parent.parent / "frontend" / "dist"
 _RECORD_DECIMATE = 1000  # max time-series points sent to frontend
@@ -31,6 +33,8 @@ def create_app(cfg: Config) -> FastAPI:
         allow_methods=["*"],
         allow_headers=["*"],
     )
+
+    app.include_router(profile_router)
 
     @app.on_event("startup")
     def _startup() -> None:
@@ -314,6 +318,25 @@ def create_app(cfg: Config) -> FastAPI:
                 session.close()
 
         return EventSourceResponse(_generate())
+
+    # ------------------------------------------------------------------
+    # Manual Garmin sync (Phase 4)
+    # ------------------------------------------------------------------
+
+    @app.post("/api/sync/garmin")
+    async def sync_garmin() -> dict[str, Any]:
+        """Trigger an immediate Garmin poll; returns newly ingested activity IDs."""
+        from coach.ingest.poller import poll_once
+
+        try:
+            new_ids = await poll_once(cfg)
+        except Exception as exc:
+            log.error("api.sync_garmin_error", error=str(exc))
+            raise HTTPException(status_code=502, detail=str(exc)) from exc
+        return {
+            "new_activity_ids": new_ids,
+            "synced_at": datetime.datetime.now(datetime.UTC).isoformat(),
+        }
 
     # ------------------------------------------------------------------
     # Cost

@@ -2,8 +2,11 @@ import { fetchEventSource } from "@microsoft/fetch-event-source";
 import type {
   ActivitiesResponse,
   ActivityDetail,
+  DailySummaryResponse,
   MessagesResponse,
   MonthlyCost,
+  Profile,
+  SyncResult,
 } from "./types";
 
 const BASE = "/api";
@@ -46,6 +49,44 @@ export async function triggerAnalysis(id: number): Promise<string> {
 
 export function getMonthlyCost(): Promise<MonthlyCost> {
   return get<MonthlyCost>("/cost/month");
+}
+
+// Phase 4 — profile
+export async function getProfile(): Promise<Profile | null> {
+  const res = await fetch(`${BASE}/profile`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json() as Promise<Profile>;
+}
+
+export async function saveProfile(profile: Omit<Profile, "updated_at">): Promise<void> {
+  const res = await fetch(`${BASE}/profile`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(profile),
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+}
+
+export async function syncGarmin(): Promise<SyncResult> {
+  const res = await fetch(`${BASE}/sync/garmin`, { method: "POST" });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json() as Promise<SyncResult>;
+}
+
+export async function getDailySummary(date?: string): Promise<DailySummaryResponse | null> {
+  const url = `${BASE}/summary/daily${date ? `?date=${date}` : ""}`;
+  const res = await fetch(url);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json() as Promise<DailySummaryResponse>;
+}
+
+export async function generateDailySummary(date?: string): Promise<DailySummaryResponse> {
+  const url = `${BASE}/summary/daily${date ? `?date=${date}` : ""}`;
+  const res = await fetch(url, { method: "POST" });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  return res.json() as Promise<DailySummaryResponse>;
 }
 
 export function streamChat(

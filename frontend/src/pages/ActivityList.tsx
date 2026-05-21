@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { listActivities } from "../api/client";
+import { listActivities, syncGarmin } from "../api/client";
+import DailyReadiness from "../components/DailyReadiness";
 import type { ActivitySummary } from "../api/types";
 
 const BIKE_TYPES = ["all", "road", "mtb", "indoor", "other"] as const;
@@ -30,6 +31,8 @@ export default function ActivityList() {
   const [activities, setActivities] = useState<ActivitySummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [syncing, setSyncing] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
 
   const PAGE_SIZE = 20;
 
@@ -51,6 +54,23 @@ export default function ActivityList() {
     setParams({ bike_type: f === "all" ? "" : f, page: "0" });
   }
 
+  async function handleSync() {
+    setSyncing(true);
+    setSyncMsg(null);
+    try {
+      const result = await syncGarmin();
+      if (result.new_activity_ids.length > 0) {
+        navigate(`/activities/${result.new_activity_ids[0]}`);
+      } else {
+        setSyncMsg("No new rides found.");
+      }
+    } catch {
+      setSyncMsg("Sync failed. Try again.");
+    } finally {
+      setSyncing(false);
+    }
+  }
+
   function fmt(min: number) {
     const h = Math.floor(min / 60);
     const m = Math.round(min % 60);
@@ -61,6 +81,20 @@ export default function ActivityList() {
 
   return (
     <div>
+      <DailyReadiness />
+
+      {/* Sync button */}
+      <div className="flex items-center justify-end mb-3 gap-3">
+        {syncMsg && <span className="text-sm text-gray-500">{syncMsg}</span>}
+        <button
+          onClick={handleSync}
+          disabled={syncing}
+          className="flex items-center gap-1.5 px-3 py-1.5 text-sm text-white bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 rounded-lg transition-colors"
+        >
+          {syncing ? "Syncing…" : "↻ Sync Garmin now"}
+        </button>
+      </div>
+
       {/* Filter chips */}
       <div className="flex gap-2 mb-4">
         {BIKE_TYPES.map((t) => (

@@ -80,3 +80,34 @@ export interface MonthlyCost {
   total_api_calls: number;
   projected_monthly_usd: number;
 }
+
+// Phase 4 — rider profile
+export type GoalSlug =
+  | "climbing"
+  | "descending"
+  | "endurance"
+  | "sprinting"
+  | "intervals"
+  | "recovery";
+
+export interface Profile {
+  discipline: "road" | "mtb" | "gravel";
+  city?: string;
+  country?: string;
+  terrain_notes?: string;
+  goals: GoalSlug[];
+  freeform_notes?: string;
+  updated_at?: string;
+}
+
+export interface SyncResult {
+  new_activity_ids: number[];
+  synced_at: string;
+}
+
+export interface DailySummaryResponse {
+  date: string;
+  text: string;
+  generated_at: string;
+  cost_usd: number | null;
+}

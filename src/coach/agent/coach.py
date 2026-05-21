@@ -29,7 +29,10 @@ def _load_system() -> str:
 
 
 def _context_block(ctx: RetrievalContext) -> str:
-    parts = ["## Current Ride\n" + ctx.current_card]
+    parts: list[str] = []
+    if ctx.profile_summary:
+        parts.append("## Rider Profile\n" + ctx.profile_summary)
+    parts.append("## Current Ride\n" + ctx.current_card)
     if ctx.similar_cards:
         parts.append("## Similar Past Rides\n" + "\n---\n".join(ctx.similar_cards))
     if ctx.recent_cards:

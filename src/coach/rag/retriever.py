@@ -28,6 +28,7 @@ class RetrievalContext:
     similar_cards: list[str] = field(default_factory=list)
     recent_cards: list[str] = field(default_factory=list)
     wellness_summary: str = ""
+    profile_summary: str | None = None  # Phase 4: rider goals + terrain
 
 
 def _pre_filter_ids(session: Session, activity: Activity) -> set[int]:
@@ -180,15 +181,22 @@ def retrieve_for_activity(
     # Wellness summary (last 7 days)
     wellness_summary = _wellness_summary(session, activity.start_time)
 
+    # Rider profile (Phase 4)
+    from coach.agent.profile import build_profile_summary
+
+    profile_summary = build_profile_summary(session)
+
     log.debug(
         "retriever.built",
         activity_id=activity_id,
         similar=len(similar_cards),
         recent=len(recent_cards),
+        has_profile=profile_summary is not None,
     )
     return RetrievalContext(
         current_card=current_card,
         similar_cards=similar_cards,
         recent_cards=recent_cards,
         wellness_summary=wellness_summary,
+        profile_summary=profile_summary,
     )

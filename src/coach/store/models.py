@@ -1,10 +1,13 @@
 from __future__ import annotations
 
 import datetime
+import json
 
 from sqlalchemy import (
     JSON,
     Boolean,
+    CheckConstraint,
+    Date,
     DateTime,
     Float,
     ForeignKey,
@@ -206,3 +209,50 @@ class Message(Base):
     )
 
     conversation: Mapped[Conversation] = relationship("Conversation", back_populates="messages")
+
+
+class RiderProfile(Base):
+    """Single-row table (id always = 1) storing the rider's preferences and goals."""
+
+    __tablename__ = "rider_profile"
+    __table_args__ = (CheckConstraint("id = 1", name="single_rider"),)
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, default=1)
+    discipline: Mapped[str] = mapped_column(Text, nullable=False)
+    city: Mapped[str | None] = mapped_column(Text)
+    country: Mapped[str | None] = mapped_column(Text)
+    terrain_notes: Mapped[str | None] = mapped_column(Text)
+    goals_json: Mapped[str] = mapped_column(Text, nullable=False, default="[]")
+    freeform_notes: Mapped[str | None] = mapped_column(Text)
+    updated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.datetime.now,
+    )
+
+    @property
+    def goals(self) -> list[str]:
+        return json.loads(self.goals_json)
+
+    @goals.setter
+    def goals(self, value: list[str]) -> None:
+        self.goals_json = json.dumps(value)
+
+
+class DailySummary(Base):
+    """One Soft Floyd readiness note per calendar day."""
+
+    __tablename__ = "daily_summary"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    date: Mapped[datetime.date] = mapped_column(Date, unique=True, nullable=False)
+    text: Mapped[str] = mapped_column(Text, nullable=False)
+    tokens_in: Mapped[int | None] = mapped_column(Integer)
+    tokens_out: Mapped[int | None] = mapped_column(Integer)
+    cache_read: Mapped[int | None] = mapped_column(Integer)
+    cost_usd: Mapped[float | None] = mapped_column(Float)
+    generated_at: Mapped[datetime.datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=datetime.datetime.now,
+    )

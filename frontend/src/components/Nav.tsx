@@ -30,6 +30,13 @@ export default function Nav() {
               ${cost.total_cost_usd.toFixed(2)} / $10 this month
             </span>
           )}
+          <Link
+            to="/settings"
+            title="Rider profile & settings"
+            className="text-gray-400 hover:text-gray-700 transition-colors text-lg leading-none"
+          >
+            ⚙
+          </Link>
         </div>
       </div>
     </nav>

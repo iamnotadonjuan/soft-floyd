@@ -8,10 +8,11 @@
 
 Build "Soft Floyd," a personal AI cycling coach that connects to Garmin Connect, automatically ingests rides finished on a Garmin Edge 1050 (road / MTB / indoor), reasons about HR-based metrics (no power meter), and gives kind, encouraging, actionable feedback through a conversational web UI. Single user, runs locally on macOS, **LLM cost cap $5–10/month** for ~22 rides/month.
 
-Three phases:
+Three shipped phases + one planned:
 1. **Phase 1 — Ingest**: stand up the Garmin pipeline. Activity finishes on the Edge → SQLite has parsed records within ~10 min. Headless, CLI-only.
 2. **Phase 2 — Coach + RAG**: layer on the AI. New activity → embedded → retrieved against history → OpenAI gpt-4.1-mini generates a Soft Floyd analysis. Still CLI/HTTP-only.
 3. **Phase 3 — UI**: React + Vite frontend talking to the FastAPI backend with SSE-streamed chat.
+4. **Phase 4 — Rider Profile + Daily Readiness**: rider onboarding, goal-aware coach, manual Garmin sync, daily 3pm summary. → See [spec/phase-4-rider-profile-and-analysis.md](spec/phase-4-rider-profile-and-analysis.md)
 
 ---
 
