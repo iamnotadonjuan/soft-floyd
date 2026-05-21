@@ -94,7 +94,7 @@ The coach is named "Soft Floyd." Tone: kind, encouraging, focuses on long-term p
 ## Phasing
 
 - **Phase 1** — Ingest pipeline only. Garmin Connect adapter + FIT parse + metrics + classifier + poller + backfill. No AI, zero LLM cost.
-- **Phase 2** — RAG + coach agent + minimal FastAPI endpoints. Claude Haiku with prompt caching.
+- **Phase 2** — RAG + coach agent + minimal FastAPI endpoints. OpenAI `gpt-4.1-mini` with automatic prompt caching.
 - **Phase 3** — React + Vite frontend, SSE-streamed chat, production build served by FastAPI.
 
 Each phase has its own acceptance criteria in `PLAN.md`. Do not start Phase 2 until all Phase 1 acceptance criteria pass.

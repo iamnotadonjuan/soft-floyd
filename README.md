@@ -95,13 +95,13 @@ src/coach/
     embedder.py      # OpenAI text-embedding-3-small; stores in embedding + embedding_vec
     retriever.py     # pre-filter + vec search → RetrievalContext
   agent/
-    tools.py         # 5 read-only Anthropic tool schemas + executor
+    tools.py         # 5 read-only OpenAI function tool schemas + executor
     coach.py         # CoachSession: streaming + tool-use loop
     prompts/
       system.md      # Soft Floyd persona (~2000 tokens, prompt-cached)
   web/
     api.py           # FastAPI app: analysis, chat, cost endpoints
-    cost.py          # Haiku 4.5 token accounting + monthly_total()
+    cost.py          # GPT-4.1 mini token accounting + monthly_total()
 tests/
   fixtures/          # sample_road.fit, sample_mtb.fit, sample_indoor.fit
   test_fit_parser.py
@@ -120,8 +120,7 @@ Config lives at `~/.coach/config.toml`. All keys are optional:
 lthr = 165                  # Lactate threshold HR (bpm). Drives all zone calculations.
 log_level = "INFO"
 poll_interval_minutes = 10
-openai_api_key = "sk-..."         # Phase 2: for embeddings
-anthropic_api_key = "sk-ant-..."  # Phase 2: for Soft Floyd coach
+openai_api_key = "sk-..."         # Phase 2: for embeddings and Soft Floyd coach
 ```
 
 ## Constraints
@@ -129,7 +128,7 @@ anthropic_api_key = "sk-ant-..."  # Phase 2: for Soft Floyd coach
 - **No power meter** — watts are never fabricated. Everything is HR-based.
 - **macOS only** — Keychain via `keyring`, notifications via `pync`.
 - **Single user** — no auth layer. FastAPI binds to `127.0.0.1` only.
-- **LLM cost cap $10/month** — prompt caching on every Anthropic call. Target ~$0.04/ride.
+- **LLM cost cap $10/month** — OpenAI auto-caches prompt prefixes ≥1024 tokens. Target ~$0.012/ride (~$0.25/month at 22 rides).
 - **Garmin access is unofficial** — the primary adapter uses `python-garminconnect`, stores encrypted DI tokens at `~/.coach/garth.json`, and maps Garmin `401`/`429` responses to actionable CLI errors. Use `coach ingest-fit <path>` as the no-login fallback.
 
 ## Garmin Auth Notes
@@ -155,7 +154,7 @@ COACH_SERVE_FRONTEND=1 uv run coach run
 ## Implementation Phases
 
 - **Phase 1 ✅** — Ingest pipeline. Garmin auth, FIT parse, HR metrics, classifier, poller, backfill.
-- **Phase 2 ✅** — RAG + coach agent + FastAPI endpoints. Claude Haiku 4.5 with prompt caching.
+- **Phase 2 ✅** — RAG + coach agent + FastAPI endpoints. OpenAI `gpt-4.1-mini` with automatic prompt caching.
 - **Phase 3 ✅** — React + Vite frontend, SSE-streamed chat, production build served by FastAPI.
 
 See [PLAN.md](PLAN.md) for detailed acceptance criteria per phase.

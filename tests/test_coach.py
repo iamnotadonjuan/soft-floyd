@@ -1,4 +1,4 @@
-"""Tests for agent/tools.py and web/cost.py (no Anthropic/OpenAI calls)."""
+"""Tests for agent/tools.py and web/cost.py (no OpenAI calls)."""
 
 from __future__ import annotations
 

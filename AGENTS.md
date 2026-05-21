@@ -18,7 +18,7 @@ Read `PLAN.md` before substantial implementation. It is the source of truth for 
 - Preserve the single-user, local-only model. FastAPI must bind to `127.0.0.1`; do not add authentication or multi-tenancy unless explicitly requested.
 - This is macOS-only. Use Keychain through `keyring` for secrets and `pync` for desktop notifications where the plan calls for notifications.
 - No power meter is available. Never fabricate or infer watts. All coaching and metrics must use HR drift, decoupling, time in HR zones, GAP, VAM, TRIMP, wellness, and ride context.
-- Phase 1 paths must make zero LLM or embedding calls. Phase 2 must use Anthropic prompt caching on every call and log token/cost data for each message. The cost cap is about $5-10/month, with a target around $0.04/ride.
+- Phase 1 paths must make zero LLM or embedding calls. Phase 2 must rely on OpenAI's automatic prompt caching (no per-call config needed) and log token/cost data for each message. The cost cap is about $5-10/month, with a target around $0.012/ride.
 - Garmin Connect access is unofficial. The primary wrapper is `python-garminconnect` through `src/coach/ingest/garmin_client.py`; map auth/rate-limit failures to `ReauthRequired` / `GarminRateLimited` and notify the user instead of silently retrying. Keep `garth` pinned only while it remains in the dependency set for legacy compatibility; do not add new direct `garth` calls.
 - Store FIT time-series records only when the total per-activity record payload is below 3 MB.
 - Use the shared per-activity ingest pipeline in `src/coach/ingest/pipeline.py` instead of duplicating ingest logic in poller, backfill, or future embedding hooks.
@@ -40,9 +40,9 @@ uv run coach ingest-fit tests/fixtures/sample_road.fit
 Frontend commands for Phase 3:
 
 ```bash
-cd frontend && npm install
-cd frontend && npm run dev
-cd frontend && npm run build
+cd frontend && pnpm install
+cd frontend && pnpm dev
+cd frontend && pnpm build
 ```
 
 ## Stack
@@ -59,7 +59,7 @@ cd frontend && npm run build
 - JSON logging through `structlog`
 - Notifications through `pync`
 - Embeddings through OpenAI `text-embedding-3-small` in Phase 2
-- LLM through Anthropic `claude-haiku-4-5-20251001` with prompt caching in Phase 2
+- LLM through OpenAI `gpt-4.1-mini` with automatic prompt caching in Phase 2
 - FastAPI plus `sse-starlette` for the backend in Phase 2+
 - React 18 + Vite + TypeScript + Tailwind + Recharts for Phase 3
 
@@ -129,13 +129,13 @@ Implemented modules and behavior to preserve:
 
 ### Phase 2 - Coach Agent + RAG
 
-Add embeddings, retrieval, read-only tools, the Soft Floyd system prompt, Anthropic orchestration, cost logging, and minimal FastAPI endpoints.
+Add embeddings, retrieval, read-only tools, the Soft Floyd system prompt, OpenAI orchestration, cost logging, and minimal FastAPI endpoints.
 
 Acceptance highlights:
 
 - Every backfilled activity has one `summary` embedding.
 - Retrieval filters by bike type and combines similar rides, recent rides, wellness, and the current activity card.
-- Prompt caching is present on every Anthropic system block.
+- OpenAI auto-caches the system block once the prompt prefix exceeds 1024 tokens; no `cache_control` parameter is needed.
 - The coach response uses the Soft Floyd persona, references relevant past rides and wellness/load, and never mentions fabricated power data.
 - Every message persists token and cost data.
 - `GET /api/cost/month` reports current monthly spend.
@@ -178,7 +178,7 @@ The current parser may surface virtual FIT rides as `virtual_activity`; keep tha
 
 The coach is named Soft Floyd. The tone is kind, encouraging, honest, and focused on long-term progress. Celebrate small wins without being fake. Be direct about fatigue, pacing, recovery, and risk, but never harsh.
 
-The Phase 2 system prompt belongs at `src/coach/agent/prompts/system.md` and must be sent as a cached Anthropic system block on every call.
+The Phase 2 system prompt belongs at `src/coach/agent/prompts/system.md` and must be sent as the system message on every OpenAI call (auto-cached once ≥1024 tokens).
 
 ## Testing Guidance
 

@@ -10,7 +10,7 @@ Build "Soft Floyd," a personal AI cycling coach that connects to Garmin Connect,
 
 Three phases:
 1. **Phase 1 — Ingest**: stand up the Garmin pipeline. Activity finishes on the Edge → SQLite has parsed records within ~10 min. Headless, CLI-only.
-2. **Phase 2 — Coach + RAG**: layer on the AI. New activity → embedded → retrieved against history → Claude Haiku generates a Soft Floyd analysis. Still CLI/HTTP-only.
+2. **Phase 2 — Coach + RAG**: layer on the AI. New activity → embedded → retrieved against history → OpenAI gpt-4.1-mini generates a Soft Floyd analysis. Still CLI/HTTP-only.
 3. **Phase 3 — UI**: React + Vite frontend talking to the FastAPI backend with SSE-streamed chat.
 
 ---
@@ -224,7 +224,7 @@ trainer/
 
 # PHASE 2 — Coach Agent + RAG ✅
 
-**Goal:** When Phase 1's pipeline ingests a new activity, automatically embed it, retrieve relevant history, and generate a Soft Floyd analysis via Claude Haiku 4.5 with prompt caching. Expose two HTTP endpoints (`GET activity analysis`, `POST activity chat`) so Phase 3 has something to talk to. Still no UI.
+**Goal:** When Phase 1's pipeline ingests a new activity, automatically embed it, retrieve relevant history, and generate a Soft Floyd analysis via OpenAI gpt-4.1-mini with automatic prompt caching. Expose two HTTP endpoints (`GET activity analysis`, `POST activity chat`) so Phase 3 has something to talk to. Still no UI.
 
 **Depends on:** Phase 1 (uses `activity`, `lap`, `metrics`, `wellness_daily`).
 
@@ -232,12 +232,12 @@ trainer/
 
 | Purpose | Library | Notes |
 |---|---|---|
-| LLM | `anthropic` SDK | Model: `claude-haiku-4-5-20251001`. Use `cache_control: {"type": "ephemeral"}` on system block. Stream with `client.messages.stream()`. |
+| LLM | `openai` SDK | Model: `gpt-4.1-mini`. Prompt prefixes ≥1024 tokens are auto-cached. Stream with `client.chat.completions.create(stream=True)`. |
 | Embeddings | `openai` SDK | Model: `text-embedding-3-small`, 1536-dim |
 | Vector store | `sqlite-vec` (already loaded in Phase 1) | Add `embedding_vec` `vec0` virtual table |
 | Web framework | `fastapi`, `uvicorn` | Local-only bind `127.0.0.1` |
 | Streaming | `sse-starlette` | For chat endpoint |
-| Pricing logic | hand-rolled in `coach/web/cost.py` | Reads token counts from Anthropic response |
+| Pricing logic | hand-rolled in `coach/web/cost.py` | Reads token counts from OpenAI `usage` (`prompt_tokens`, `completion_tokens`, `prompt_tokens_details.cached_tokens`) |
 
 ## Phase 2 — Step-by-step tasks
 
@@ -284,7 +284,7 @@ Narrative: steady Z2 endurance with a sustained Z3/4 effort on the main climb.
   - **Tool usage rules**: when to call each tool, when not to.
 
 **2.7 Tool layer (`agent/tools.py`)**
-- All tools are read-only Python functions exposed via Anthropic tool-use schema:
+- All tools are read-only Python functions exposed via OpenAI function-tool schema (`{"type": "function", "function": {...}}`):
   - `fetch_ride_detail(activity_id: int)` → full lap+metric breakdown
   - `compare_to_ride(activity_id_a: int, activity_id_b: int)` → metric diff
   - `get_recent_load(days: int = 28)` → ACWR + per-day TRIMP
@@ -296,18 +296,17 @@ Narrative: steady Z2 endurance with a sustained Z3/4 effort on the main climb.
 **2.8 Coach orchestration (`agent/coach.py`)**
 - `class CoachSession`:
   - `__init__(activity_id)`: loads RetrievalContext, builds messages.
-  - `initial_analysis() -> AsyncIterator[str]`: calls Anthropic with:
-    - `system`: list with one block `{"type":"text","text": <system.md contents>, "cache_control":{"type":"ephemeral"}}`
-    - `messages`: one user message containing the structured ride summary + retrieved context (uncached)
+  - `initial_analysis() -> AsyncIterator[str]`: calls OpenAI `chat.completions.create` with:
+    - `messages`: system message with system.md contents (auto-cached by OpenAI ≥1024 tokens) + one user message with the structured ride summary and retrieved context
     - `tools`: schemas from `tools.py`
-    - `tool_choice`: `{"type":"auto"}`
-    - Stream content; on `tool_use` block, execute tool synchronously, append `tool_result`, continue loop. Cap at 5 tool calls.
+    - `tool_choice`: `"auto"`
+    - Stream content; on `finish_reason == "tool_calls"`, execute tools, append `role: tool` messages, continue loop. Cap at 5 tool calls.
   - `chat(user_message) -> AsyncIterator[str]`: loads conversation history, re-sends cached system block, appends prior turns + new user message. Same streaming + tool loop.
 - Persist every turn to `message` with full token + cache + cost accounting via `web/cost.py`.
 - Acceptance: against a real ride, `initial_analysis()` returns a Soft-Floyd-formatted string in <10s with at least one cache_read on the second call within 5 min.
 
 **2.9 Cost meter (`web/cost.py`)**
-- Constants: Haiku 4.5 input $1/MTok, output $5/MTok, cache write 1.25× input, cache read 0.10× input.
+- Constants: GPT-4.1 mini input $0.40/MTok, output $1.60/MTok, cached input $0.10/MTok (auto). No separate cache-write tier.
 - `record_usage(usage_dict) -> Decimal`: writes to `message` row.
 - `monthly_total() -> dict`: aggregates by current calendar month.
 - Acceptance: after one chat, `SELECT SUM(cost_usd) FROM message` returns a non-zero Decimal matching hand calc.
