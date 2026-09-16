@@ -1,201 +1,78 @@
-# Soft Floyd - Codex Instructions
+# Soft Floyd — Agent Operating Manual
 
-This repository builds "Soft Floyd", a local personal AI cycling coach for a Garmin Edge 1050 rider. It ingests Garmin rides, classifies them as `road`, `mtb`, `indoor`, or `other`, computes HR-based training metrics, and later exposes coaching through a local conversational web UI.
+Soft Floyd is a sensor-aware AI cycling coach. It ingests rides from a
+Garmin Edge device, reasons about training load using whatever sensors the
+rider actually has, and coaches through both an MCP surface (Claude
+Desktop/Code) and a small web UI. Single user, runs locally.
 
-Read `PLAN.md` before substantial implementation. It is the source of truth for phased scope and acceptance criteria. `CLAUDE.md` is the compact project brief and should stay consistent with this file.
+This file is the entrypoint for any agent (human or AI) working in this
+repo. Read it before writing code.
 
-## Current State
+## Before you implement anything
 
-- Phase 1 is implemented and marked complete in `PLAN.md` as of 2026-05-11.
-- The current codebase contains the Python ingest pipeline, SQLite/Alembic schema, Garmin auth, FIT parser, metrics, bike classifier, poller, backfill, offline FIT ingest command, and tests.
-- Phase 2 work is the next planned product phase: RAG, embeddings, coach agent, cost logging, and minimal FastAPI endpoints.
-- Phase 3 work must wait until the Phase 2 API exists.
+1. Read the relevant docs first:
+   - `docs/design-docs/` for *why* — the beliefs and models that constrain
+     design decisions. Start with `core-beliefs.md` and, for anything
+     touching metrics or coaching output, `sensor-capability-model.md`.
+   - `docs/product-specs/` for *what* — the user-facing behavior a feature
+     must satisfy.
+   - `ARCHITECTURE.md` for *where* — which package/app a change belongs in.
+2. Write an exec-plan in `docs/exec-plans/active/` before substantial
+   implementation (see `docs/PLANS.md` for the format). Small fixes and
+   pure refactors don't need one; new features and schema changes do.
+3. When you finish a phase of an exec-plan, move it to
+   `docs/exec-plans/completed/` and update `docs/exec-plans/tech-debt-tracker.md`
+   with anything you deliberately deferred.
 
-## Working Rules
+## Non-negotiable rules
 
-- Follow the phases in `PLAN.md`. Preserve the completed Phase 1 behavior while adding Phase 2. Do not start Phase 3 until the Phase 2 API exists.
-- Keep changes scoped to the current phase and task. Avoid unrelated refactors.
-- Preserve the single-user, local-only model. FastAPI must bind to `127.0.0.1`; do not add authentication or multi-tenancy unless explicitly requested.
-- This is macOS-only. Use Keychain through `keyring` for secrets and `pync` for desktop notifications where the plan calls for notifications.
-- No power meter is available. Never fabricate or infer watts. All coaching and metrics must use HR drift, decoupling, time in HR zones, GAP, VAM, TRIMP, wellness, and ride context.
-- Phase 1 paths must make zero LLM or embedding calls. Phase 2 must rely on OpenAI's automatic prompt caching (no per-call config needed) and log token/cost data for each message. The cost cap is about $5-10/month, with a target around $0.012/ride.
-- Garmin Connect access is unofficial. The primary wrapper is `python-garminconnect` through `src/coach/ingest/garmin_client.py`; map auth/rate-limit failures to `ReauthRequired` / `GarminRateLimited` and notify the user instead of silently retrying. Keep `garth` pinned only while it remains in the dependency set for legacy compatibility; do not add new direct `garth` calls.
-- Store FIT time-series records only when the total per-activity record payload is below 3 MB.
-- Use the shared per-activity ingest pipeline in `src/coach/ingest/pipeline.py` instead of duplicating ingest logic in poller, backfill, or future embedding hooks.
+- **Never fabricate a sensor signal.** If the rider has no power meter, do
+  not estimate watts and present it as power. See
+  `docs/design-docs/sensor-capability-model.md` — every metric is gated by
+  hardware, and per-activity analysis must check the actual FIT stream,
+  not just the profile's declared sensors.
+- **All domain logic lives in `packages/core`.** `apps/server`'s
+  `mcp_server.py` (MCP tools) and `http_api.py` (REST routes) are both
+  thin adapters that call the same `soft_floyd_core` functions. If you
+  find yourself writing a rule inside either adapter, move it into core
+  and call it from both. This is what keeps the MCP and REST surfaces
+  from drifting apart.
+- **Single user, local-only.** The server binds to `127.0.0.1` by default;
+  do not add multi-tenancy or a public bind without an explicit ask. See
+  `docs/SECURITY.md`.
+- **Garmin access is unofficial and will occasionally break.** Map
+  auth/rate-limit failures to actionable errors, never silently retry
+  forever. See `docs/RELIABILITY.md`.
+- **LLM cost cap ~$5-10/month.** Model is pinned to OpenAI `gpt-4.1-mini`
+  (chat) and `text-embedding-3-small` (embeddings) in
+  `packages/core/src/soft_floyd_core/llm/client.py`. Every LLM call must
+  be recorded there once the coach agent lands — don't call the OpenAI
+  SDK directly from elsewhere.
+- **Migrations, once they exist, are the only way schema changes.** The
+  scaffold uses `Base.metadata.create_all()` directly and this is tracked
+  as tech debt — the first feature that changes the schema after this
+  commit should introduce Alembic, not add another ad hoc `create_all`.
+- Self-score a change against `docs/QUALITY_SCORE.md` before calling it done.
 
-## Common Commands
+## Common commands
 
 ```bash
-uv sync
-uv run ruff check src/
-uv run ruff format --check src/
-uv run pytest
-uv run alembic upgrade head
-uv run coach login
-uv run coach backfill --days 365
-uv run coach run
-uv run coach ingest-fit tests/fixtures/sample_road.fit
+make setup          # uv sync + pnpm install
+make dev-server      # uv run soft-floyd serve --reload
+make dev-web         # cd apps/web && pnpm dev
+make check           # lint + test, both stacks
+make docs-schema     # regenerate docs/generated/db-schema.md
 ```
 
-Frontend commands for Phase 3:
+## Current state
 
-```bash
-cd frontend && pnpm install
-cd frontend && pnpm dev
-cd frontend && pnpm build
-```
+Scaffold phase — see `docs/exec-plans/active/0001-scaffold.md`. Only the
+rider profile (with sensor capability tiering) exists end-to-end, across
+MCP, REST, and the web onboarding flow. Garmin ingest, metrics, RAG, and
+the coach agent are not implemented; each gets its own exec-plan before
+work starts. `docs/exec-plans/tech-debt-tracker.md` lists what was
+deliberately deferred and why.
 
-## Stack
-
-- Python 3.12 managed with `uv`
-- SQLite at `data/trainer.db` with `sqlite-vec`
-- SQLAlchemy 2.x typed `Mapped` models and Alembic migrations
-- Garmin access through `python-garminconnect` via the local `GarminClient` adapter
-- Garmin DI tokens encrypted with Fernet at the legacy path `~/.coach/garth.json`; Fernet key stored in macOS Keychain under service `coach-soft-floyd`, account `garth-token-key`
-- FIT parsing through `fitdecode`
-- Scheduling through the local poller with a 10-minute interval; `apscheduler` is available per the plan
-- Config through `pydantic-settings`, reading `~/.coach/config.toml` and `COACH_` environment variables
-- CLI through `typer`
-- JSON logging through `structlog`
-- Notifications through `pync`
-- Embeddings through OpenAI `text-embedding-3-small` in Phase 2
-- LLM through OpenAI `gpt-4.1-mini` with automatic prompt caching in Phase 2
-- FastAPI plus `sse-starlette` for the backend in Phase 2+
-- React 18 + Vite + TypeScript + Tailwind + Recharts for Phase 3
-
-## Current Layout
-
-```text
-src/coach/
-  config.py
-  log.py
-  cli.py
-  store/
-    models.py
-    session.py
-    migrations/
-  ingest/
-    garmin_client.py
-    poller.py
-    fit_parser.py
-    pipeline.py
-    backfill.py
-  metrics/
-    compute.py
-    zones.py
-  classify/
-    bike_type.py
-tests/
-  fixtures/
-data/
-```
-
-Target Phase 2/3 additions from `PLAN.md`:
-
-```text
-src/coach/
-  rag/
-    chunking.py
-    embedder.py
-    retriever.py
-  agent/
-    coach.py
-    tools.py
-    prompts/system.md
-  web/
-    api.py
-    sse.py
-    cost.py
-frontend/
-```
-
-`data/` is local runtime storage and must stay gitignored. The Garmin token file lives outside the repo at `~/.coach/garth.json`.
-
-## Phase Expectations
-
-### Phase 1 - Garmin Ingest Baseline
-
-Implemented modules and behavior to preserve:
-
-- `uv run coach --help` lists `login`, `backfill`, `run`, and `ingest-fit`.
-- `uv run alembic upgrade head` creates the Phase 1 tables.
-- `coach login` handles email/password/MFA and stores encrypted Garmin tokens.
-- `coach backfill --days 365` is idempotent and uses the shared ingest pipeline.
-- `coach run` polls Garmin every 10 minutes, backs off on errors, and requests reauth through notification on expired sessions.
-- Parser tests use real FIT fixtures from `tests/fixtures/`.
-- Metrics tests include hand-computed expected values.
-- Classifier rules run in the exact order from `PLAN.md`.
-- Phase 1 makes no LLM or embedding calls.
-
-### Phase 2 - Coach Agent + RAG
-
-Add embeddings, retrieval, read-only tools, the Soft Floyd system prompt, OpenAI orchestration, cost logging, and minimal FastAPI endpoints.
-
-Acceptance highlights:
-
-- Every backfilled activity has one `summary` embedding.
-- Retrieval filters by bike type and combines similar rides, recent rides, wellness, and the current activity card.
-- OpenAI auto-caches the system block once the prompt prefix exceeds 1024 tokens; no `cache_control` parameter is needed.
-- The coach response uses the Soft Floyd persona, references relevant past rides and wellness/load, and never mentions fabricated power data.
-- Every message persists token and cost data.
-- `GET /api/cost/month` reports current monthly spend.
-
-### Phase 3 - React UI
-
-Add the local UI, SSE chat, activity list/detail endpoints, charts, lap table, conversation history, and production static serving.
-
-Acceptance highlights:
-
-- `localhost:8000` shows the app when `COACH_SERVE_FRONTEND=1 uv run coach run` is used.
-- Activity list filters by bike type.
-- Activity detail shows HR/elevation chart, laps, metrics, analysis, and chat.
-- Chat streams tokens and tool-call status.
-- Monthly cost indicator updates after chat usage.
-
-## Domain Rules
-
-### HR Zones
-
-Use configured LTHR from `~/.coach/config.toml`, defaulting to 165 if absent:
-
-- Z1: below 80% LTHR
-- Z2: 80-89% LTHR
-- Z3: 90-94% LTHR
-- Z4: 95-99% LTHR
-- Z5: at least 100% LTHR
-
-### Bike Classification Order
-
-1. `is_indoor=True` -> `indoor`
-2. `sub_sport in {"mountain", "gravel_cycling", "cyclocross"}` -> `mtb`
-3. `sub_sport in {"road", "virtual_ride"}` -> `road`, except `virtual_ride` with no GPS -> `indoor`
-4. If `avg_speed_kmh > 22` and `elev_gain_per_km < 15` -> `road`; otherwise `mtb`
-5. Ambiguous cases -> `other`
-
-The current parser may surface virtual FIT rides as `virtual_activity`; keep that compatible with the rule above. Do not add an LLM classifier fallback in Phase 1.
-
-## Soft Floyd Persona
-
-The coach is named Soft Floyd. The tone is kind, encouraging, honest, and focused on long-term progress. Celebrate small wins without being fake. Be direct about fatigue, pacing, recovery, and risk, but never harsh.
-
-The Phase 2 system prompt belongs at `src/coach/agent/prompts/system.md` and must be sent as the system message on every OpenAI call (auto-cached once ≥1024 tokens).
-
-## Testing Guidance
-
-- Use `pytest` and `pytest-asyncio`.
-- Use real FIT fixture files for parser tests.
-- Use `respx` for Garmin HTTP mocking.
-- Use deterministic golden/snapshot tests for activity-card chunking.
-- Add focused tests for each metrics formula.
-- Prefer integration tests where schema, ingestion, retrieval, or cost accounting crosses module boundaries.
-- If fixture generation changes, use `uv run python tests/make_fixtures.py`.
-
-## Implementation Notes
-
-- Use SQLAlchemy 2.x typed `Mapped` syntax.
-- Load the `sqlite-vec` extension on every SQLite connection through a SQLAlchemy connect listener.
-- Keep `embedding.text` as the source of truth; vectors can be regenerated.
-- Backfill should throttle Garmin requests to no more than 1 request per second.
-- Polling should run every 10 minutes and back off up to 60 minutes on 429/5xx.
-- Use structured JSON logs. Include activity IDs and bike types in ingestion logs.
-- Keep all tools exposed to the coach read-only.
+The prior single-rider, no-power-meter implementation is preserved at git
+tag `v0-legacy` (commit `570fb90`) for reference — see
+`docs/exec-plans/tech-debt-tracker.md` for what's worth salvaging from it.

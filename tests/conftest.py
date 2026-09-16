@@ -1,41 +1,21 @@
-from pathlib import Path
+from __future__ import annotations
 
 import pytest
-
-FIXTURES_DIR = Path(__file__).parent / "fixtures"
-
-
-@pytest.fixture(scope="session")
-def road_fit_path():
-    return FIXTURES_DIR / "sample_road.fit"
+from fastapi.testclient import TestClient
 
 
-@pytest.fixture(scope="session")
-def mtb_fit_path():
-    return FIXTURES_DIR / "sample_mtb.fit"
+@pytest.fixture
+def client(tmp_path, monkeypatch):
+    """A TestClient against a fresh SQLite file per test."""
+    monkeypatch.setenv("SOFT_FLOYD_DB_PATH", str(tmp_path / "test.db"))
 
+    from soft_floyd_server import runtime
 
-@pytest.fixture(scope="session")
-def indoor_fit_path():
-    return FIXTURES_DIR / "sample_indoor.fit"
+    runtime.get_session_factory.cache_clear()
 
+    from soft_floyd_server.main import app
 
-@pytest.fixture(scope="session")
-def road_parsed(road_fit_path):
-    from coach.ingest.fit_parser import parse_fit
+    with TestClient(app) as test_client:
+        yield test_client
 
-    return parse_fit(road_fit_path)
-
-
-@pytest.fixture(scope="session")
-def mtb_parsed(mtb_fit_path):
-    from coach.ingest.fit_parser import parse_fit
-
-    return parse_fit(mtb_fit_path)
-
-
-@pytest.fixture(scope="session")
-def indoor_parsed(indoor_fit_path):
-    from coach.ingest.fit_parser import parse_fit
-
-    return parse_fit(indoor_fit_path)
+    runtime.get_session_factory.cache_clear()

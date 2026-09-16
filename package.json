@@ -1,0 +1,13 @@
+{
+  "name": "soft-floyd-workspace",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "dev": "pnpm --filter soft-floyd-web dev",
+    "build": "pnpm --filter soft-floyd-web build",
+    "typecheck": "pnpm --filter soft-floyd-web typecheck"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild"]
+  }
+}

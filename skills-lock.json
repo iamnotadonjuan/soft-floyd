@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "skills": {
+    "mcp-builder": {
+      "source": "jezweb/claude-skills",
+      "sourceType": "github",
+      "skillPath": "plugins/integrations/skills/mcp-builder/SKILL.md",
+      "computedHash": "e901cc6f9a5a2353a66ad9a05ee2ce19654fb93672153172d2d73ba7301cce28"
+    },
+    "vercel-react-best-practices": {
+      "source": "vercel-labs/agent-skills",
+      "sourceType": "github",
+      "skillPath": "skills/react-best-practices/SKILL.md",
+      "computedHash": "3219a1944e404ffc14d1d9d6aef6dd2e3855b81387ee0a044ccbfe14d34c2357"
+    }
+  }
+}

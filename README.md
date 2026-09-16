@@ -1,160 +1,59 @@
-# Soft Floyd — Personal AI Cycling Coach
+# Soft Floyd
 
-A local AI cycling coach for Garmin Edge 1050 riders. Ingests rides automatically from Garmin Connect, classifies them (road / MTB / indoor), reasons about HR-based metrics, and coaches via a conversational web UI. No power meter — HR is the primary signal.
+A sensor-aware AI cycling coach. It learns what training volume and goals
+you have, what hardware you actually ride with (power meter, HR monitor,
+cadence/speed sensors), and coaches you using only the signals that
+hardware can produce — never a fabricated one.
 
-## Quick Start
+Single user, runs locally. Backend exposes both an MCP surface (usable
+from Claude Desktop/Code) and a small REST API for the bundled web UI.
 
-```bash
-# Install dependencies
-uv sync
+For how the system is put together, see [ARCHITECTURE.md](ARCHITECTURE.md).
+For agent/contributor working rules, see [AGENTS.md](AGENTS.md).
+For the product and design reasoning, see [docs/](docs/) — start with
+[docs/design-docs/index.md](docs/design-docs/index.md).
 
-# First-time Garmin login (MFA-aware)
-uv run coach login
-
-# Seed 12 months of history and embed all activities
-uv run coach backfill --days 365
-
-# Start the poller + HTTP server (127.0.0.1:8000)
-uv run coach run
-```
-
-## Phase 2 Setup
-
-Set your OpenAI API key (used for both embeddings and the coach):
+## Quick start
 
 ```bash
-export COACH_OPENAI_API_KEY=sk-...
+make setup        # uv sync + pnpm install
+
+# terminal 1
+make dev-server    # http://127.0.0.1:8000  (REST at /api, MCP at /mcp)
+
+# terminal 2
+make dev-web       # http://localhost:5173  (proxies /api, /mcp to :8000)
 ```
 
-Or copy `.env.example` to `.env` and fill in the key.
+Open `http://localhost:5173` and complete onboarding: how much you ride,
+what you want to improve, and what sensors you have. That last part
+determines what the coach is allowed to talk about — see
+[docs/design-docs/sensor-capability-model.md](docs/design-docs/sensor-capability-model.md).
+
+## Talking to it from Claude Desktop / Claude Code
+
+Point an MCP client at `http://127.0.0.1:8000/mcp` (streamable-http
+transport) while `make dev-server` is running. Available tools today:
+`get_rider_profile`, `set_rider_profile`, `get_available_metrics`,
+`list_activities`.
 
 ## Commands
 
-| Command | Description |
-|---|---|
-| `coach login` | Authenticate with Garmin Connect (MFA-aware). Token encrypted on disk with a macOS Keychain key. |
-| `coach backfill --days N` | Import historical rides from Garmin Connect (idempotent). |
-| `coach run` | Start the 10-min poller + FastAPI server at `127.0.0.1:8000`. |
-| `coach ingest-fit <path>` | Manually ingest a local FIT file (offline fallback). |
-
-## HTTP API (Phase 2)
-
-All endpoints are local-only (`127.0.0.1:8000`):
-
-| Endpoint | Description |
-|---|---|
-| `POST /api/activities/{id}/analysis` | Generate Soft Floyd's initial analysis |
-| `GET /api/activities/{id}/analysis` | Retrieve latest stored analysis |
-| `POST /api/activities/{id}/chat` | Send a follow-up question `{"message": "..."}` |
-| `GET /api/cost/month` | Current month's LLM spend |
-
-## Development
-
 ```bash
-# Install deps
-uv sync
-
-# Lint and format
-uv run ruff check src/
-uv run ruff format --check src/
-
-# Tests
-uv run pytest
-
-# Recreate test FIT fixtures (only needed after changing make_fixtures.py)
-uv run python tests/make_fixtures.py
-
-# Apply DB migrations
-uv run alembic upgrade head
+make check          # lint + test, Python and web
+make docs-schema     # regenerate docs/generated/db-schema.md
+uv run pytest        # Python tests only
+uv run ruff check .   # Python lint only
+cd apps/web && pnpm run typecheck
 ```
 
-## Project Structure
+## Status
 
-```
-src/coach/
-  config.py          # pydantic-settings; reads ~/.coach/config.toml
-  cli.py             # typer entrypoint
-  log.py             # structlog JSON to stdout
-  store/
-    models.py        # SQLAlchemy 2.x typed models
-    session.py       # engine factory + sqlite-vec loader
-    migrations/      # Alembic migration scripts
-  ingest/
-    garmin_client.py # garminconnect adapter + Fernet token encryption
-    fit_parser.py    # fitdecode-based FIT parser
-    pipeline.py      # per-activity pipeline (parse → metrics → classify → embed)
-    poller.py        # APScheduler 10-min poller + coach auto-trigger
-    backfill.py      # batch historical import
-  metrics/
-    zones.py         # HR zone calculation from LTHR
-    compute.py       # drift, decoupling, TRIMP, VAM, GAP
-  classify/
-    bike_type.py     # rule-based road/mtb/indoor classifier
-  rag/
-    chunking.py      # build_activity_card() — deterministic ~300-token text cards
-    embedder.py      # OpenAI text-embedding-3-small; stores in embedding + embedding_vec
-    retriever.py     # pre-filter + vec search → RetrievalContext
-  agent/
-    tools.py         # 5 read-only OpenAI function tool schemas + executor
-    coach.py         # CoachSession: streaming + tool-use loop
-    prompts/
-      system.md      # Soft Floyd persona (~2000 tokens, prompt-cached)
-  web/
-    api.py           # FastAPI app: analysis, chat, cost endpoints
-    cost.py          # GPT-4.1 mini token accounting + monthly_total()
-tests/
-  fixtures/          # sample_road.fit, sample_mtb.fit, sample_indoor.fit
-  test_fit_parser.py
-  test_metrics.py
-  test_classifier.py
-  test_retriever.py  # chunking + card determinism tests
-  test_coach.py      # tools, cost calculation tests
-data/                # gitignored — trainer.db, fit/ files
-```
+Scaffold phase. Rider profile (with sensor capability tiering) works
+end-to-end across MCP, REST, and the web onboarding flow. Garmin sync,
+metrics, RAG over training books, and the coach agent are not built yet —
+see `docs/exec-plans/active/` for what's planned next and
+`docs/exec-plans/tech-debt-tracker.md` for what's deferred.
 
-## Configuration
-
-Config lives at `~/.coach/config.toml`. All keys are optional:
-
-```toml
-lthr = 165                  # Lactate threshold HR (bpm). Drives all zone calculations.
-log_level = "INFO"
-poll_interval_minutes = 10
-openai_api_key = "sk-..."         # Phase 2: for embeddings and Soft Floyd coach
-```
-
-## Constraints
-
-- **No power meter** — watts are never fabricated. Everything is HR-based.
-- **macOS only** — Keychain via `keyring`, notifications via `pync`.
-- **Single user** — no auth layer. FastAPI binds to `127.0.0.1` only.
-- **LLM cost cap $10/month** — OpenAI auto-caches prompt prefixes ≥1024 tokens. Target ~$0.012/ride (~$0.25/month at 22 rides).
-- **Garmin access is unofficial** — the primary adapter uses `python-garminconnect`, stores encrypted DI tokens at `~/.coach/garth.json`, and maps Garmin `401`/`429` responses to actionable CLI errors. Use `coach ingest-fit <path>` as the no-login fallback.
-
-## Garmin Auth Notes
-
-`coach login` reuses the encrypted token file when it can. After upgrading from the older direct-`garth` auth path, run `uv run coach login --force` once to create a fresh `python-garminconnect` token.
-
-## Frontend Development (Phase 3)
-
-```bash
-cd frontend
-pnpm install
-pnpm dev        # dev server at localhost:5173 (proxies /api → :8000)
-pnpm build      # outputs frontend/dist/
-```
-
-To serve the production build via FastAPI:
-
-```bash
-COACH_SERVE_FRONTEND=1 uv run coach run
-# → full app at http://localhost:8000
-```
-
-## Implementation Phases
-
-- **Phase 1 ✅** — Ingest pipeline. Garmin auth, FIT parse, HR metrics, classifier, poller, backfill.
-- **Phase 2 ✅** — RAG + coach agent + FastAPI endpoints. OpenAI `gpt-4.1-mini` with automatic prompt caching.
-- **Phase 3 ✅** — React + Vite frontend, SSE-streamed chat, production build served by FastAPI.
-
-See [PLAN.md](PLAN.md) for detailed acceptance criteria per phase.
+The previous single-rider, HR-only implementation is preserved at git tag
+`v0-legacy`.
