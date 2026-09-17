@@ -37,7 +37,6 @@ def test_profile_round_trip_and_tier_flip(client):
     assert fetched == powered
 
 
-def test_activities_empty_until_garmin_sync(client):
-    response = client.get("/api/activities")
-    assert response.status_code == 200
-    assert response.json() == []
+# Activities/sync REST routes are covered in tests/test_activities_api.py
+# now that they're wired to real data (exec-plan 0002) — the old
+# "always []" stub test lived here when that was still true.

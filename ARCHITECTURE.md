@@ -42,13 +42,21 @@ Both adapters are mounted in the same ASGI app (`apps/server/src/soft_floyd_serv
 
 ```python
 mcp_app = mcp.http_app(path="/")
-app = FastAPI(title="Soft Floyd", lifespan=mcp_app.lifespan)  # lifespan is required
+app = FastAPI(
+    title="Soft Floyd",
+    lifespan=combine_lifespans(poller_lifespan, mcp_app.lifespan),
+)
 app.include_router(http_router, prefix="/api")
 app.mount("/mcp", mcp_app)
 ```
 
-The `lifespan=mcp_app.lifespan` wiring is not optional — without it the
-MCP session manager never initializes and `/mcp` requests hang silently.
+`mcp_app.lifespan` running is not optional — without it the MCP session
+manager never initializes and `/mcp` requests hang silently. Since
+exec-plan 0002 added a second startup/shutdown hook (the background
+Garmin poller in `lifespan.py`), the two are merged with FastMCP's own
+`combine_lifespans` helper rather than passing `mcp_app.lifespan` alone —
+see `docs/references/fastmcp-notes.md` for the verified signature and
+`tests/test_lifespan.py` for the hang-guard test.
 
 ## The load-bearing constraint
 
@@ -65,16 +73,21 @@ exists specifically to catch that class of drift.
 ## Data
 
 SQLite at `data/soft-floyd.db` (gitignored), one engine per process,
-created via `soft_floyd_core.db.make_engine`. Schema is currently
-`Base.metadata.create_all()` — no migrations yet; see
-`docs/exec-plans/tech-debt-tracker.md`. The only table today is
-`rider_profile` (`packages/core/src/soft_floyd_core/models.py`).
+created via `soft_floyd_core.db.make_engine`. Schema is managed by
+Alembic (`packages/core/src/soft_floyd_core/migrations/`) — introduced in
+exec-plan 0002, per `AGENTS.md`'s rule that the first schema change after
+the scaffold must not be another ad hoc `create_all()`. Tables today:
+`rider_profile`, `activity`, `lap`, `record`, `garmin_sync_state`
+(`packages/core/src/soft_floyd_core/models.py`; generated reference at
+`docs/generated/db-schema.md`).
 
 ## What's deliberately not built yet
 
-Garmin ingest/auth, FIT parsing, HR/power metrics computation, RAG over
-training books, the coach agent/chat, and a cost dashboard are all out of
-scope for the scaffold. Each is a future exec-plan under
-`docs/exec-plans/active/`. The prior implementation of most of these
-(HR-only) is preserved at git tag `v0-legacy` for reference and partial
-salvage.
+HR/power metrics computation (HR zones, TRIMP, decoupling, FTP/NP/TSS),
+RAG over training books, the coach agent/chat, and a cost dashboard are
+out of scope so far. Garmin ingest/auth and FIT parsing/classification
+are implemented (exec-plan 0002 —
+`docs/product-specs/garmin-sync.md`). Each remaining item is a future
+exec-plan under `docs/exec-plans/active/`. The prior v0 implementation of
+most of these (HR-only, single hardcoded rider) is preserved at git tag
+`v0-legacy` for reference and partial salvage.

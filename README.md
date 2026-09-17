@@ -30,12 +30,27 @@ what you want to improve, and what sensors you have. That last part
 determines what the coach is allowed to talk about — see
 [docs/design-docs/sensor-capability-model.md](docs/design-docs/sensor-capability-model.md).
 
+## Connecting Garmin
+
+One-time interactive login, then sync runs automatically every 10
+minutes (or trigger it manually):
+
+```bash
+uv run soft-floyd garmin-login   # prompts email/password/MFA; nothing is persisted but the resulting token
+uv run soft-floyd garmin-sync    # one-shot sync, without starting the server
+```
+
+See [docs/product-specs/garmin-sync.md](docs/product-specs/garmin-sync.md)
+for how the free/unofficial `python-garminconnect` integration works and
+why the official Garmin/Strava APIs aren't options here.
+
 ## Talking to it from Claude Desktop / Claude Code
 
 Point an MCP client at `http://127.0.0.1:8000/mcp` (streamable-http
 transport) while `make dev-server` is running. Available tools today:
 `get_rider_profile`, `set_rider_profile`, `get_available_metrics`,
-`list_activities`.
+`list_activities`, `get_activity`, `sync_garmin_now`,
+`get_garmin_sync_status`.
 
 ## Commands
 
@@ -49,11 +64,14 @@ cd apps/web && pnpm run typecheck
 
 ## Status
 
-Scaffold phase. Rider profile (with sensor capability tiering) works
-end-to-end across MCP, REST, and the web onboarding flow. Garmin sync,
-metrics, RAG over training books, and the coach agent are not built yet —
-see `docs/exec-plans/active/` for what's planned next and
-`docs/exec-plans/tech-debt-tracker.md` for what's deferred.
+Rider profile (sensor capability tiering) and Garmin activity sync
+(automatic + manual, bike classification, per-ride sensor-presence
+detection) both work end-to-end across MCP, REST, and the CLI. Metrics
+computation (HR zones, TRIMP, FTP/NP/TSS), RAG over training books, and
+the coach agent are not built yet — see `docs/exec-plans/active/` for
+what's planned next and `docs/exec-plans/tech-debt-tracker.md` for what's
+deferred (including: historical backfill, manual FIT upload, wellness
+sync, and a web UI for the activities that now sync in the background).
 
 The previous single-rider, HR-only implementation is preserved at git tag
 `v0-legacy`.

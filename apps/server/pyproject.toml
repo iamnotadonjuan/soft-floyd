@@ -5,7 +5,7 @@ description = "Soft Floyd backend — FastMCP tools + FastAPI routes, one ASGI a
 requires-python = ">=3.12"
 dependencies = [
     "soft-floyd-core",
-    "fastmcp>=2.3.1",
+    "fastmcp>=4.0.4",  # main.py's combine_lifespans usage verified against this version
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
     "typer>=0.13",

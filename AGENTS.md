@@ -48,10 +48,10 @@ repo. Read it before writing code.
   `packages/core/src/soft_floyd_core/llm/client.py`. Every LLM call must
   be recorded there once the coach agent lands — don't call the OpenAI
   SDK directly from elsewhere.
-- **Migrations, once they exist, are the only way schema changes.** The
-  scaffold uses `Base.metadata.create_all()` directly and this is tracked
-  as tech debt — the first feature that changes the schema after this
-  commit should introduce Alembic, not add another ad hoc `create_all`.
+- **Alembic is the only way schema changes.** `packages/core/src/soft_floyd_core/db.py`'s
+  `run_migrations` handles it (`uv run alembic revision --autogenerate`,
+  then read the generated file before trusting it). Never add
+  `Base.metadata.create_all()` back for a new table.
 - Self-score a change against `docs/QUALITY_SCORE.md` before calling it done.
 
 ## Common commands
@@ -66,12 +66,19 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
-Scaffold phase — see `docs/exec-plans/active/0001-scaffold.md`. Only the
-rider profile (with sensor capability tiering) exists end-to-end, across
-MCP, REST, and the web onboarding flow. Garmin ingest, metrics, RAG, and
-the coach agent are not implemented; each gets its own exec-plan before
-work starts. `docs/exec-plans/tech-debt-tracker.md` lists what was
-deliberately deferred and why.
+- **0001-scaffold** (done): rider profile with sensor capability tiering,
+  end-to-end across MCP, REST, and the web onboarding flow.
+- **0002-garmin-sync** (done): automatic Garmin activity sync — background
+  poller + manual sync (MCP/REST/CLI), FIT parsing, bike classification,
+  per-activity sensor-presence detection. See
+  `docs/product-specs/garmin-sync.md`. Auth is `soft-floyd garmin-login`
+  (one-time, interactive).
+- **Not yet implemented**: HR/power metrics computation (HR zones, TRIMP,
+  decoupling, FTP/NP/TSS — see `docs/design-docs/training-signal-model.md`),
+  RAG over training books, the coach agent/chat, historical backfill,
+  manual FIT upload, wellness/HRV/sleep sync. Each gets its own exec-plan
+  before work starts. `docs/exec-plans/tech-debt-tracker.md` lists what
+  was deliberately deferred and why.
 
 The prior single-rider, no-power-meter implementation is preserved at git
 tag `v0-legacy` (commit `570fb90`) for reference — see

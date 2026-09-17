@@ -10,3 +10,4 @@ behavior, refresh it — don't leave it silently wrong.
 
 - [fastmcp-notes.md](fastmcp-notes.md)
 - [uv-workspace-notes.md](uv-workspace-notes.md)
+- [garminconnect-notes.md](garminconnect-notes.md)

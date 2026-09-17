@@ -1,8 +1,11 @@
 """SQLAlchemy 2.x typed models.
 
-Scaffold ships one table: RiderProfile. See
-docs/design-docs/sensor-capability-model.md for why it carries sensor flags
-alongside training volume and goals.
+RiderProfile is the scaffold's single table. Activity/Lap/Record/
+GarminSyncState (exec-plan 0002) add real ride data. See
+docs/design-docs/sensor-capability-model.md for why RiderProfile's sensor
+flags are a *planning* signal while Activity's has_*_data columns are the
+*analysis* signal, derived independently from each ride's own FIT data —
+never assume the two agree.
 """
 
 from __future__ import annotations
@@ -10,10 +13,13 @@ from __future__ import annotations
 import datetime as dt
 from typing import Literal
 
-from sqlalchemy import String
-from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
+from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 Discipline = Literal["road", "mtb"]
+BikeType = Literal["road", "mtb", "indoor", "other"]
+FitStatus = Literal["pending", "ok", "missing", "download_failed", "parse_failed"]
+SyncStatus = Literal["never", "ok", "reauth_required", "rate_limited", "error"]
 
 
 class Base(DeclarativeBase):
@@ -56,3 +62,104 @@ class RiderProfile(Base):
 
     created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
+
+
+class Activity(Base):
+    """One Garmin ride. `has_*_data` are derived from this activity's own
+    parsed FIT records (soft_floyd_core.activities.sensors) — never from
+    RiderProfile — and are only meaningful when `fit_status == "ok"`; a
+    failed download/parse must not be read as "no sensors on this ride."
+    """
+
+    __tablename__ = "activity"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)  # Garmin activityId
+    start_time: Mapped[dt.datetime]
+    sport: Mapped[str] = mapped_column(String(64), default="")
+    sub_sport: Mapped[str] = mapped_column(String(64), default="")
+    is_indoor: Mapped[bool] = mapped_column(default=False)
+    bike_type: Mapped[str] = mapped_column(String(16), default="other")
+
+    distance_m: Mapped[float] = mapped_column(default=0.0)
+    duration_s: Mapped[float] = mapped_column(default=0.0)
+    elev_gain_m: Mapped[float] = mapped_column(default=0.0)
+    avg_hr: Mapped[int | None] = mapped_column(default=None)
+    max_hr: Mapped[int | None] = mapped_column(default=None)
+    avg_power_w: Mapped[int | None] = mapped_column(default=None)
+    max_power_w: Mapped[int | None] = mapped_column(default=None)
+    avg_cadence: Mapped[int | None] = mapped_column(default=None)
+
+    has_power_data: Mapped[bool] = mapped_column(default=False)
+    has_hr_data: Mapped[bool] = mapped_column(default=False)
+    has_cadence_data: Mapped[bool] = mapped_column(default=False)
+    has_speed_data: Mapped[bool] = mapped_column(default=False)
+    has_gps_data: Mapped[bool] = mapped_column(default=False)
+
+    fit_status: Mapped[str] = mapped_column(String(16), default="pending")
+    fit_path: Mapped[str | None] = mapped_column(default=None)
+    record_count: Mapped[int] = mapped_column(default=0)
+    records_stored: Mapped[bool] = mapped_column(default=False)
+    raw_summary_json: Mapped[dict | None] = mapped_column(JSON, default=None)
+    ingested_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+
+    laps: Mapped[list[Lap]] = relationship(
+        back_populates="activity", cascade="all, delete-orphan", order_by="Lap.lap_index"
+    )
+    records: Mapped[list[Record]] = relationship(
+        back_populates="activity", cascade="all, delete-orphan", order_by="Record.t_offset_s"
+    )
+
+
+class Lap(Base):
+    __tablename__ = "lap"
+    __table_args__ = (UniqueConstraint("activity_id", "lap_index"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey("activity.id", ondelete="CASCADE"))
+    lap_index: Mapped[int]
+    distance_m: Mapped[float] = mapped_column(default=0.0)
+    duration_s: Mapped[float] = mapped_column(default=0.0)
+    avg_hr: Mapped[int | None] = mapped_column(default=None)
+    avg_speed_mps: Mapped[float | None] = mapped_column(default=None)
+    avg_power_w: Mapped[int | None] = mapped_column(default=None)
+    avg_cadence: Mapped[int | None] = mapped_column(default=None)
+    elev_gain_m: Mapped[float] = mapped_column(default=0.0)
+
+    activity: Mapped[Activity] = relationship(back_populates="laps")
+
+
+class Record(Base):
+    __tablename__ = "record"
+    __table_args__ = (Index("ix_record_activity_t", "activity_id", "t_offset_s"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey("activity.id", ondelete="CASCADE"))
+    t_offset_s: Mapped[float]
+    hr: Mapped[int | None] = mapped_column(default=None)
+    speed_mps: Mapped[float | None] = mapped_column(default=None)
+    altitude_m: Mapped[float | None] = mapped_column(default=None)
+    cadence: Mapped[int | None] = mapped_column(default=None)
+    power_w: Mapped[int | None] = mapped_column(default=None)
+    lat: Mapped[float | None] = mapped_column(default=None)
+    lon: Mapped[float | None] = mapped_column(default=None)
+
+    activity: Mapped[Activity] = relationship(back_populates="records")
+
+
+class GarminSyncState(Base):
+    """Single-row (id=1) durable sync health — not just a cursor.
+
+    Answers "is sync healthy, and why not" for GET /api/sync/garmin/status
+    without conflating "Garmin is down" with "the rider has no rides" (see
+    docs/RELIABILITY.md). last_error is a human-readable message only —
+    never a token, password, or raw upstream response body.
+    """
+
+    __tablename__ = "garmin_sync_state"
+
+    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    last_seen_activity_id: Mapped[int | None] = mapped_column(default=None)
+    last_sync_at: Mapped[dt.datetime | None] = mapped_column(default=None)
+    last_status: Mapped[str] = mapped_column(String(16), default="never")
+    last_error: Mapped[str | None] = mapped_column(default=None)
+    consecutive_errors: Mapped[int] = mapped_column(default=0)

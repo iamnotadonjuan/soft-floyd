@@ -41,6 +41,17 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     lthr: int = 165  # default lactate threshold HR (bpm) when the rider hasn't set one
 
+    # Garmin sync (exec-plan 0002). No garmin_password field — the password
+    # is prompted (hidden) once by `soft-floyd garmin-login` and never
+    # persisted; only the resulting token cache is. See docs/SECURITY.md.
+    garmin_email: str | None = None  # prefills the login prompt only
+    garmin_token_dir: Path = CONFIG_DIR / "garmin"
+    fit_dir: Path = Path("data/fit")
+    garmin_poll_enabled: bool = True
+    poll_interval_minutes: int = 10
+    poll_max_backoff_minutes: int = 60
+    garmin_page_size: int = 20
+
     @classmethod
     def settings_customise_sources(
         cls,

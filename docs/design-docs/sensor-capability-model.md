@@ -64,11 +64,25 @@ metrics — see `tests/test_capability_tier.py::test_power_tier_still_includes_h
 ## Where this shows up
 
 - `packages/core/src/soft_floyd_core/models.py` — the four `has_*` bool
-  columns plus `ftp_watts`/`lthr` on `RiderProfile`.
+  columns plus `ftp_watts`/`lthr` on `RiderProfile` (the *planning*
+  signal); the five `has_*_data` bool columns plus `fit_status` on
+  `Activity` (the *analysis* signal, per rule 1).
 - `packages/core/src/soft_floyd_core/profile/service.py` —
-  `capability_tier()`, `available_metrics()`, `METRICS_BY_TIER`.
+  `capability_tier()`, `available_metrics()`, `METRICS_BY_TIER` (the
+  profile-level allowlist).
+- `packages/core/src/soft_floyd_core/activities/sensors.py` —
+  `detect_sensor_streams()`, the one function that derives rule 1's
+  per-ride analysis signal from actual parsed FIT records. Never imports
+  `RiderProfile`/`profile`/`Settings` — enforced by a static-scan test.
+- `packages/core/src/soft_floyd_core/activities/service.py` —
+  `available_metrics_for_activity()`, which intersects the two signals:
+  the profile's general allowlist with what this specific ride's streams
+  support. This is the function an agent should consult before discussing
+  metrics for one ride — narrower than the profile-level
+  `get_available_metrics`.
 - `apps/web`'s onboarding `SensorsStep`/`AnchorsStep` — see
   `docs/product-specs/new-user-onboarding.md`.
 - The (future) coach system prompt must state this model explicitly and
-  treat `available_metrics` from `get_rider_profile`/`get_available_metrics`
-  as a hard allowlist, not a suggestion.
+  treat `available_metrics_for_activity` (per-ride) as the hard allowlist
+  when discussing a specific ride, not the profile-level
+  `get_available_metrics`.
