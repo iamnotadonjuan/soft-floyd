@@ -76,6 +76,18 @@ class GarminClient:
                 action="Garmin login failed",
                 reauth_message="Garmin rejected the login. Check email/password/MFA code.",
             )
+        # garminconnect suppresses failures from its own token dump
+        # (`with contextlib.suppress(Exception): self.client.dump(...)`),
+        # so `login()` above can return cleanly while writing nothing.
+        # Without this check the CLI would report success on an empty
+        # token dir, and the next sync would demand another interactive
+        # login — repeating that loop is what triggers Garmin's login
+        # rate limit. See docs/exec-plans/completed/0003-garmin-auth-repair.md.
+        if not self.has_token():
+            raise GarminApiError(
+                f"Garmin accepted the login but no token was written to "
+                f"{self._token_dir} — check directory permissions."
+            )
         self._client = client
 
     def logout(self) -> None:

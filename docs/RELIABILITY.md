@@ -16,7 +16,17 @@ an unofficial client library. That means:
   restart — see `soft_floyd_core.garmin.sync.SyncRunner`.
 - Map `429`/`5xx` to backoff, not immediate retry — 10-minute poll
   interval, exponential backoff capped at 60 minutes
-  (`soft_floyd_core.garmin.sync.backoff_seconds`).
+  (`soft_floyd_core.garmin.sync.backoff_seconds`). A server-supplied
+  `Retry-After` can only *lengthen* the delay, never shorten an
+  already-earned backoff (`rate_limited_delay_seconds`).
+- A 429 during `soft-floyd garmin-login` itself (each login runs
+  `garminconnect`'s full 5-strategy SSO chain against
+  Cloudflare-protected endpoints, which is easy to exhaust by retrying
+  interactively) sets a local cooldown
+  (`GarminSyncState.login_blocked_until`,
+  `SOFT_FLOYD_GARMIN_LOGIN_COOLDOWN_MINUTES`, default 30). A repeated
+  `garmin-login` while the cooldown is active is refused locally with no
+  network call — see `soft_floyd_core.garmin.login.perform_login`.
 - Never treat "Garmin is down" as "the rider has no data" — distinguish
   a sync failure from an empty result. `GarminSyncState`
   (`last_status`/`last_error`/`consecutive_errors`) is the durable answer;

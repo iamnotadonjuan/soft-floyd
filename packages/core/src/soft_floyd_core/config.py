@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     poll_interval_minutes: int = 10
     poll_max_backoff_minutes: int = 60
     garmin_page_size: int = 20
+    # After a 429 during `garmin-login`, refuse further login attempts
+    # locally for this long (or until the server's Retry-After elapses,
+    # if longer) instead of hitting Garmin again. See exec-plan 0003.
+    garmin_login_cooldown_minutes: int = 30
 
     @classmethod
     def settings_customise_sources(

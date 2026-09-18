@@ -12,7 +12,7 @@ from soft_floyd_core.garmin.errors import (
     GarminRateLimited,
     ReauthRequired,
 )
-from soft_floyd_core.garmin.sync import backoff_seconds, run_sync_cycle
+from soft_floyd_core.garmin.sync import backoff_seconds, rate_limited_delay_seconds, run_sync_cycle
 from soft_floyd_core.models import GarminSyncState
 
 
@@ -198,3 +198,25 @@ def test_backoff_does_not_overflow_at_very_high_error_counts():
     settings = Settings(poll_interval_minutes=10, poll_max_backoff_minutes=60)
     # must not raise, and must stay at the cap
     assert backoff_seconds(settings, 200) == 3600
+
+
+def test_rate_limited_delay_does_not_let_a_short_retry_after_shrink_earned_backoff():
+    """A small server Retry-After must not override a much larger backoff
+    already earned from repeated failures. See exec-plan 0003."""
+    settings = Settings(poll_interval_minutes=10, poll_max_backoff_minutes=60)
+    # 5 consecutive errors -> backoff_seconds(settings, 5) == 19200, capped to 3600
+    assert backoff_seconds(settings, 5) == 3600
+    assert rate_limited_delay_seconds(settings, 5, retry_after_s=30) == 3600
+
+
+def test_rate_limited_delay_honors_a_long_retry_after():
+    settings = Settings(poll_interval_minutes=10, poll_max_backoff_minutes=60)
+    assert backoff_seconds(settings, 1) == 1200
+    assert rate_limited_delay_seconds(settings, 1, retry_after_s=5000) == 5000
+
+
+def test_rate_limited_delay_falls_back_to_backoff_when_retry_after_is_none():
+    settings = Settings(poll_interval_minutes=10, poll_max_backoff_minutes=60)
+    assert rate_limited_delay_seconds(settings, 1, retry_after_s=None) == backoff_seconds(
+        settings, 1
+    )

@@ -4,12 +4,15 @@ see docs/SECURITY.md before ever changing that default.
 
 from __future__ import annotations
 
+import logging
+
 import typer
 import uvicorn
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.db import make_engine, make_session_factory, session_scope
 from soft_floyd_core.garmin.client import GarminClient
 from soft_floyd_core.garmin.errors import GarminApiError, GarminRateLimited
+from soft_floyd_core.garmin.login import clear_login_block, perform_login
 from soft_floyd_core.garmin.sync import run_sync_cycle
 from soft_floyd_core.log import configure_logging
 
@@ -47,18 +50,33 @@ def _exit_with_garmin_error(exc: GarminApiError) -> None:
 def garmin_login(
     email: str = typer.Option(None, help="Defaults to SOFT_FLOYD_GARMIN_EMAIL if set."),
     force: bool = typer.Option(False, help="Replace an existing cached token."),
+    verbose: bool = typer.Option(
+        False, help="Log garminconnect's login strategy chain at DEBUG level."
+    ),
 ) -> None:
     """Authenticate with Garmin Connect (MFA-aware). The password is
     prompted and never persisted — only the resulting token cache is
     (at settings.garmin_token_dir). See docs/SECURITY.md.
+
+    Refuses locally (no network call) if a prior 429 put login on
+    cooldown — see docs/RELIABILITY.md.
     """
     settings = get_settings()
     configure_logging(settings.log_level)
+    if verbose:
+        logging.getLogger("garminconnect").setLevel(logging.DEBUG)
+    engine = make_engine(settings.db_path)
+    session_factory = make_session_factory(engine)
     client = GarminClient(settings.garmin_token_dir)
 
     if client.has_token() and not force:
-        typer.echo("Already logged in. Use --force to replace the cached token.")
-        raise typer.Exit(0)
+        try:
+            client.load()
+        except GarminApiError:
+            typer.echo("Cached token is no longer valid. Requesting a fresh login.")
+        else:
+            typer.echo("Already logged in. Use --force to replace the cached token.")
+            raise typer.Exit(0)
 
     email = email or settings.garmin_email or typer.prompt("Garmin email")
     password = typer.prompt("Garmin password", hide_input=True)
@@ -66,10 +84,11 @@ def garmin_login(
     def prompt_mfa() -> str:
         return typer.prompt("Garmin MFA code")
 
-    try:
-        client.login(email, password, prompt_mfa)
-    except GarminApiError as exc:
-        _exit_with_garmin_error(exc)
+    with session_scope(session_factory) as session:
+        try:
+            perform_login(session, settings, client, email, password, prompt_mfa)
+        except GarminApiError as exc:
+            _exit_with_garmin_error(exc)
 
     typer.echo(f"Logged in. Token cached at {settings.garmin_token_dir}.")
 
@@ -79,6 +98,10 @@ def garmin_logout() -> None:
     """Remove the cached Garmin token. The next sync will need garmin-login again."""
     settings = get_settings()
     GarminClient(settings.garmin_token_dir).logout()
+    engine = make_engine(settings.db_path)
+    session_factory = make_session_factory(engine)
+    with session_scope(session_factory) as session:
+        clear_login_block(session)
     typer.echo("Logged out.")
 
 

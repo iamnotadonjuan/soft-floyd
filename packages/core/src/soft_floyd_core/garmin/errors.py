@@ -41,6 +41,17 @@ class GarminRateLimited(GarminApiError):
 
 _STATUS_RE = re.compile(r"(?:API Error|Error|HTTP)\s*(\d{3})|\b(4\d\d|5\d\d)\b")
 
+# garminconnect re-wraps a structurally bad/expired token file into
+# GarminConnectConnectionError instead of an auth error (e.g. Client.load()'s
+# "Token path not loading cleanly: ..." and Client.loads()'s "Token
+# extraction loads() structurally failed" / "Missing tokens from dict
+# load"). Those carry no HTTP status at all, so without this check they'd
+# fall through status-sniffing to a generic GarminApiError and the poller
+# would back off forever instead of asking for a fresh `garmin-login`.
+_STALE_TOKEN_RE = re.compile(
+    r"Token path not loading cleanly|loads\(\) structurally failed|Missing tokens"
+)
+
 
 def _exception_response(exc: object) -> object | None:
     response = getattr(exc, "response", None)
@@ -117,6 +128,8 @@ def map_garmin_exception(
         ) from exc
     if type_name == "GarminConnectNotFoundError":
         raise GarminNotFound(f"{action}: Garmin reported this activity as not found.") from exc
+    if type_name == "GarminConnectConnectionError" and _STALE_TOKEN_RE.search(str(exc)):
+        raise ReauthRequired(f"{action}: {reauth_message}") from exc
 
     status = _exception_status_code(exc)
     if status == 401:

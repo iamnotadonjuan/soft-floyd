@@ -163,3 +163,7 @@ class GarminSyncState(Base):
     last_status: Mapped[str] = mapped_column(String(16), default="never")
     last_error: Mapped[str | None] = mapped_column(default=None)
     consecutive_errors: Mapped[int] = mapped_column(default=0)
+    # Set by garmin.login.perform_login on a 429 during `garmin-login`;
+    # cleared on a successful login. While in the future, `perform_login`
+    # refuses locally without a network call — see exec-plan 0003.
+    login_blocked_until: Mapped[dt.datetime | None] = mapped_column(default=None)

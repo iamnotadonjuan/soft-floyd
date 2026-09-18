@@ -46,6 +46,21 @@ Garmin.download_activity(activity_id: str, dl_fmt=ActivityDownloadFormat.TCX) ->
   `garmin_tokens.json` there itself, refreshing it in place before
   expiry. No manual `save()`/`resume()` calls, no separate encryption
   layer needed or wanted — see `docs/SECURITY.md`.
+  **Caveat (found the hard way, see exec-plan 0003):** the library
+  suppresses failures from its own token dump
+  (`with contextlib.suppress(Exception): self.client.dump(tokenstore_path)`
+  inside `Garmin.login()`), so a `login()` call that raises nothing is
+  *not* proof a token was written. `GarminClient.login()` verifies
+  `garmin_tokens.json` actually exists afterward and raises
+  `GarminApiError` if not — never trust a clean return alone.
+- **A stale/corrupt token file surfaces as a connection error, not an
+  auth error.** `Client.load()`/`Client.loads()` re-wrap a bad token into
+  `GarminConnectConnectionError` ("Token path not loading cleanly: ..."
+  / "Token extraction loads() structurally failed" / "Missing tokens
+  from dict load"), carrying no HTTP status at all.
+  `map_garmin_exception` matches these messages and maps them to
+  `ReauthRequired` before falling through to status-code sniffing (which
+  would find nothing and produce a misleading generic `GarminApiError`).
 - **`verify_login=True` (the default) means construction/login makes a
   real network call.** Never construct or call `.load()` on a
   `GarminClient` from an event loop or an app lifespan hook — only from a

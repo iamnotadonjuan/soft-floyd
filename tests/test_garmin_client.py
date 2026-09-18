@@ -7,15 +7,20 @@ from __future__ import annotations
 
 import io
 import zipfile
+from pathlib import Path
 
 import pytest
 from garminconnect import GarminConnectTooManyRequestsError
 from soft_floyd_core.garmin.client import GarminClient
-from soft_floyd_core.garmin.errors import GarminRateLimited, ReauthRequired
+from soft_floyd_core.garmin.errors import GarminApiError, GarminRateLimited, ReauthRequired
 
 
 class FakeGarmin:
-    """Stands in for garminconnect.Garmin. Records how it was called."""
+    """Stands in for garminconnect.Garmin. Records how it was called.
+
+    Writes garmin_tokens.json on login(), matching the real library's
+    `Garmin.login()` -> `Client.dump()` behavior.
+    """
 
     def __init__(self, email=None, password=None, prompt_mfa=None, **kwargs):
         self.email = email
@@ -26,6 +31,9 @@ class FakeGarmin:
 
     def login(self, tokenstore=None):
         self.login_calls.append(tokenstore)
+        if tokenstore is not None:
+            Path(tokenstore).mkdir(parents=True, exist_ok=True)
+            (Path(tokenstore) / "garmin_tokens.json").write_text("{}")
         return ("token", "secret")
 
     def get_activities(self, start=0, limit=20, activitytype=None):
@@ -38,6 +46,16 @@ class FakeGarmin:
         return b"not a zip, just raw fit bytes"
 
 
+class SilentlyFailingDumpGarmin(FakeGarmin):
+    """Mirrors garminconnect's `with contextlib.suppress(Exception):
+    self.client.dump(...)` — login() returns cleanly but writes nothing.
+    """
+
+    def login(self, tokenstore=None):
+        self.login_calls.append(tokenstore)
+        return ("token", "secret")
+
+
 class RaisingGarmin(FakeGarmin):
     def get_activities(self, start=0, limit=20, activitytype=None):
         raise GarminConnectTooManyRequestsError("slow down")
@@ -46,10 +64,20 @@ class RaisingGarmin(FakeGarmin):
 def test_login_passes_token_dir_as_tokenstore(tmp_path):
     client = GarminClient(tmp_path, client_factory=FakeGarmin)
     client.login("rider@example.com", "hunter2", lambda: "000000")
-    assert client.has_token() is False  # FakeGarmin doesn't actually write a file
+    assert client.has_token() is True
     # login() must call Garmin.login with the token dir as a string
     fake = client._client  # noqa: SLF001 (test introspection)
     assert fake.login_calls == [str(tmp_path)]
+
+
+def test_login_raises_when_library_silently_fails_to_write_token(tmp_path):
+    """garminconnect suppresses a failed token dump internally, so a
+    `login()` that returns cleanly is not proof a token was written —
+    GarminClient must check for itself. See exec-plan 0003."""
+    client = GarminClient(tmp_path, client_factory=SilentlyFailingDumpGarmin)
+    with pytest.raises(GarminApiError, match="no token was written"):
+        client.login("rider@example.com", "hunter2", lambda: "000000")
+    assert client.has_token() is False
 
 
 def test_load_without_token_raises_reauth_required_without_constructing_client(tmp_path):

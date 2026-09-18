@@ -15,10 +15,14 @@ share one lock with the background loop so they can never race.
 
 Authentication is a one-time interactive step, separate from sync itself:
 `soft-floyd garmin-login` prompts for email/password/MFA and hands off to
-`python-garminconnect`'s own token cache (see below). Sync then reuses
+`python-garminconnect`'s own token cache (see below), and verifies the
+token was actually written before reporting success. Sync then reuses
 that cached token; `sync_garmin_now`/`GET /api/sync/garmin/status` report
 `"reauth_required"` with an actionable message if it's missing or
-expired — never a silent no-op.
+expired — never a silent no-op. A 429 from Garmin during login puts
+`garmin-login` on a local cooldown (`SOFT_FLOYD_GARMIN_LOGIN_COOLDOWN_MINUTES`,
+default 30 min) so retrying by hand can't re-trigger the rate limit —
+see `docs/RELIABILITY.md`.
 
 ## Source: `python-garminconnect`, used directly
 

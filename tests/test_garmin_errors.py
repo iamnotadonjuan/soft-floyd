@@ -87,6 +87,21 @@ def test_garminconnect_connection_error_message_shape_is_generic_not_rate_limite
     assert not isinstance(result, ReauthRequired)
 
 
+def test_stale_token_load_failure_is_reauth_required():
+    """Client.load()'s wrapped message for a corrupt/expired token file —
+    a GarminConnectConnectionError with no HTTP status at all. Without
+    the message-shape check this falls through to a generic GarminApiError
+    and the poller backs off forever instead of asking for a fresh login.
+    """
+    result = _raises(GarminConnectConnectionError("Token path not loading cleanly: [Errno 2] ..."))
+    assert isinstance(result, ReauthRequired)
+
+
+def test_stale_token_loads_structural_failure_is_reauth_required():
+    result = _raises(GarminConnectConnectionError("Token extraction loads() structurally failed"))
+    assert isinstance(result, ReauthRequired)
+
+
 def test_status_404_via_message_regex_is_not_found():
     result = _raises(Exception("Error 404 - activity not found"))
     assert isinstance(result, GarminNotFound)

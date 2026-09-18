@@ -53,7 +53,9 @@ class SyncResult:
     retry_after_s: int | None = None
 
 
-def _get_or_create_state(session: Session) -> GarminSyncState:
+def get_or_create_sync_state(session: Session) -> GarminSyncState:
+    """The single-row (id=1) durable sync state. Shared with garmin.login,
+    which needs the same row for the login cooldown."""
     state = session.get(GarminSyncState, 1)
     if state is None:
         state = GarminSyncState(id=1)
@@ -97,7 +99,7 @@ def run_sync_cycle(
     """One pass: list recent activities, ingest anything new, update sync
     state. Never raises — Garmin failures are reported via SyncResult.
     """
-    state = _get_or_create_state(session)
+    state = get_or_create_sync_state(session)
     last_id = state.last_seen_activity_id
 
     try:
@@ -198,6 +200,16 @@ def backoff_seconds(settings: Settings, consecutive_errors: int) -> float:
     return min(base * (2**exponent), settings.poll_max_backoff_minutes * 60)
 
 
+def rate_limited_delay_seconds(
+    settings: Settings, consecutive_errors: int, retry_after_s: int | None
+) -> float:
+    """A short server-supplied Retry-After must not shrink a backoff
+    we've already earned from repeated failures — take whichever is
+    longer.
+    """
+    return max(retry_after_s or 0, backoff_seconds(settings, consecutive_errors))
+
+
 class SyncRunner:
     """Owns the one GarminClient and the one lock for this process — a
     manual sync (MCP tool / REST route / CLI) and the background poll
@@ -269,7 +281,9 @@ class SyncRunner:
                 delay = max(self._settings.poll_interval_minutes * 60, 900)
             elif result.status == "rate_limited":
                 consecutive_errors += 1
-                delay = result.retry_after_s or backoff_seconds(self._settings, consecutive_errors)
+                delay = rate_limited_delay_seconds(
+                    self._settings, consecutive_errors, result.retry_after_s
+                )
             else:
                 consecutive_errors += 1
                 delay = backoff_seconds(self._settings, consecutive_errors)
