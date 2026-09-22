@@ -1,48 +1,33 @@
 # RAG Corpus Strategy
 
-Not yet implemented — recorded ahead of time so the eventual exec-plan
-has a starting design. Out of scope for the scaffold.
+Book ingestion and retrieval are implemented in exec-plan 0005. Ride-history
+retrieval and generated coaching are future work.
 
 ## Goal
 
-Feed the coach agent real training literature (road and MTB) so its
-advice is grounded in established training science, not just this
-rider's own ride history. v0 already had a working RAG pipeline over ride
-history (`src/coach/rag/`, preserved at git tag `v0-legacy`) — this
-extends the same mechanism to a second corpus: books, not rides.
+Give the coach cited training literature alongside verified ride facts, so
+later advice can refer to sources without inventing sensor measurements.
 
-## Design sketch
+## Current design
 
-- **Two retrieval corpora, not one.** Ride-history retrieval (similar
-  past rides, recent trend) stays separate from book retrieval (training
-  principles). The coach's context assembly combines both, but they're
-  chunked and embedded independently since their update cadence and
-  chunking strategy differ (rides arrive continuously; books are static
-  once ingested).
-- **Chunking** — semantic sections (a book's own chapter/heading
-  structure) rather than fixed-token windows where the source has
-  structure to exploit; fall back to ~300-token windows with overlap
-  otherwise. Store the section title/citation alongside the chunk so the
-  coach can cite "per [Book], on threshold training..." rather than
-  presenting borrowed advice as its own.
-- **Embeddings** — reuse the pinned model,
-  `packages/core/src/soft_floyd_core/llm/client.py`'s
-  `text-embedding-3-small`, for both corpora so a single vector search
-  path (`sqlite-vec`, as in v0) serves both.
-- **Retrieval filtering** — filter book chunks by the rider's
-  `primary_discipline` (road vs. mtb) and, where a chunk is
-  power/HR-specific, by the rider's current `capability_tier` — don't
-  retrieve a section about reading a power curve for a rider with no
-  power meter. This is the same sensor-honesty rule as
-  [sensor-capability-model.md](sensor-capability-model.md), applied to
-  retrieved content, not just computed metrics.
-- **Cost** — embedding a handful of books is a one-time cost; keep it
-  logged through the same `Usage`/`cost_usd` accounting as chat, so it's
-  visible against the ~$5-10/month cap even though it's not per-ride.
+- **Two sources.** The latest ride is read directly from SQLite with
+  per-activity sensor gating. Book passages are retrieved semantically.
+  Similar past rides and trend retrieval remain a later feature.
+- **Chunking.** Selectable PDF text is split within page boundaries into
+  220-word windows with 40-word overlap. Book title, author, and PDF page
+  number accompany every result.
+- **Embeddings.** Reuse the pinned `text-embedding-3-small` model. Store
+  float32 vectors as SQLite BLOBs and calculate exact cosine similarity in
+  Python for this small, static corpus. The PDF source is not committed.
+- **Retrieval safety.** Passages are cited source material, not claims about
+  a ride. The ride context checks actual FIT streams. Sensor-topic passage
+  filtering belongs in the generated coaching phase, before an agent can
+  turn power-only guidance into unsupported advice for an HR-only rider.
+- **Cost.** Record each book and query embedding call in `llm_usage` using
+  `LLMClient`'s pinned pricing.
 
-## Open questions for the eventual exec-plan
+## Remaining decisions for generated coaching
 
-- Which books, and do we have the right to store/embed their full text
-  locally? (Personal use, not redistributed — but confirm before
-  ingesting anything not owned outright.)
-- Chunk size/overlap tuning once real source material is in hand.
+- Which exact books to ingest. The rider supplies local PDFs with selectable
+  text and has approved sending extracted passages for OpenAI embeddings.
+- Whether real books need chapter-aware chunking or OCR.

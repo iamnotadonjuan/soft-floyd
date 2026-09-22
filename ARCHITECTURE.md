@@ -77,17 +77,18 @@ created via `soft_floyd_core.db.make_engine`. Schema is managed by
 Alembic (`packages/core/src/soft_floyd_core/migrations/`) — introduced in
 exec-plan 0002, per `AGENTS.md`'s rule that the first schema change after
 the scaffold must not be another ad hoc `create_all()`. Tables today:
-`rider_profile`, `activity`, `lap`, `record`, `garmin_sync_state`
+`rider_profile`, `activity`, `lap`, `record`, `garmin_sync_state`,
+`book`, `book_passage`, and `llm_usage`
 (`packages/core/src/soft_floyd_core/models.py`; generated reference at
 `docs/generated/db-schema.md`).
 
 ## What's deliberately not built yet
 
 HR/power metrics computation (HR zones, TRIMP, decoupling, FTP/NP/TSS),
-RAG over training books, the coach agent/chat, and a cost dashboard are
-out of scope so far. Garmin ingest/auth and FIT parsing/classification
-are implemented (exec-plan 0002 —
-`docs/product-specs/garmin-sync.md`). Each remaining item is a future
+Generated coaching, ride-history retrieval, and a cost dashboard are
+out of scope so far. Training-book retrieval is implemented in exec-plan
+0005. Garmin ingest/auth and FIT parsing/classification are implemented
+in exec-plan 0002 (`docs/product-specs/garmin-sync.md`). Each remaining item is a future
 exec-plan under `docs/exec-plans/active/`. The prior v0 implementation of
 most of these (HR-only, single hardcoded rider) is preserved at git tag
 `v0-legacy` for reference and partial salvage.

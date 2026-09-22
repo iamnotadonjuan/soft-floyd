@@ -10,6 +10,7 @@ from soft_floyd_core.config import get_settings
 from soft_floyd_core.db import session_scope
 from soft_floyd_core.garmin.sync import SyncResult
 from soft_floyd_core.profile import service as profile_service
+from soft_floyd_core.rag import service as rag_service
 
 from soft_floyd_server.runtime import get_session_factory, get_sync_runner
 
@@ -93,3 +94,18 @@ def get_garmin_sync_status() -> activities_service.SyncStatusOut:
     settings = get_settings()
     with session_scope(get_session_factory()) as session:
         return activities_service.get_sync_status(session, settings)
+
+
+@mcp.tool
+async def get_training_context(
+    query: str, activity_id: int | None = None
+) -> rag_service.TrainingContextOut:
+    """Find cited training-book passages and verified ride context for a question.
+    Defaults to the latest ride. Treat passages as source material, never as
+    evidence that a sensor value was recorded on the ride.
+    """
+    settings = get_settings()
+    with session_scope(get_session_factory()) as session:
+        return await rag_service.get_training_context(
+            session, query, rag_service.make_embedder(settings.openai_api_key), activity_id
+        )

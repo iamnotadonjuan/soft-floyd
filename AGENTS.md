@@ -73,9 +73,12 @@ make docs-schema     # regenerate docs/generated/db-schema.md
   per-activity sensor-presence detection. See
   `docs/product-specs/garmin-sync.md`. Auth is `soft-floyd garmin-login`
   (one-time, interactive).
+- **0005-tiny-book-rag** (done): local PDF book import, SQLite-backed
+  semantic passage retrieval, and verified latest-ride context through
+  MCP and REST. See `docs/product-specs/training-book-retrieval.md`.
 - **Not yet implemented**: HR/power metrics computation (HR zones, TRIMP,
   decoupling, FTP/NP/TSS — see `docs/design-docs/training-signal-model.md`),
-  RAG over training books, the coach agent/chat, historical backfill,
+  generated coach agent/chat, ride-history retrieval, historical backfill,
   manual FIT upload, wellness/HRV/sleep sync. Each gets its own exec-plan
   before work starts. `docs/exec-plans/tech-debt-tracker.md` lists what
   was deliberately deferred and why.

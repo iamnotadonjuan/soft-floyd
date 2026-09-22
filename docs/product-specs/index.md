@@ -9,3 +9,5 @@ User-facing behavior specs — *what* a feature must do. Pair with
   feature after the scaffold.
 - [post-ride-analysis.md](post-ride-analysis.md) — not yet implemented.
   Depends on Garmin sync and the training signal model.
+- [training-book-retrieval.md](training-book-retrieval.md) — local PDF import,
+  cited semantic search, and verified ride context.
