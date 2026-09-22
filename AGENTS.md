@@ -73,6 +73,15 @@ make docs-schema     # regenerate docs/generated/db-schema.md
   per-activity sensor-presence detection. See
   `docs/product-specs/garmin-sync.md`. Auth is `soft-floyd garmin-login`
   (one-time, interactive).
+- **0004-rider-profile-and-connections-ui** (done): coach-shaped
+  onboarding (habits, goals, a per-bike garage, about-you, anchors,
+  connected apps), a post-onboarding Settings screen, and a
+  provider-generic Connected Apps panel with Garmin browser login. See
+  `docs/product-specs/new-user-onboarding.md` and
+  `docs/product-specs/connected-apps.md`. Bike-mounted sensors
+  (power/cadence/speed) now live on a `Bike` per rider garage row rather
+  than flat on `RiderProfile` — see
+  `docs/design-docs/sensor-capability-model.md`.
 - **Not yet implemented**: HR/power metrics computation (HR zones, TRIMP,
   decoupling, FTP/NP/TSS — see `docs/design-docs/training-signal-model.md`),
   RAG over training books, the coach agent/chat, historical backfill,

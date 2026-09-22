@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.activities.pipeline import ingest_activity
+from soft_floyd_core.bikes.service import BikeIn, add_bike
 from soft_floyd_core.config import Settings
 from soft_floyd_core.db import make_engine, make_session_factory, session_scope
 from soft_floyd_core.garmin.errors import GarminApiError
@@ -53,7 +54,11 @@ def test_rule_1_profile_claims_power_but_ride_has_none(tmp_path, mtb_fit_path):
     sf = make_session_factory(engine)
 
     with session_scope(sf) as session:
-        upsert_profile(session, ProfileIn(has_power_meter=True, has_hr_monitor=True, ftp_watts=250))
+        # Bike-mounted sensors live on Bike now, not RiderProfile — a
+        # power-meter bike is the "profile claims power" half of this
+        # test's premise (exec-plan 0004).
+        add_bike(session, BikeIn(kind="mtb", has_power_meter=True))
+        upsert_profile(session, ProfileIn(has_hr_monitor=True, ftp_watts=250))
 
     source = FakeFitSource(mtb_fit_path.read_bytes())
     with session_scope(sf) as session:

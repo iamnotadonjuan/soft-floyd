@@ -10,7 +10,13 @@ const TIER_LABEL: Record<ProfileOut["capability_tier"], string> = {
   basic: "Basic",
 };
 
-export default function Dashboard({ profile }: { profile: ProfileOut }) {
+export default function Dashboard({
+  profile,
+  onOpenSettings,
+}: {
+  profile: ProfileOut;
+  onOpenSettings: () => void;
+}) {
   const [activityCount, setActivityCount] = useState<number | null>(null);
 
   useEffect(() => {
@@ -24,17 +30,22 @@ export default function Dashboard({ profile }: { profile: ProfileOut }) {
           <p className="text-sm font-medium tracking-wide text-neutral-400">SOFT FLOYD</p>
           <h1 className="text-2xl font-semibold">Welcome back</h1>
         </div>
-        <span className="rounded-full border border-neutral-300 px-3 py-1 text-sm">
-          {TIER_LABEL[profile.capability_tier]} tier
-        </span>
+        <div className="flex items-center gap-3">
+          <span className="rounded-full border border-neutral-300 px-3 py-1 text-sm">
+            {TIER_LABEL[profile.capability_tier]} tier
+          </span>
+          <button onClick={onOpenSettings} className="text-sm text-neutral-500 underline">
+            Settings
+          </button>
+        </div>
       </div>
 
       <div className="mb-6 rounded-md border border-neutral-200 p-4">
         <p className="text-sm text-neutral-500">Goal</p>
         <p className="font-medium">{profile.goal_text}</p>
         <p className="mt-2 text-sm text-neutral-500">
-          {profile.weekly_rides} rides / {profile.weekly_hours}h per week &middot;{" "}
-          {profile.primary_discipline}
+          {profile.weekly_rides} rides / {profile.weekly_hours}h per week
+          {profile.primary_discipline && <> &middot; {profile.primary_discipline}</>}
         </p>
       </div>
 

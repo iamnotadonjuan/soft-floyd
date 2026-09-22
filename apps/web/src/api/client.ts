@@ -1,7 +1,23 @@
 // Typed fetch wrapper. Components never call fetch() directly — see
 // docs/FRONTEND.md.
 
-import type { ProfileIn, ProfileOut } from "./types";
+import type {
+  BikeIn,
+  BikeOut,
+  ConnectionOut,
+  LoginStartResult,
+  ProfileIn,
+  ProfileOut,
+} from "./types";
+
+class ApiError extends Error {
+  constructor(
+    public status: number,
+    message: string,
+  ) {
+    super(message);
+  }
+}
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(`/api${path}`, {
@@ -10,8 +26,18 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (!response.ok) {
     const body = await response.text();
-    throw new Error(`${init?.method ?? "GET"} ${path} failed: ${response.status} ${body}`);
+    // FastAPI's default error shape is {"detail": "..."} — surface that
+    // message directly rather than the raw JSON envelope when possible.
+    let message = body;
+    try {
+      const parsed = JSON.parse(body);
+      if (typeof parsed?.detail === "string") message = parsed.detail;
+    } catch {
+      // body wasn't JSON — fall through and use it verbatim.
+    }
+    throw new ApiError(response.status, message || `${init?.method ?? "GET"} ${path} failed`);
   }
+  if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
 }
 
@@ -20,4 +46,25 @@ export const api = {
   updateProfile: (data: ProfileIn) =>
     request<ProfileOut>("/profile", { method: "PUT", body: JSON.stringify(data) }),
   listActivities: () => request<unknown[]>("/activities"),
+
+  listBikes: () => request<BikeOut[]>("/bikes"),
+  addBike: (data: BikeIn) => request<BikeOut>("/bikes", { method: "POST", body: JSON.stringify(data) }),
+  updateBike: (id: number, data: BikeIn) =>
+    request<BikeOut>(`/bikes/${id}`, { method: "PATCH", body: JSON.stringify(data) }),
+  deleteBike: (id: number) => request<void>(`/bikes/${id}`, { method: "DELETE" }),
+
+  listConnections: () => request<ConnectionOut[]>("/connections"),
+  garminLogin: (email: string, password: string) =>
+    request<LoginStartResult>("/connections/garmin/login", {
+      method: "POST",
+      body: JSON.stringify({ email, password }),
+    }),
+  garminSubmitMfa: (code: string) =>
+    request<LoginStartResult>("/connections/garmin/mfa", {
+      method: "POST",
+      body: JSON.stringify({ code }),
+    }),
+  garminDisconnect: () => request<void>("/connections/garmin", { method: "DELETE" }),
 };
+
+export { ApiError };

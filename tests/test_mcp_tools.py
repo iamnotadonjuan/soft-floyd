@@ -26,11 +26,20 @@ async def test_tools_are_registered():
         "get_rider_profile",
         "set_rider_profile",
         "get_available_metrics",
+        "list_bikes",
+        "add_bike",
+        "update_bike",
+        "delete_bike",
+        "get_connections",
         "list_activities",
         "get_activity",
         "sync_garmin_now",
         "get_garmin_sync_status",
     } <= names
+    # Deliberate: a Garmin login takes a password, which never belongs
+    # behind an LLM tool-call. Browser-only, see http_api.py — exec-plan 0004.
+    assert "garmin_login" not in names
+    assert "submit_garmin_mfa" not in names
 
 
 async def test_mcp_and_rest_agree_on_capability_tier(client):
@@ -38,13 +47,37 @@ async def test_mcp_and_rest_agree_on_capability_tier(client):
     already points SOFT_FLOYD_DB_PATH at an isolated tmp file, so both
     surfaces below read/write the same database.
     """
-    client.put("/api/profile", json={"has_power_meter": True, "ftp_watts": 250})
+    client.post("/api/bikes", json={"kind": "road", "has_power_meter": True})
+    client.put("/api/profile", json={"ftp_watts": 250})
 
     async with Client(mcp) as mcp_client:
         result = await mcp_client.call_tool("get_rider_profile", {})
 
     rest_profile = client.get("/api/profile").json()
     assert result.data.capability_tier == rest_profile["capability_tier"] == "power"
+
+
+async def test_mcp_and_rest_agree_on_bikes(client):
+    client.post("/api/bikes", json={"kind": "road", "has_power_meter": True})
+    client.post("/api/bikes", json={"kind": "mtb"})
+
+    rest_bikes = client.get("/api/bikes").json()
+
+    async with Client(mcp) as mcp_client:
+        result = await mcp_client.call_tool("list_bikes", {})
+
+    mcp_bikes = [_as_json(b) for b in result.data]
+    assert mcp_bikes == rest_bikes
+
+
+async def test_mcp_and_rest_agree_on_connections(client):
+    rest_connections = client.get("/api/connections").json()
+
+    async with Client(mcp) as mcp_client:
+        result = await mcp_client.call_tool("get_connections", {})
+
+    mcp_connections = [_as_json(c) for c in result.data]
+    assert mcp_connections == rest_connections
 
 
 async def test_mcp_and_rest_agree_on_activity_list(client, road_fit_path):
