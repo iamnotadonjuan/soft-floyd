@@ -5,11 +5,15 @@ rule as mcp_server.py: no domain logic here.
 from __future__ import annotations
 
 import datetime as dt
+from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.bikes import service as bikes_service
+from soft_floyd_core.coach import memory as coach_memory
+from soft_floyd_core.coach import service as coach_service
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.connections import service as connections_service
 from soft_floyd_core.db import session_scope
@@ -20,12 +24,15 @@ from soft_floyd_core.garmin.sync import (
     NoPendingLoginError,
     SyncResult,
 )
+from soft_floyd_core.llm.usage import BudgetExceededError
+from soft_floyd_core.log import get_logger
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 
 from soft_floyd_server.runtime import get_session_factory, get_sync_runner
 
 router = APIRouter()
+_log = get_logger(__name__)
 
 
 @router.get("/health")
@@ -103,6 +110,12 @@ async def get_training_context(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.get("/training-summary", response_model=activities_service.TrainingSummaryOut)
+def get_training_summary(weeks: int = 8) -> activities_service.TrainingSummaryOut:
+    with session_scope(get_session_factory()) as session:
+        return activities_service.get_training_summary(session, weeks)
 
 
 @router.get("/bikes", response_model=list[bikes_service.BikeOut])
@@ -191,3 +204,105 @@ def garmin_disconnect() -> None:
     get_sync_runner().logout()
     with session_scope(get_session_factory()) as session:
         clear_login_block(session)
+
+
+@router.get("/coach/conversations", response_model=list[coach_service.ConversationOut])
+def list_coach_conversations() -> list[coach_service.ConversationOut]:
+    with session_scope(get_session_factory()) as session:
+        return coach_service.list_conversations(session)
+
+
+@router.post("/coach/conversations", response_model=coach_service.ConversationOut)
+def create_coach_conversation() -> coach_service.ConversationOut:
+    with session_scope(get_session_factory()) as session:
+        return coach_service.create_conversation(session)
+
+
+@router.get(
+    "/coach/conversations/{conversation_id}",
+    response_model=coach_service.ConversationDetailOut,
+)
+def get_coach_conversation(conversation_id: int) -> coach_service.ConversationDetailOut:
+    with session_scope(get_session_factory()) as session:
+        try:
+            return coach_service.get_conversation(session, conversation_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/coach/conversations/{conversation_id}", status_code=204)
+def delete_coach_conversation(conversation_id: int) -> None:
+    with session_scope(get_session_factory()) as session:
+        try:
+            coach_service.delete_conversation(session, conversation_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+class CoachMessageIn(BaseModel):
+    text: str
+
+
+def _sse(event: coach_service.CoachEvent) -> str:
+    return f"event: {event.type}\ndata: {event.model_dump_json(exclude_none=True)}\n\n"
+
+
+@router.post("/coach/conversations/{conversation_id}/messages")
+async def send_coach_message(conversation_id: int, data: CoachMessageIn) -> StreamingResponse:
+    """Streams the coach's reply as Server-Sent Events: `delta` (text),
+    `tool_status`, `sources`, then `done` with the saved message — or
+    `error`. Anything that can reject the turn is checked first so it
+    still gets a real status code instead of a 200 stream.
+    """
+    settings = get_settings()
+    llm = coach_service.make_coach_llm(settings.openai_api_key)
+    if llm is None:
+        raise HTTPException(
+            status_code=400, detail="SOFT_FLOYD_OPENAI_API_KEY is required for the coach"
+        )
+    with session_scope(get_session_factory()) as session:
+        try:
+            coach_service.check_turn(
+                session, conversation_id, data.text, settings.llm_monthly_budget_usd
+            )
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except BudgetExceededError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+    async def stream() -> AsyncIterator[str]:
+        try:
+            with session_scope(get_session_factory()) as session:
+                async for event in coach_service.run_turn(
+                    session, conversation_id, data.text, llm, settings.llm_monthly_budget_usd
+                ):
+                    yield _sse(event)
+        except (ValueError, LookupError) as exc:  # the stream is already 200; report in-band
+            yield _sse(coach_service.CoachEvent(type="error", text=str(exc)))
+        except Exception as exc:
+            _log.warning("coach_turn_failed", error_type=type(exc).__name__)
+            detail = "The coach hit an error talking to the model. Please try again."
+            yield _sse(coach_service.CoachEvent(type="error", text=detail))
+
+    return StreamingResponse(
+        stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+@router.get("/coach/memory", response_model=list[coach_memory.MemoryNoteOut])
+def list_coach_memory() -> list[coach_memory.MemoryNoteOut]:
+    with session_scope(get_session_factory()) as session:
+        return coach_memory.list_notes(session)
+
+
+@router.delete("/coach/memory/{note_id}", status_code=204)
+def delete_coach_memory(note_id: int) -> None:
+    with session_scope(get_session_factory()) as session:
+        try:
+            coach_memory.delete_note(session, note_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc

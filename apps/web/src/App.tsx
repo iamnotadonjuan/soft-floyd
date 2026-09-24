@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "./api/client";
 import { hasCompletedOnboarding, type ProfileOut } from "./api/types";
+import Coach from "./pages/Coach";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
@@ -9,7 +10,7 @@ import RideDetail from "./pages/RideDetail";
 
 // These are local views; a ride detail keeps the dashboard mounted so
 // returning to history preserves loaded pages and keyboard focus.
-type View = "dashboard" | "settings" | "ride";
+type View = "dashboard" | "settings" | "ride" | "coach";
 
 export default function App() {
   const [profile, setProfile] = useState<ProfileOut | null>(null);
@@ -44,11 +45,16 @@ export default function App() {
     );
   }
 
+  if (view === "coach") {
+    return <Coach onBack={() => setView("dashboard")} />;
+  }
+
   return <>
     <div hidden={view === "ride"}>
       <Dashboard
         profile={profile}
         onOpenSettings={() => setView("settings")}
+        onOpenCoach={() => { setView("coach"); window.scrollTo(0, 0); }}
         onOpenRide={(id) => {
           rideListScroll.current = window.scrollY;
           setSelectedRideId(id);

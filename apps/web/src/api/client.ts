@@ -6,6 +6,10 @@ import type {
   ActivitySummaryOut,
   BikeIn,
   BikeOut,
+  CoachConversationDetailOut,
+  CoachConversationOut,
+  CoachEvent,
+  CoachMemoryNoteOut,
   ConnectionOut,
   LoginStartResult,
   ProfileIn,
@@ -21,7 +25,7 @@ class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+async function send(path: string, init?: RequestInit): Promise<Response> {
   const response = await fetch(`/api${path}`, {
     headers: { "content-type": "application/json" },
     ...init,
@@ -39,8 +43,46 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new ApiError(response.status, message || `${init?.method ?? "GET"} ${path} failed`);
   }
+  return response;
+}
+
+async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const response = await send(path, init);
   if (response.status === 204) return undefined as T;
   return response.json() as Promise<T>;
+}
+
+// POSTs a coach message and calls onEvent for each Server-Sent Event as it
+// arrives. EventSource can't POST, so this reads the body stream and splits
+// SSE frames ("event: x\ndata: {...}\n\n") by hand. Resolves when the
+// stream ends; rejects with ApiError if the turn is refused up front.
+async function streamCoachMessage(
+  conversationId: number,
+  text: string,
+  onEvent: (event: CoachEvent) => void,
+  signal?: AbortSignal,
+): Promise<void> {
+  const response = await send(`/coach/conversations/${conversationId}/messages`, {
+    method: "POST",
+    body: JSON.stringify({ text }),
+    signal,
+  });
+  if (!response.body) throw new ApiError(500, "The coach reply had no body");
+  const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buffer = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buffer += value;
+    let boundary = buffer.indexOf("\n\n");
+    while (boundary !== -1) {
+      const frame = buffer.slice(0, boundary);
+      buffer = buffer.slice(boundary + 2);
+      const data = frame.split("\n").find((line) => line.startsWith("data: "));
+      if (data) onEvent(JSON.parse(data.slice(6)) as CoachEvent);
+      boundary = buffer.indexOf("\n\n");
+    }
+  }
 }
 
 export const api = {
@@ -75,6 +117,17 @@ export const api = {
       body: JSON.stringify({ code }),
     }),
   garminDisconnect: () => request<void>("/connections/garmin", { method: "DELETE" }),
+
+  listCoachConversations: () => request<CoachConversationOut[]>("/coach/conversations"),
+  createCoachConversation: () =>
+    request<CoachConversationOut>("/coach/conversations", { method: "POST" }),
+  getCoachConversation: (id: number) =>
+    request<CoachConversationDetailOut>(`/coach/conversations/${id}`),
+  deleteCoachConversation: (id: number) =>
+    request<void>(`/coach/conversations/${id}`, { method: "DELETE" }),
+  streamCoachMessage,
+  listCoachMemory: () => request<CoachMemoryNoteOut[]>("/coach/memory"),
+  deleteCoachMemory: (id: number) => request<void>(`/coach/memory/${id}`, { method: "DELETE" }),
 };
 
 export { ApiError };

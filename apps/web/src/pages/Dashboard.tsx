@@ -23,10 +23,11 @@ function connectionCopy(status: ConnectionOut["status"]): string {
 }
 
 export default function Dashboard({
-  profile, onOpenSettings, onOpenRide,
+  profile, onOpenSettings, onOpenCoach, onOpenRide,
 }: {
   profile: ProfileOut;
   onOpenSettings: () => void;
+  onOpenCoach: () => void;
   onOpenRide: (id: number) => void;
 }) {
   const [rides, setRides] = useState<ActivitySummaryOut[] | null>(null);
@@ -65,6 +66,8 @@ export default function Dashboard({
     }
   }
 
+  // The coach needs a ride source to coach from; see docs/product-specs/coach-chat.md.
+  const coachReady = connections?.some((c) => c.status === "connected") ?? false;
   const newest = rides?.[0];
   const history = rides?.slice(1) ?? [];
 
@@ -73,7 +76,13 @@ export default function Dashboard({
       <div className="page-wrap">
         <header className="mb-12 flex flex-wrap items-start justify-between gap-4">
           <span className="brand">Soft Floyd / Ride journal</span>
-          <button onClick={onOpenSettings} className="secondary-button">Settings</button>
+          <div className="flex flex-wrap items-center gap-2">
+            <button onClick={onOpenCoach} className="primary-button" disabled={!coachReady}
+              aria-describedby={coachReady ? undefined : "coach-hint"}>Ask your coach</button>
+            <button onClick={onOpenSettings} className="secondary-button">Settings</button>
+          </div>
+          {connections !== null && !coachReady &&
+            <p id="coach-hint" className="body-muted w-full text-right text-sm">Connect Garmin in Settings to unlock your coach.</p>}
         </header>
 
         <section className="mb-9 grid gap-6 lg:grid-cols-[1.5fr_1fr] lg:items-end">

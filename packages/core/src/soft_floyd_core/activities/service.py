@@ -58,6 +58,28 @@ class ActivityDetailOut(ActivitySummaryOut):
     available_metrics: list[str]
 
 
+class WeekSummaryOut(BaseModel):
+    week_start: dt.date  # Monday
+    rides: int
+    distance_km: float
+    duration_h: float
+    elev_gain_m: float
+    # Duration-weighted over only the rides whose own FIT data verified the
+    # stream (and whose metric allowlist permits it); None if no such ride.
+    avg_hr: int | None
+    hr_rides: int
+    avg_power_w: int | None
+    power_rides: int
+
+
+class TrainingSummaryOut(BaseModel):
+    weeks: list[WeekSummaryOut]  # oldest first; empty weeks included
+    total_rides: int
+    total_distance_km: float
+    total_duration_h: float
+    data_note: str | None
+
+
 class SyncStatusOut(BaseModel):
     last_seen_activity_id: int | None
     last_sync_at: dt.datetime | None
@@ -199,6 +221,80 @@ def get_activity(session: Session, activity_id: int) -> ActivityDetailOut | None
         record_count=activity.record_count,
         records_stored=activity.records_stored,
         available_metrics=available_metrics_for_activity(session, activity),
+    )
+
+
+def _weighted(pairs: list[tuple[int, float]]) -> int | None:
+    weight = sum(w for _, w in pairs)
+    if not pairs or weight <= 0:
+        return None
+    return round(sum(v * w for v, w in pairs) / weight)
+
+
+def get_training_summary(
+    session: Session, weeks: int = 8, now: dt.datetime | None = None
+) -> TrainingSummaryOut:
+    """Weekly volume for the last `weeks` Monday-started weeks (clamped to
+    1..26). HR/power averages only include rides that pass the same
+    per-ride sensor gate as `available_metrics_for_activity`.
+    """
+    weeks = max(1, min(weeks, 26))
+    today = (now or dt.datetime.now(dt.UTC)).date()
+    first_monday = today - dt.timedelta(days=today.weekday()) - dt.timedelta(weeks=weeks - 1)
+    rides = session.scalars(
+        select(Activity)
+        .where(Activity.start_time >= dt.datetime.combine(first_monday, dt.time()))
+        .order_by(Activity.start_time)
+    ).all()
+
+    buckets: dict[dt.date, list[Activity]] = {
+        first_monday + dt.timedelta(weeks=i): [] for i in range(weeks)
+    }
+    for ride in rides:
+        day = ride.start_time.date()
+        monday = day - dt.timedelta(days=day.weekday())
+        if monday in buckets:
+            buckets[monday].append(ride)
+
+    out: list[WeekSummaryOut] = []
+    unverified = 0
+    for monday, week_rides in buckets.items():
+        hr: list[tuple[int, float]] = []
+        power: list[tuple[int, float]] = []
+        for ride in week_rides:
+            if ride.fit_status != "ok":
+                unverified += 1
+                continue
+            allowed = available_metrics_for_activity(session, ride)
+            if ride.has_hr_data and ride.avg_hr and "hr_zones" in allowed:
+                hr.append((ride.avg_hr, ride.duration_s))
+            if ride.has_power_data and ride.avg_power_w and "normalized_power" in allowed:
+                power.append((ride.avg_power_w, ride.duration_s))
+        out.append(
+            WeekSummaryOut(
+                week_start=monday,
+                rides=len(week_rides),
+                distance_km=round(sum(r.distance_m for r in week_rides) / 1000, 1),
+                duration_h=round(sum(r.duration_s for r in week_rides) / 3600, 2),
+                elev_gain_m=round(sum(r.elev_gain_m for r in week_rides)),
+                avg_hr=_weighted(hr),
+                hr_rides=len(hr),
+                avg_power_w=_weighted(power),
+                power_rides=len(power),
+            )
+        )
+
+    notes = []
+    if unverified:
+        notes.append(f"{unverified} ride(s) had no usable FIT data; HR/power omitted for them.")
+    if not any(w.power_rides for w in out):
+        notes.append("No verified power data in this window; do not discuss power numbers.")
+    return TrainingSummaryOut(
+        weeks=out,
+        total_rides=sum(w.rides for w in out),
+        total_distance_km=round(sum(w.distance_km for w in out), 1),
+        total_duration_h=round(sum(w.duration_h for w in out), 2),
+        data_note=" ".join(notes) or None,
     )
 
 

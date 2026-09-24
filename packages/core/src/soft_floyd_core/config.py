@@ -37,6 +37,9 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str | None = None
+    # Hard stop for all paid LLM calls made by the coach (exec-plan 0007);
+    # month-to-date spend is summed from the llm_usage table.
+    llm_monthly_budget_usd: float = 10.0
     db_path: Path = Path("data/soft-floyd.db")
     log_level: str = "INFO"
     lthr: int = 165  # default lactate threshold HR (bpm) when the rider hasn't set one

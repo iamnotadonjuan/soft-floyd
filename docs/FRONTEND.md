@@ -21,9 +21,9 @@ apps/web/src/
                      Goals/Garage/AboutYou/Anchors/ConnectStep) — each a
                      thin "Next"-gated wrapper around the shared
                      components above plus its own fields.
-  pages/            Onboarding, Dashboard, RideDetail, Settings.
+  pages/            Onboarding, Dashboard, RideDetail, Settings, Coach.
   App.tsx           The "has a profile?" onboarding gate, plus the
-                     dashboard/settings/ride view toggle.
+                     dashboard/settings/ride/coach view toggle.
 ```
 
 ## Rules
@@ -56,7 +56,12 @@ apps/web/src/
   persistence (bikes, connections) or is a pure controlled input
   (everything else) — never both.
 - No component reaches for `fetch` directly; go through `api/client.ts`
-  so there is one place that knows the API shape.
+  so there is one place that knows the API shape. That includes the
+  coach's Server-Sent Events stream: `api.streamCoachMessage` POSTs and
+  parses SSE frames from the response body (EventSource can't POST).
+- Coach replies are model output: `components/CoachText.tsx` renders
+  their small Markdown subset as React elements — never
+  `dangerouslySetInnerHTML`.
 - Ride history uses the last page item's `(start_time, id)` cursor, not an
   offset; this keeps browsing stable when a new Garmin ride arrives.
 - Follow `.agents/skills/vercel-react-best-practices` rules where they

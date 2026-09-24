@@ -270,3 +270,52 @@ class LLMUsageRecord(Base):
     cached_tokens: Mapped[int]
     completion_tokens: Mapped[int]
     cost_usd: Mapped[float]
+
+
+class CoachConversation(Base):
+    """One coach chat thread (exec-plan 0007). Title is the first user
+    message, truncated — no extra LLM call to name it."""
+
+    __tablename__ = "coach_conversation"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    title: Mapped[str] = mapped_column(String(120), default="New conversation")
+    created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
+
+    messages: Mapped[list[CoachMessage]] = relationship(
+        back_populates="conversation",
+        cascade="all, delete-orphan",
+        order_by="CoachMessage.id",
+    )
+
+
+class CoachMessage(Base):
+    """A user or assistant turn. Tool traffic is not persisted — each turn
+    rebuilds it from live data, so stale ride numbers never replay."""
+
+    __tablename__ = "coach_message"
+    __table_args__ = (Index("ix_coach_message_conversation_id", "conversation_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    conversation_id: Mapped[int] = mapped_column(
+        ForeignKey("coach_conversation.id", ondelete="CASCADE")
+    )
+    role: Mapped[str] = mapped_column(String(16))  # "user" | "assistant"
+    content: Mapped[str] = mapped_column(Text)
+    # Book citations shown under an assistant reply: [{title, page_start, ...}]
+    sources: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+
+    conversation: Mapped[CoachConversation] = relationship(back_populates="messages")
+
+
+class CoachMemoryNote(Base):
+    """A durable fact the coach saved about the rider (injury, preference,
+    constraint). Injected into every coach turn; the rider can delete any."""
+
+    __tablename__ = "coach_memory_note"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    text: Mapped[str] = mapped_column(String(300))
+    created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)

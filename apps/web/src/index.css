@@ -47,7 +47,25 @@ button:disabled { cursor: not-allowed; }
 .rule { border-color: #dce2d6; }
 .ride-tile { width: 100%; text-align: left; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
 .ride-tile:hover { border-color: #8eae91; transform: translateY(-2px); box-shadow: 0 12px 25px -24px #263e2c; }
+.coach-panel { display: flex; flex-direction: column; min-height: min(78vh, 52rem); overflow: hidden; }
+.coach-thread { flex: 1; overflow-y: auto; max-height: 68vh; padding: 1.25rem 1.25rem .5rem; display: flex; flex-direction: column; gap: .9rem; }
+.coach-message { max-width: 44rem; line-height: 1.6; }
+.coach-message[data-role="user"] { align-self: flex-end; background: #30553c; color: white; border-radius: 1rem 1rem .3rem 1rem; padding: .65rem .95rem; }
+.coach-message[data-role="assistant"] { align-self: flex-start; background: #eef1e8; border: 1px solid #d9e0d1; border-radius: 1rem 1rem 1rem .3rem; padding: .8rem 1rem; }
+.coach-text > * + * { margin-top: .6rem; }
+.coach-text ul { list-style: disc; padding-left: 1.25rem; }
+.coach-text ol { list-style: decimal; padding-left: 1.25rem; }
+.coach-text li + li { margin-top: .2rem; }
+.coach-composer { display: flex; gap: .75rem; align-items: flex-end; border-top: 1px solid #dce2d6; padding: 1rem 1.25rem; }
+.coach-composer textarea { resize: vertical; min-height: 3rem; max-height: 12rem; }
+.coach-thread-row { display: flex; align-items: center; gap: .25rem; border-radius: .6rem; }
+.coach-thread-row[data-active="true"] { background: #eef1e8; }
+.coach-thread-title { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; text-align: left; padding: .5rem .6rem; font-size: .9rem; color: #233029; }
+.coach-thread-delete { flex-shrink: 0; width: 1.9rem; height: 1.9rem; border-radius: .5rem; color: #647167; font-size: 1.1rem; line-height: 1; }
+.coach-thread-delete:hover:not(:disabled) { background: #f8e9e4; color: #9a4332; }
 @media (max-width: 640px) {
+  .coach-composer { flex-direction: column; align-items: stretch; }
+  .coach-thread { max-height: 60vh; padding-inline: .9rem; }
   .page-wrap { width: min(100% - 1.25rem, 1120px); padding-block: 1rem 3rem; }
   .surface { border-radius: 1rem; }
 }

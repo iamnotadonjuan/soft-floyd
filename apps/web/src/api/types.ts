@@ -144,6 +144,49 @@ export interface ActivityDetailOut extends ActivitySummaryOut {
   available_metrics: string[];
 }
 
+// Coach agent (exec-plan 0007) — mirrors soft_floyd_core.coach.*.
+export interface CoachSourceOut {
+  book_id: number;
+  title: string;
+  author: string | null;
+  page_start: number;
+  page_end: number;
+}
+
+export interface CoachConversationOut {
+  id: number;
+  title: string;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CoachMessageOut {
+  id: number;
+  role: "user" | "assistant";
+  content: string;
+  sources: CoachSourceOut[];
+  created_at: string;
+}
+
+export interface CoachConversationDetailOut extends CoachConversationOut {
+  messages: CoachMessageOut[];
+}
+
+// One Server-Sent Event from POST /api/coach/conversations/{id}/messages.
+// Fields left unset by the server (exclude_none) are simply absent.
+export interface CoachEvent {
+  type: "delta" | "tool_status" | "sources" | "done" | "error";
+  text?: string;
+  sources?: CoachSourceOut[];
+  message?: CoachMessageOut;
+}
+
+export interface CoachMemoryNoteOut {
+  id: number;
+  text: string;
+  created_at: string;
+}
+
 export function hasCompletedOnboarding(profile: ProfileOut): boolean {
   return profile.goal_text.trim().length > 0;
 }

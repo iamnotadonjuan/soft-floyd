@@ -15,7 +15,11 @@ One line per deliberately deferred item: what, why, and when to revisit.
 | Non-cycling activity types are invisible | `GarminClient.list_recent_activities` hardcodes `activitytype="cycling"` (matches v0 and this app's scope) | If Soft Floyd ever coaches other sports |
 | ~~RAG / book corpus not implemented~~ — **resolved in 0005-tiny-book-rag** | — | — |
 | Book retrieval has no OCR, chapter-aware chunking, or sensor-topic tags | No real book files were supplied for tuning; this phase only exposes cited passages | Review once books are imported and before generated coaching uses passages |
-| Coach agent / chat / cost dashboard not implemented | Depends on Garmin sync (done) + training signal model existing first | After the metrics exec-plan lands |
+| ~~Coach agent / chat~~ — **resolved in 0007-coach-agent** | — | — |
+| No LLM cost dashboard | 0007 enforces a monthly budget from `llm_usage` but only surfaces it as an error when reached | When the rider wants to see spend before hitting the cap |
+| Coach history is a fixed last-12-message window | Long threads silently drop early context; no summarization | If riders keep very long threads — summarize older turns or lean on memory notes |
+| Coach can't compute HR zones/TRIMP/NP | Those metrics don't exist yet; the coach only sees summary averages that passed the sensor gate | The training-metrics exec-plan — then add coach tools over them |
+| Coach guardrail has no live eval suite | Unit tests fake the classifier; 0007 verified 9 live prompts by hand | Before changing the classifier prompt or model |
 | ~~Settings screen for editing sensors/profile post-onboarding~~ — **resolved in 0004-rider-profile-and-connections-ui**, `apps/web/src/pages/Settings.tsx` | — | — |
 | CORS origin hardcoded to `http://localhost:5173` in `apps/server/.../main.py` | Only dev origin exists today; no production static-serving story yet | When `COACH_SERVE_FRONTEND`-style production serving is added |
 | ~~No activities/sync UI in `apps/web`~~ — **resolved in 0005-rider-ui-and-history** | — | — |

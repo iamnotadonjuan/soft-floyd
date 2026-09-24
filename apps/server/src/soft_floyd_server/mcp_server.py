@@ -9,6 +9,7 @@ from datetime import datetime
 from fastmcp import FastMCP
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.bikes import service as bikes_service
+from soft_floyd_core.coach import memory as coach_memory
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.connections import service as connections_service
 from soft_floyd_core.db import session_scope
@@ -175,3 +176,36 @@ async def get_training_context(
         return await rag_service.get_training_context(
             session, query, rag_service.make_embedder(settings.openai_api_key), activity_id
         )
+
+
+@mcp.tool
+def get_training_summary(weeks: int = 8) -> activities_service.TrainingSummaryOut:
+    """Weekly ride count, distance, time and elevation for the last `weeks`
+    Monday-started weeks (1-26). avg_hr/avg_power_w only include rides whose
+    own FIT data verified that stream; respect data_note when present.
+    """
+    with session_scope(get_session_factory()) as session:
+        return activities_service.get_training_summary(session, weeks)
+
+
+@mcp.tool
+def list_coach_memory() -> list[coach_memory.MemoryNoteOut]:
+    """Durable notes the coach keeps about the rider (injuries, schedule,
+    preferences). Read these before coaching so advice stays personal."""
+    with session_scope(get_session_factory()) as session:
+        return coach_memory.list_notes(session)
+
+
+@mcp.tool
+def add_coach_memory(note: str) -> coach_memory.MemoryNoteOut:
+    """Save one short, durable, cycling-relevant fact about the rider
+    (max 300 chars). Duplicates return the existing note."""
+    with session_scope(get_session_factory()) as session:
+        return coach_memory.add_note(session, note)
+
+
+@mcp.tool
+def delete_coach_memory(note_id: int) -> None:
+    """Delete a coach memory note that is wrong or no longer true."""
+    with session_scope(get_session_factory()) as session:
+        coach_memory.delete_note(session, note_id)

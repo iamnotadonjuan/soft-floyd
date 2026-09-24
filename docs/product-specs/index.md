@@ -16,3 +16,5 @@ User-facing behavior specs — *what* a feature must do. Pair with
   Depends on Garmin sync and the training signal model.
 - [training-book-retrieval.md](training-book-retrieval.md) — local PDF import,
   cited semantic search, and verified ride context.
+- [coach-chat.md](coach-chat.md) — implemented (exec-plan 0007).
+  Cycling-only coach chat over rides, books and rider memory notes.

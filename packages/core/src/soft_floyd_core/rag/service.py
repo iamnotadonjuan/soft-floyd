@@ -17,7 +17,8 @@ from sqlalchemy.orm import Session
 
 from soft_floyd_core.activities.service import available_metrics_for_activity
 from soft_floyd_core.llm.client import LLMClient, Usage
-from soft_floyd_core.models import Activity, Book, BookPassage, LLMUsageRecord
+from soft_floyd_core.llm.usage import record_usage
+from soft_floyd_core.models import Activity, Book, BookPassage
 from soft_floyd_core.profile.service import get_profile
 
 _CHUNK_WORDS = 220
@@ -125,18 +126,6 @@ def _chunks(path: Path) -> list[tuple[int, str]]:
     return chunks
 
 
-def _record_usage(session: Session, usage: Usage) -> None:
-    session.add(
-        LLMUsageRecord(
-            model=usage.model,
-            prompt_tokens=usage.prompt_tokens,
-            cached_tokens=usage.cached_tokens,
-            completion_tokens=usage.completion_tokens,
-            cost_usd=usage.cost_usd,
-        )
-    )
-
-
 async def import_pdf(
     session: Session,
     path: Path,
@@ -188,7 +177,7 @@ async def import_pdf(
     for ordinal in range(resumed_from, len(chunks)):
         page, text = chunks[ordinal]
         vector, usage = await embedder.embed(text)
-        _record_usage(session, usage)
+        record_usage(session, usage)
         session.add(
             BookPassage(
                 book_id=book.id,
@@ -212,7 +201,7 @@ async def import_pdf(
     )
 
 
-def _ride_context(session: Session, activity: Activity) -> RideContextOut:
+def ride_context(session: Session, activity: Activity) -> RideContextOut:
     allowed = available_metrics_for_activity(session, activity)
     verified = activity.fit_status == "ok"
     sensors = []
@@ -275,7 +264,7 @@ async def get_training_context(
         if embedder is None:
             raise ValueError("SOFT_FLOYD_OPENAI_API_KEY is required for book search")
         vector, usage = await embedder.embed(query)
-        _record_usage(session, usage)
+        record_usage(session, usage)
         session.commit()
         ranked = sorted(
             rows,
@@ -298,6 +287,6 @@ async def get_training_context(
         query=query,
         goal_text=profile.goal_text,
         primary_discipline=profile.primary_discipline,
-        ride=_ride_context(session, activity) if activity else None,
+        ride=ride_context(session, activity) if activity else None,
         passages=passages,
     )

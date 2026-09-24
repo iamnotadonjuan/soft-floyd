@@ -1,8 +1,9 @@
 """OpenAI client wrapper with per-call cost accounting.
 
-Not called anywhere in the scaffold — the coach agent, RAG, and chat are
-out of scope for this commit (see docs/exec-plans/active). This exists so
-the model choice and cost math are pinned down before that work starts.
+The only place this app talks to OpenAI. Callers never pick a model:
+book RAG embeds with EMBEDDING_MODEL and the coach agent (exec-plan 0007)
+chats with CHAT_MODEL. Every returned `Usage` must be persisted with
+`soft_floyd_core.llm.usage.record_usage` by the caller.
 
 Pricing is USD per 1M tokens as of the model's release; update alongside
 docs/references when OpenAI changes pricing.
@@ -10,7 +11,10 @@ docs/references when OpenAI changes pricing.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+import json
+from collections.abc import AsyncIterator
+from dataclasses import dataclass, field
+from typing import Any
 
 from openai import AsyncOpenAI
 
@@ -42,6 +46,39 @@ class Usage:
         ) / 1_000_000
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    id: str
+    name: str
+    arguments: str  # raw JSON text, exactly as the model produced it
+
+
+@dataclass(frozen=True)
+class TextDelta:
+    text: str
+
+
+@dataclass(frozen=True)
+class ChatDone:
+    """Last item of every `chat_stream`: the tool calls the model asked for
+    (empty when it answered in text) and the request's token usage."""
+
+    usage: Usage
+    tool_calls: list[ToolCall] = field(default_factory=list)
+
+
+def _chat_usage(raw: Any) -> Usage:
+    if raw is None:
+        return Usage(CHAT_MODEL, 0, 0, 0)
+    details = getattr(raw, "prompt_tokens_details", None)
+    return Usage(
+        model=CHAT_MODEL,
+        prompt_tokens=raw.prompt_tokens,
+        cached_tokens=(getattr(details, "cached_tokens", 0) or 0) if details else 0,
+        completion_tokens=raw.completion_tokens,
+    )
+
+
 class LLMClient:
     """Thin wrapper pinning the model choice; callers never pick a model."""
 
@@ -57,3 +94,56 @@ class LLMClient:
             completion_tokens=0,
         )
         return response.data[0].embedding, usage
+
+    async def chat_stream(
+        self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
+    ) -> AsyncIterator[TextDelta | ChatDone]:
+        kwargs: dict[str, Any] = {}
+        if tools:
+            kwargs["tools"] = tools
+        stream = await self._client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=messages,
+            stream=True,
+            stream_options={"include_usage": True},
+            temperature=0.4,
+            **kwargs,
+        )
+        # Tool-call arguments arrive as fragments keyed by index.
+        pending: dict[int, dict[str, str]] = {}
+        usage_raw = None
+        async for chunk in stream:
+            if chunk.usage is not None:
+                usage_raw = chunk.usage
+            for choice in chunk.choices:
+                delta = choice.delta
+                if delta.content:
+                    yield TextDelta(delta.content)
+                for call in delta.tool_calls or []:
+                    slot = pending.setdefault(call.index, {"id": "", "name": "", "arguments": ""})
+                    if call.id:
+                        slot["id"] = call.id
+                    if call.function and call.function.name:
+                        slot["name"] += call.function.name
+                    if call.function and call.function.arguments:
+                        slot["arguments"] += call.function.arguments
+        yield ChatDone(
+            usage=_chat_usage(usage_raw),
+            tool_calls=[ToolCall(**pending[i]) for i in sorted(pending)],
+        )
+
+    async def chat_json(
+        self, messages: list[dict[str, Any]], schema_name: str, schema: dict[str, Any]
+    ) -> tuple[dict[str, Any], Usage]:
+        response = await self._client.chat.completions.create(
+            model=CHAT_MODEL,
+            messages=messages,
+            temperature=0,
+            max_completion_tokens=50,
+            response_format={
+                "type": "json_schema",
+                "json_schema": {"name": schema_name, "schema": schema, "strict": True},
+            },
+        )
+        content = response.choices[0].message.content or "{}"
+        return json.loads(content), _chat_usage(response.usage)

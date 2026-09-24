@@ -45,8 +45,10 @@ repo. Read it before writing code.
   forever. See `docs/RELIABILITY.md`.
 - **LLM cost cap ~$5-10/month.** Model is pinned to OpenAI `gpt-4.1-mini`
   (chat) and `text-embedding-3-small` (embeddings) in
-  `packages/core/src/soft_floyd_core/llm/client.py`. Every LLM call must
-  be recorded there once the coach agent lands — don't call the OpenAI
+  `packages/core/src/soft_floyd_core/llm/client.py`. Every paid call's
+  `Usage` must be persisted with `llm/usage.py::record_usage` — the coach
+  refuses new turns once month-to-date spend reaches
+  `SOFT_FLOYD_LLM_MONTHLY_BUDGET_USD` (default 10). Don't call the OpenAI
   SDK directly from elsewhere.
 - **Alembic is the only way schema changes.** `packages/core/src/soft_floyd_core/db.py`'s
   `run_migrations` handles it (`uv run alembic revision --autogenerate`,
@@ -90,9 +92,15 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 - **0005-rider-ui-and-history** (done): responsive onboarding, Settings,
   and dashboard UI; latest ride plus cursor-paginated history and recorded
   ride detail. See `docs/product-specs/ride-journal.md`.
+- **0007-coach-agent** (done): cycling-only coach chat in the web UI
+  (unlocked once Garmin is connected) — scope guardrail, OpenAI
+  tool-calling over sensor-gated ride data, weekly training summary,
+  cited book passages, rider memory notes, persisted conversations
+  streamed over SSE, and a monthly LLM budget. See
+  `docs/product-specs/coach-chat.md`.
 - **Not yet implemented**: HR/power metrics computation (HR zones, TRIMP,
   decoupling, FTP/NP/TSS — see `docs/design-docs/training-signal-model.md`),
-  generated coach agent/chat, ride-history retrieval, historical backfill,
+  historical backfill,
   manual FIT upload, wellness/HRV/sleep sync. Each gets its own exec-plan
   before work starts. `docs/exec-plans/tech-debt-tracker.md` lists what
   was deliberately deferred and why.
