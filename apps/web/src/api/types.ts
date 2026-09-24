@@ -108,6 +108,42 @@ export interface LoginStartResult {
   state: "connected" | "mfa_required";
 }
 
+export interface ActivitySummaryOut {
+  id: number;
+  start_time: string;
+  sport: string;
+  sub_sport: string;
+  bike_type: string;
+  is_indoor: boolean;
+  distance_m: number;
+  duration_s: number;
+  elev_gain_m: number;
+  avg_hr: number | null;
+  max_hr: number | null;
+  avg_power_w: number | null;
+  avg_cadence: number | null;
+  sensors_present: string[];
+  fit_status: string;
+}
+
+export interface LapOut {
+  lap_index: number;
+  distance_m: number;
+  duration_s: number;
+  avg_hr: number | null;
+  avg_speed_mps: number | null;
+  avg_power_w: number | null;
+  avg_cadence: number | null;
+  elev_gain_m: number;
+}
+
+export interface ActivityDetailOut extends ActivitySummaryOut {
+  laps: LapOut[];
+  record_count: number;
+  records_stored: boolean;
+  available_metrics: string[];
+}
+
 export function hasCompletedOnboarding(profile: ProfileOut): boolean {
   return profile.goal_text.trim().length > 0;
 }

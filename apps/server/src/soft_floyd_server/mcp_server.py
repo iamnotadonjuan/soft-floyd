@@ -4,6 +4,8 @@ soft_floyd_core; no domain logic lives here (see ARCHITECTURE.md).
 
 from __future__ import annotations
 
+from datetime import datetime
+
 from fastmcp import FastMCP
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.bikes import service as bikes_service
@@ -105,7 +107,10 @@ def get_available_metrics() -> list[str]:
 
 @mcp.tool
 def list_activities(
-    limit: int = 20, bike_type: str | None = None
+    limit: int = 20,
+    bike_type: str | None = None,
+    before_start_time: datetime | None = None,
+    before_id: int | None = None,
 ) -> list[activities_service.ActivitySummaryOut]:
     """List recent rides, most recent first. Optionally filter by
     bike_type (road/mtb/indoor/other). Each ride's sensors_present
@@ -115,7 +120,13 @@ def list_activities(
     available_metrics allowlist before discussing any metric.
     """
     with session_scope(get_session_factory()) as session:
-        return activities_service.list_activities(session, limit=limit, bike_type=bike_type)
+        return activities_service.list_activities(
+            session,
+            limit=limit,
+            bike_type=bike_type,
+            before_start_time=before_start_time,
+            before_id=before_id,
+        )
 
 
 @mcp.tool

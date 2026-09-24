@@ -32,11 +32,13 @@ number the rider can't produce):
    with `kind="indoor"` — there is no separate trainer concept. Not
    skippable (at least one bike is required); bikes save immediately as
    they're added/edited, there's no "Next" patch to submit for this step.
-4. **About you** — birth year, weight, max heart rate, years riding,
+4. **About you** — whether the rider wears a heart rate monitor, birth year,
+   weight, max heart rate, years riding,
    longest recent ride, a self-rated level
    (`beginner`/`recreational`/`enthusiast`/`competitive`), whether
    they've followed a structured plan before, and free-text health
-   notes. Every field is individually skippable.
+   notes. Every field is individually skippable. The HR monitor choice
+   sets `has_hr_monitor` before the conditional Anchors step.
 5. **Anchors** — conditionally rendered based on the garage and the
    rider's HR flag (both read from `ProfileOut`, refreshed right after
    the Garage step so its derived fields are current):

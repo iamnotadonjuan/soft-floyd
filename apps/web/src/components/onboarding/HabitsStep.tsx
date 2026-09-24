@@ -62,7 +62,7 @@ export default function HabitsStep({
 
       <button
         onClick={() => onNext({ weekly_rides: rides, weekly_hours: hours, ...availability })}
-        className="w-full rounded-md bg-neutral-900 py-2 text-white font-medium"
+        className="primary-button w-full"
       >
         Next
       </button>

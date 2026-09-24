@@ -25,6 +25,7 @@ export default function GarminLoginForm({ onConnected }: Props) {
     setError(null);
     try {
       const result = await api.garminLogin(email, password);
+      setPassword("");
       if (result.state === "mfa_required") {
         setStage("mfa");
       } else {
@@ -52,19 +53,20 @@ export default function GarminLoginForm({ onConnected }: Props) {
 
   if (stage === "mfa") {
     return (
-      <div className="space-y-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
+      <div className="space-y-3 pt-4">
         <p className="text-sm font-medium">Enter the code Garmin just sent you</p>
         <input
+          aria-label="Garmin verification code"
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="123456"
-          className="w-full rounded-md border border-neutral-300 px-3 py-2"
+          className="form-field"
         />
-        {error && <p className="text-xs text-red-600">{error}</p>}
+        {error && <p className="notice-error" role="alert">{error}</p>}
         <button
           onClick={handleMfa}
           disabled={submitting || code.trim().length === 0}
-          className="w-full rounded-md bg-neutral-900 py-2 text-sm font-medium text-white disabled:opacity-40"
+          className="primary-button w-full"
         >
           {submitting ? "Verifying…" : "Verify"}
         </button>
@@ -73,31 +75,31 @@ export default function GarminLoginForm({ onConnected }: Props) {
   }
 
   return (
-    <div className="space-y-2 rounded-md border border-neutral-200 bg-neutral-50 p-3">
-      <input
+    <div className="space-y-3 pt-4">
+      <label className="block"><span className="form-label">Garmin email</span><input
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
         placeholder="Garmin email"
-        className="w-full rounded-md border border-neutral-300 px-3 py-2"
-      />
-      <input
+        className="form-field"
+      /></label>
+      <label className="block"><span className="form-label">Password</span><input
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
         placeholder="Garmin password"
-        className="w-full rounded-md border border-neutral-300 px-3 py-2"
-      />
-      {error && <p className="text-xs text-red-600">{error}</p>}
+        className="form-field"
+      /></label>
+      {error && <p className="notice-error" role="alert">{error}</p>}
       <button
         onClick={handleLogin}
         disabled={submitting || email.trim().length === 0 || password.length === 0}
-        className="w-full rounded-md bg-neutral-900 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="primary-button w-full"
       >
         {submitting ? "Connecting…" : "Connect Garmin"}
       </button>
-      <p className="text-xs text-neutral-400">
-        Sent directly to your own local server and never stored — see docs/SECURITY.md.
+      <p className="body-muted text-xs">
+        Your password goes only to your local Soft Floyd server for this sign-in.
       </p>
     </div>
   );

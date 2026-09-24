@@ -28,11 +28,13 @@ export default function BikeEditor({ onBikesChange }: Props) {
 
   useEffect(() => {
     let cancelled = false;
-    api.listBikes().then((loaded) => {
-      if (cancelled) return;
-      setBikes(loaded);
-      onBikesChange?.(loaded);
-    });
+    api.listBikes()
+      .then((loaded) => {
+        if (cancelled) return;
+        setBikes(loaded);
+        onBikesChange?.(loaded);
+      })
+      .catch((reason) => { if (!cancelled) setError(String(reason)); });
     return () => {
       cancelled = true;
     };
@@ -85,12 +87,14 @@ export default function BikeEditor({ onBikesChange }: Props) {
   }
 
   if (bikes === null) {
-    return <p className="text-sm text-neutral-400">Loading your garage…</p>;
+    return error
+      ? <p className="notice-error" role="alert">Could not load bikes: {error}</p>
+      : <p className="body-muted text-sm">Loading your garage…</p>;
   }
 
   return (
     <div className="space-y-4">
-      {error && <p className="text-sm text-red-600">{error}</p>}
+      {error && <p className="notice-error" role="alert">{error}</p>}
 
       {bikes.length > 0 && (
         <div className="space-y-3">
@@ -113,7 +117,7 @@ export default function BikeEditor({ onBikesChange }: Props) {
             type="button"
             disabled={adding}
             onClick={() => handleAdd(key)}
-            className="rounded-md border border-neutral-300 px-3 py-1.5 text-sm disabled:opacity-40"
+            className="secondary-button text-sm disabled:opacity-40"
           >
             + {label}
           </button>
@@ -135,17 +139,18 @@ function BikeRow({
   onDelete: () => void;
 }) {
   return (
-    <div className="rounded-md border border-neutral-300 p-3">
-      <div className="flex items-center justify-between gap-2">
+    <div className="surface-soft p-4">
+      <div className="flex flex-wrap items-center justify-between gap-2">
         <input
+          aria-label={`${BIKE_KIND_LABEL[bike.kind] ?? bike.kind} bike nickname`}
           defaultValue={bike.nickname}
           onBlur={(e) => {
             if (e.target.value !== bike.nickname) onUpdate({ nickname: e.target.value });
           }}
           placeholder={BIKE_KIND_LABEL[bike.kind] ?? bike.kind}
-          className="flex-1 border-b border-transparent bg-transparent font-medium focus:border-neutral-300 focus:outline-none"
+          className="min-w-0 flex-1 font-semibold"
         />
-        <span className="rounded-full border border-neutral-300 px-2 py-0.5 text-xs capitalize">
+        <span className="status-pill" data-tone="neutral">
           {bike.kind}
         </span>
       </div>
@@ -177,16 +182,16 @@ function BikeRow({
         </label>
       </div>
 
-      <div className="mt-2 flex items-center justify-between text-xs text-neutral-500">
+      <div className="body-muted mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         {bike.is_primary ? (
-          <span className="font-medium text-neutral-700">Primary bike</span>
+          <span className="font-semibold text-[#30553c]">Primary bike</span>
         ) : (
-          <button type="button" onClick={() => onUpdate({ is_primary: true })} className="underline">
+          <button type="button" onClick={() => onUpdate({ is_primary: true })} className="text-button">
             Make primary
           </button>
         )}
         {canDelete && (
-          <button type="button" onClick={onDelete} className="text-red-600 underline">
+          <button type="button" onClick={onDelete} className="font-semibold text-red-700 underline">
             Remove
           </button>
         )}

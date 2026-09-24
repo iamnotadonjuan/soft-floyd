@@ -31,11 +31,8 @@ export default function FocusPicker({ value, onChange }: Props) {
           key={key}
           type="button"
           onClick={() => toggle(key)}
-          className={`rounded-full border px-3 py-1.5 text-sm ${
-            value.includes(key)
-              ? "border-neutral-900 bg-neutral-900 text-white"
-              : "border-neutral-300"
-          }`}
+          aria-pressed={value.includes(key)}
+          className="choice-chip"
         >
           {label}
         </button>

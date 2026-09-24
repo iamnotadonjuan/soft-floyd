@@ -39,11 +39,8 @@ export default function AvailabilityPicker({ value, onChange }: Props) {
               key={key}
               type="button"
               onClick={() => toggleDay(key)}
-              className={`rounded-full border px-3 py-1.5 text-sm ${
-                value.available_days.includes(key)
-                  ? "border-neutral-900 bg-neutral-900 text-white"
-                  : "border-neutral-300"
-              }`}
+              aria-pressed={value.available_days.includes(key)}
+              className="choice-chip"
             >
               {label}
             </button>

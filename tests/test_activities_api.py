@@ -62,6 +62,30 @@ def test_list_activities_filters_by_bike_type(client, road_fit_path, mtb_fit_pat
     assert [a["id"] for a in mtb_only] == [2]
 
 
+def test_activity_history_cursor_uses_time_then_id(client, road_fit_path):
+    _seed_activity(1, road_fit_path, startTimeLocal="2026-04-14T08:00:00")
+    _seed_activity(2, road_fit_path)
+    _seed_activity(3, road_fit_path)
+    _seed_activity(4, road_fit_path, startTimeLocal="2026-04-16T08:00:00")
+
+    first = client.get("/api/activities", params={"limit": 2}).json()
+    assert [ride["id"] for ride in first] == [4, 3]
+
+    second = client.get(
+        "/api/activities",
+        params={"limit": 2, "before_start_time": first[-1]["start_time"], "before_id": 3},
+    ).json()
+    assert [ride["id"] for ride in second] == [2, 1]
+    assert (
+        client.get(
+            "/api/activities",
+            params={"limit": 2, "before_start_time": second[-1]["start_time"], "before_id": 1},
+        ).json()
+        == []
+    )
+    assert client.get("/api/activities", params={"before_id": 3}).status_code == 422
+
+
 def test_get_activity_404s_on_unknown_id(client):
     response = client.get("/api/activities/999")
     assert response.status_code == 404

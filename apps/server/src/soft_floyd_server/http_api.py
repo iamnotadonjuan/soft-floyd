@@ -4,6 +4,8 @@ rule as mcp_server.py: no domain logic here.
 
 from __future__ import annotations
 
+import datetime as dt
+
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 from soft_floyd_core.activities import service as activities_service
@@ -44,10 +46,21 @@ def put_profile(data: profile_service.ProfileIn) -> profile_service.ProfileOut:
 
 @router.get("/activities", response_model=list[activities_service.ActivitySummaryOut])
 def list_activities(
-    limit: int = 20, bike_type: str | None = None
+    limit: int = 20,
+    bike_type: str | None = None,
+    before_start_time: dt.datetime | None = None,
+    before_id: int | None = None,
 ) -> list[activities_service.ActivitySummaryOut]:
+    if (before_start_time is None) != (before_id is None):
+        raise HTTPException(status_code=422, detail="Both activity cursor fields are required")
     with session_scope(get_session_factory()) as session:
-        return activities_service.list_activities(session, limit=limit, bike_type=bike_type)
+        return activities_service.list_activities(
+            session,
+            limit=limit,
+            bike_type=bike_type,
+            before_start_time=before_start_time,
+            before_id=before_id,
+        )
 
 
 @router.get("/activities/{activity_id}", response_model=activities_service.ActivityDetailOut)

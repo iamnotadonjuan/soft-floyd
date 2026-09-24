@@ -13,9 +13,6 @@ import HabitsStep from "../components/onboarding/HabitsStep";
 
 type Step = "habits" | "goals" | "garage" | "about" | "anchors" | "connect" | "summary";
 
-// Fixed order for the progress indicator below — "anchors" is sometimes
-// skipped in navigation (no sensor to ask an anchor for), so this is a
-// display approximation, not a strict traversal record.
 const STEP_ORDER: Step[] = ["habits", "goals", "garage", "about", "anchors", "connect", "summary"];
 
 interface Props {
@@ -29,33 +26,63 @@ interface Props {
 export default function Onboarding({ initialProfile, onComplete }: Props) {
   const [step, setStep] = useState<Step>("habits");
   const [profile, setProfile] = useState<ProfileOut>(initialProfile);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const steps = (profile.has_power_meter || profile.has_hr_monitor)
+    ? STEP_ORDER : STEP_ORDER.filter((item) => item !== "anchors");
+  const stepIndex = steps.indexOf(step);
 
   async function submitAndAdvance(patch: ProfileIn, next: Step) {
-    const updated = await api.updateProfile(patch);
-    setProfile(updated);
-    setStep(next);
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await api.updateProfile(patch);
+      setProfile(updated);
+      setStep(next);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function goBack() {
+    if (stepIndex > 0) {
+      setError(null);
+      setStep(steps[stepIndex - 1]);
+    }
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md items-center px-4">
-      <div className="w-full py-12">
-        <p className="mb-2 text-sm font-medium tracking-wide text-neutral-400">SOFT FLOYD</p>
+    <main className="app-shell min-h-screen">
+      <div className="page-wrap max-w-4xl">
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <span className="brand">Soft Floyd / Getting started</span>
+          <span className="body-muted text-sm">A little context makes better coaching.</span>
+        </header>
+        <div className="mb-8 max-w-2xl">
+          <p className="eyebrow mb-3">Your starting point</p>
+          <h1 className="display-title">Let’s get to know your ride.</h1>
+        </div>
+        <div className="surface flow-panel mx-auto max-w-2xl p-5 sm:p-8">
 
         {step !== "summary" && (
           <div className="mb-6">
-            <p className="mb-1 text-xs text-neutral-400">
-              Step {STEP_ORDER.indexOf(step) + 1} of {STEP_ORDER.length - 1}
+            <p className="eyebrow mb-2">
+              Step {stepIndex + 1} of {steps.length - 1}
             </p>
-            <div className="h-1 w-full rounded-full bg-neutral-100">
+            <div className="h-1.5 w-full rounded-full bg-[#e7ebe2]" role="progressbar" aria-valuenow={stepIndex + 1} aria-valuemin={1} aria-valuemax={steps.length - 1} aria-label="Onboarding progress">
               <div
-                className="h-1 rounded-full bg-neutral-900 transition-all"
+                className="h-1.5 rounded-full bg-[#30553c] transition-all"
                 style={{
-                  width: `${((STEP_ORDER.indexOf(step) + 1) / (STEP_ORDER.length - 1)) * 100}%`,
+                  width: `${((stepIndex + 1) / (steps.length - 1)) * 100}%`,
                 }}
               />
             </div>
           </div>
         )}
+        {error && <div className="notice-error mb-5" role="alert">Could not save: {error}</div>}
+        {saving && <p className="body-muted mb-4 text-sm" role="status">Saving your answers…</p>}
 
         {step === "habits" && (
           <HabitsStep
@@ -86,9 +113,17 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
               // Bikes don't live on the profile — refetch so
               // has_power_meter/primary_discipline (derived from the
               // garage) are current before Anchors/Summary need them.
-              const refreshed = await api.getProfile();
-              setProfile(refreshed);
-              setStep("about");
+              setSaving(true);
+              setError(null);
+              try {
+                const refreshed = await api.getProfile();
+                setProfile(refreshed);
+                setStep("about");
+              } catch (reason) {
+                setError(String(reason));
+              } finally {
+                setSaving(false);
+              }
             }}
           />
         )}
@@ -96,6 +131,7 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
         {step === "about" && (
           <AboutYouStep
             initial={{
+              has_hr_monitor: profile.has_hr_monitor,
               birth_year: profile.birth_year,
               weight_kg: profile.weight_kg,
               max_hr: profile.max_hr,
@@ -106,7 +142,7 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
               health_notes: profile.health_notes,
             }}
             onNext={(values: AboutYouValue) => {
-              const needsAnchors = profile.has_power_meter || profile.has_hr_monitor;
+              const needsAnchors = profile.has_power_meter || values.has_hr_monitor;
               submitAndAdvance(values, needsAnchors ? "anchors" : "connect");
             }}
           />
@@ -126,20 +162,19 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
 
         {step === "summary" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold">You're set up.</h2>
-              <p className="text-neutral-500 text-sm">Here's what I'll coach you on:</p>
-            </div>
-            <CapabilitySummary tier={profile.capability_tier} />
+            <div><p className="eyebrow mb-2">Ready to ride</p><h2 className="section-title">You’re set up.</h2><p className="body-muted mt-2 text-sm">Here’s what I can use to understand your rides:</p></div>
+            <CapabilitySummary profile={profile} />
             <button
               onClick={() => onComplete(profile)}
-              className="w-full rounded-md bg-neutral-900 py-2 text-white font-medium"
+              className="primary-button w-full"
             >
               Go to dashboard
             </button>
           </div>
         )}
+        {stepIndex > 0 && <button type="button" onClick={goBack} disabled={saving} className="text-button mt-6 text-sm">← Back</button>}
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

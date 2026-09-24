@@ -77,7 +77,7 @@ export default function GoalsStep({
             target_event_date: eventDate.trim() === "" ? null : eventDate,
           })
         }
-        className="w-full rounded-md bg-neutral-900 py-2 text-white font-medium disabled:opacity-40"
+        className="primary-button w-full"
       >
         Next
       </button>

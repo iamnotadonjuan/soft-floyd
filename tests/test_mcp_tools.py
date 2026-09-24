@@ -109,6 +109,23 @@ async def test_mcp_and_rest_agree_on_activity_list(client, road_fit_path):
     assert mcp_activities == rest_activities
 
 
+async def test_mcp_and_rest_agree_on_activity_cursor(client, road_fit_path):
+    from tests.test_activities_api import _seed_activity
+
+    _seed_activity(1, road_fit_path)
+    _seed_activity(2, road_fit_path)
+    cursor = client.get("/api/activities", params={"limit": 1}).json()[0]
+    args = {
+        "limit": 1,
+        "before_start_time": cursor["start_time"],
+        "before_id": cursor["id"],
+    }
+    rest_activities = client.get("/api/activities", params=args).json()
+    async with Client(mcp) as mcp_client:
+        result = await mcp_client.call_tool("list_activities", args)
+    assert [_as_json(ride) for ride in result.data] == rest_activities
+
+
 async def test_mcp_and_rest_agree_on_sync_result(client, monkeypatch):
     """Patches the shared SyncRunner (both surfaces call get_sync_runner())
     to return a fixed SyncResult, so this asserts serialization agreement

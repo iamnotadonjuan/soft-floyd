@@ -1,20 +1,22 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { api } from "./api/client";
 import { hasCompletedOnboarding, type ProfileOut } from "./api/types";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
 import Settings from "./pages/Settings";
+import RideDetail from "./pages/RideDetail";
 
-// Two destinations don't justify react-router yet — see docs/FRONTEND.md
-// ("reach for a library only when the scaffold's approach visibly
-// strains"). A third route is the point to revisit this.
-type View = "dashboard" | "settings";
+// These are local views; a ride detail keeps the dashboard mounted so
+// returning to history preserves loaded pages and keyboard focus.
+type View = "dashboard" | "settings" | "ride";
 
 export default function App() {
   const [profile, setProfile] = useState<ProfileOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
+  const [selectedRideId, setSelectedRideId] = useState<number | null>(null);
+  const rideListScroll = useRef(0);
 
   useEffect(() => {
     api.getProfile().then(setProfile).catch((e) => setError(String(e)));
@@ -22,14 +24,14 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="mx-auto max-w-md px-4 py-12 text-red-600">
+      <div className="app-shell page-wrap text-red-700">
         Couldn't reach the server: {error}
       </div>
     );
   }
 
   if (!profile) {
-    return <div className="mx-auto max-w-md px-4 py-12 text-neutral-400">Loading…</div>;
+    return <div className="app-shell page-wrap body-muted">Loading your ride journal…</div>;
   }
 
   if (!hasCompletedOnboarding(profile)) {
@@ -42,5 +44,26 @@ export default function App() {
     );
   }
 
-  return <Dashboard profile={profile} onOpenSettings={() => setView("settings")} />;
+  return <>
+    <div hidden={view === "ride"}>
+      <Dashboard
+        profile={profile}
+        onOpenSettings={() => setView("settings")}
+        onOpenRide={(id) => {
+          rideListScroll.current = window.scrollY;
+          setSelectedRideId(id);
+          setView("ride");
+          window.scrollTo(0, 0);
+        }}
+      />
+    </div>
+    {view === "ride" && selectedRideId !== null &&
+      <RideDetail id={selectedRideId} onBack={() => {
+        setView("dashboard");
+        requestAnimationFrame(() => {
+          window.scrollTo(0, rideListScroll.current);
+          document.getElementById(`ride-${selectedRideId}`)?.focus({ preventScroll: true });
+        });
+      }} />}
+  </>;
 }

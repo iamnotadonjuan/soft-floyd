@@ -3,6 +3,7 @@ import { useState } from "react";
 import type { SelfRatedLevel } from "../../api/types";
 
 export interface AboutYouValue {
+  has_hr_monitor: boolean;
   birth_year: number | null;
   weight_kg: number | null;
   max_hr: number | null;
@@ -45,6 +46,15 @@ export default function AboutYouStep({ initial, onNext }: Props) {
           All optional — skip anything you'd rather not answer.
         </p>
       </div>
+
+      <label className="flex items-center gap-3 rounded-xl border border-[#d9ded1] bg-[#eef1e8] p-4 text-sm font-medium">
+        <input
+          type="checkbox"
+          checked={values.has_hr_monitor}
+          onChange={(e) => set("has_hr_monitor", e.target.checked)}
+        />
+        I wear a heart rate monitor when I ride
+      </label>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
@@ -108,11 +118,8 @@ export default function AboutYouStep({ initial, onNext }: Props) {
               key={key}
               type="button"
               onClick={() => set("self_rated_level", values.self_rated_level === key ? null : key)}
-              className={`rounded-full border px-3 py-1.5 text-sm ${
-                values.self_rated_level === key
-                  ? "border-neutral-900 bg-neutral-900 text-white"
-                  : "border-neutral-300"
-              }`}
+              aria-pressed={values.self_rated_level === key}
+              className="choice-chip"
             >
               {label}
             </button>
@@ -141,7 +148,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
 
       <button
         onClick={() => onNext(values)}
-        className="w-full rounded-md bg-neutral-900 py-2 text-white font-medium"
+        className="primary-button w-full"
       >
         Next
       </button>

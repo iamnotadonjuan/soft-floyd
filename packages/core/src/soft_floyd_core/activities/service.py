@@ -14,7 +14,7 @@ from __future__ import annotations
 import datetime as dt
 
 from pydantic import BaseModel
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from soft_floyd_core.config import Settings
@@ -129,11 +129,25 @@ def _to_summary_out(activity: Activity) -> ActivitySummaryOut:
 
 
 def list_activities(
-    session: Session, *, limit: int = 20, bike_type: str | None = None
+    session: Session,
+    *,
+    limit: int = 20,
+    bike_type: str | None = None,
+    before_start_time: dt.datetime | None = None,
+    before_id: int | None = None,
 ) -> list[ActivitySummaryOut]:
-    stmt = select(Activity).order_by(Activity.start_time.desc()).limit(limit)
+    if (before_start_time is None) != (before_id is None):
+        raise ValueError("before_start_time and before_id must be provided together")
+    stmt = select(Activity).order_by(Activity.start_time.desc(), Activity.id.desc()).limit(limit)
     if bike_type is not None:
         stmt = stmt.where(Activity.bike_type == bike_type)
+    if before_start_time is not None and before_id is not None:
+        stmt = stmt.where(
+            or_(
+                Activity.start_time < before_start_time,
+                and_(Activity.start_time == before_start_time, Activity.id < before_id),
+            )
+        )
     activities = session.scalars(stmt).all()
     return [_to_summary_out(a) for a in activities]
 

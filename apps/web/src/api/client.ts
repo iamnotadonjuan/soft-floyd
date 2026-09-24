@@ -2,6 +2,8 @@
 // docs/FRONTEND.md.
 
 import type {
+  ActivityDetailOut,
+  ActivitySummaryOut,
   BikeIn,
   BikeOut,
   ConnectionOut,
@@ -45,7 +47,15 @@ export const api = {
   getProfile: () => request<ProfileOut>("/profile"),
   updateProfile: (data: ProfileIn) =>
     request<ProfileOut>("/profile", { method: "PUT", body: JSON.stringify(data) }),
-  listActivities: () => request<unknown[]>("/activities"),
+  listActivities: (cursor?: Pick<ActivitySummaryOut, "start_time" | "id">) => {
+    const params = new URLSearchParams({ limit: "20" });
+    if (cursor) {
+      params.set("before_start_time", cursor.start_time);
+      params.set("before_id", String(cursor.id));
+    }
+    return request<ActivitySummaryOut[]>(`/activities?${params}`);
+  },
+  getActivity: (id: number) => request<ActivityDetailOut>(`/activities/${id}`),
 
   listBikes: () => request<BikeOut[]>("/bikes"),
   addBike: (data: BikeIn) => request<BikeOut>("/bikes", { method: "POST", body: JSON.stringify(data) }),

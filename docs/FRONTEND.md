@@ -1,11 +1,10 @@
 # Frontend Conventions
 
 Stack: Vite + React 18 + TypeScript + Tailwind. No state-management
-library yet — the app is small enough for `useState`/`fetch` plus one
-context for the rider profile. Reach for a library only when the
-scaffold's approach visibly strains, not preemptively. `App.tsx`'s
-dashboard/settings `View` toggle (exec-plan 0004) is a plain `useState`
-for the same reason — a third route is the point to revisit that.
+library yet — the app is small enough for `useState`/`fetch` and a local
+view toggle in `App.tsx`. Dashboard, Settings, and ride detail do not
+have distinct URLs. Revisit routing when deep links or browser history
+navigation become a real need.
 
 ## Structure
 
@@ -22,9 +21,9 @@ apps/web/src/
                      Goals/Garage/AboutYou/Anchors/ConnectStep) — each a
                      thin "Next"-gated wrapper around the shared
                      components above plus its own fields.
-  pages/            Route-level components (Onboarding, Dashboard, Settings).
+  pages/            Onboarding, Dashboard, RideDetail, Settings.
   App.tsx           The "has a profile?" onboarding gate, plus the
-                     dashboard/settings view toggle.
+                     dashboard/settings/ride view toggle.
 ```
 
 ## Rules
@@ -58,6 +57,8 @@ apps/web/src/
   (everything else) — never both.
 - No component reaches for `fetch` directly; go through `api/client.ts`
   so there is one place that knows the API shape.
+- Ride history uses the last page item's `(start_time, id)` cursor, not an
+  offset; this keeps browsing stable when a new Garmin ride arrives.
 - Follow `.agents/skills/vercel-react-best-practices` rules where they
   apply (already vendored in this repo) — derived state without effects,
   functional `setState`, avoiding inline component definitions, etc.

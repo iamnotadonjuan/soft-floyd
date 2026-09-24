@@ -82,6 +82,9 @@ make docs-schema     # regenerate docs/generated/db-schema.md
   (power/cadence/speed) now live on a `Bike` per rider garage row rather
   than flat on `RiderProfile` — see
   `docs/design-docs/sensor-capability-model.md`.
+- **0005-rider-ui-and-history** (done): responsive onboarding, Settings,
+  and dashboard UI; latest ride plus cursor-paginated history and recorded
+  ride detail. See `docs/product-specs/ride-journal.md`.
 - **Not yet implemented**: HR/power metrics computation (HR zones, TRIMP,
   decoupling, FTP/NP/TSS — see `docs/design-docs/training-signal-model.md`),
   RAG over training books, the coach agent/chat, historical backfill,

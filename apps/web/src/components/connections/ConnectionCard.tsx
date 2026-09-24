@@ -12,12 +12,9 @@ const STATUS_COPY: Record<ConnectionOut["status"], string> = {
   error: "Error",
 };
 
-const STATUS_DOT: Record<ConnectionOut["status"], string> = {
-  connected: "bg-green-500",
-  disconnected: "bg-neutral-300",
-  reauth_required: "bg-amber-500",
-  rate_limited: "bg-amber-500",
-  error: "bg-red-500",
+const STATUS_TONE: Record<ConnectionOut["status"], string> = {
+  connected: "good", disconnected: "neutral", reauth_required: "warning",
+  rate_limited: "warning", error: "error",
 };
 
 interface Props {
@@ -51,26 +48,26 @@ export default function ConnectionCard({ connection, onChanged }: Props) {
   const needsLogin = connection.status === "disconnected" || connection.status === "reauth_required";
 
   return (
-    <div className="rounded-md border border-neutral-200 p-4">
-      <div className="flex items-center justify-between">
-        <span className="font-medium">{connection.display_name}</span>
-        <span className="flex items-center gap-1.5 text-sm text-neutral-500">
-          <span className={`h-2 w-2 rounded-full ${STATUS_DOT[connection.status]}`} />
+    <div className="surface-soft p-4 sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <span className="font-semibold text-[#243e2c]">{connection.display_name}</span>
+        <span className="status-pill" data-tone={STATUS_TONE[connection.status]}>
           {STATUS_COPY[connection.status]}
         </span>
       </div>
 
-      {connection.detail && <p className="mt-1 text-xs text-neutral-400">{connection.detail}</p>}
+      {connection.detail && <p className="body-muted mt-2 text-sm">{connection.detail}</p>}
+      {connection.last_sync_at && <p className="body-muted mt-1 text-sm">Last checked {new Date(connection.last_sync_at).toLocaleString()}</p>}
       {connection.last_error && connection.status !== "connected" && (
-        <p className="mt-1 text-xs text-red-600">{connection.last_error}</p>
+        <p className="notice-error mt-3" role="alert">{connection.last_error}</p>
       )}
-      {error && <p className="mt-1 text-xs text-red-600">{error}</p>}
+      {error && <p className="notice-error mt-3" role="alert">{error}</p>}
 
       {connection.status === "connected" && (
         <button
           onClick={handleDisconnect}
           disabled={disconnecting}
-          className="mt-3 text-sm text-neutral-500 underline disabled:opacity-40"
+          className="text-button mt-4 text-sm disabled:opacity-40"
         >
           Disconnect
         </button>

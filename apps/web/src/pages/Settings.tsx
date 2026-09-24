@@ -36,36 +36,34 @@ export default function Settings({ profile, onProfileChange, onBack }: Props) {
   }
 
   return (
-    <div className="mx-auto max-w-2xl px-4 py-12">
-      <div className="mb-8 flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium tracking-wide text-neutral-400">SOFT FLOYD</p>
-          <h1 className="text-2xl font-semibold">Settings</h1>
+    <main className="app-shell">
+      <div className="page-wrap">
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <span className="brand">Soft Floyd / Your setup</span>
+          <button onClick={onBack} className="text-button">← Back to rides</button>
+        </header>
+        <div className="mb-10 max-w-2xl">
+          <p className="eyebrow mb-3">A coach that knows your context</p>
+          <h1 className="display-title">Your riding setup.</h1>
+          <p className="body-muted mt-4">Change any part as your goals, schedule, or equipment evolve. Each section saves on its own.</p>
         </div>
-        <button onClick={onBack} className="text-sm text-neutral-500 underline">
-          Back to dashboard
-        </button>
+        <div className="settings-panel mx-auto max-w-3xl space-y-5">
+          <HabitsSection profile={profile} save={save} />
+          <GoalsSection profile={profile} save={save} />
+
+          <SettingsSection title="Garage" description="Bikes and the sensors mounted on each one.">
+            <BikeEditor onBikesChange={() => api.getProfile().then(onProfileChange)} />
+          </SettingsSection>
+
+          <AboutYouSection profile={profile} save={save} />
+          <SensorsAndAnchorsSection profile={profile} save={save} />
+
+          <SettingsSection title="Connected apps" description="Bring your recorded rides into Soft Floyd.">
+            <ConnectionsPanel />
+          </SettingsSection>
+        </div>
       </div>
-
-      <div className="space-y-6">
-        <HabitsSection profile={profile} save={save} />
-        <GoalsSection profile={profile} save={save} />
-
-        <SettingsSection title="Garage" description="Bikes and the sensors mounted on each one.">
-          <BikeEditor onBikesChange={() => api.getProfile().then(onProfileChange)} />
-        </SettingsSection>
-
-        <AboutYouSection profile={profile} save={save} />
-        <SensorsAndAnchorsSection profile={profile} save={save} />
-
-        <SettingsSection
-          title="Connected apps"
-          description="Garmin today; other providers can be added the same way."
-        >
-          <ConnectionsPanel />
-        </SettingsSection>
-      </div>
-    </div>
+    </main>
   );
 }
 
@@ -79,10 +77,10 @@ function SettingsSection({
   children: ReactNode;
 }) {
   return (
-    <section className="space-y-4 rounded-md border border-neutral-200 p-4">
+    <section className="surface space-y-5 p-5 sm:p-7">
       <div>
         <h2 className="font-semibold">{title}</h2>
-        {description && <p className="text-sm text-neutral-500">{description}</p>}
+        {description && <p className="body-muted mt-1 text-sm">{description}</p>}
       </div>
       {children}
     </section>
@@ -114,12 +112,12 @@ function SaveButton({ onSave }: { onSave: () => Promise<unknown> }) {
       <button
         onClick={handleClick}
         disabled={saving}
-        className="rounded-md bg-neutral-900 px-4 py-2 text-sm font-medium text-white disabled:opacity-40"
+        className="primary-button"
       >
         {saving ? "Saving…" : "Save"}
       </button>
-      {saved && <span className="text-sm text-green-600">Saved</span>}
-      {error && <span className="text-sm text-red-600">{error}</span>}
+      {saved && <span className="text-sm text-green-700" role="status">Saved</span>}
+      {error && <span className="notice-error" role="alert">{error}</span>}
     </div>
   );
 }
@@ -286,9 +284,8 @@ function AboutYouSection({ profile, save }: SectionProps) {
             key={key}
             type="button"
             onClick={() => setLevel(level === key ? null : key)}
-            className={`rounded-full border px-3 py-1.5 text-sm ${
-              level === key ? "border-neutral-900 bg-neutral-900 text-white" : "border-neutral-300"
-            }`}
+            aria-pressed={level === key}
+            className="choice-chip"
           >
             {label}
           </button>
