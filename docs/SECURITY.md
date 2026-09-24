@@ -18,8 +18,27 @@ exposing the local server beyond the machine it runs on.
   `~/.soft-floyd/config.toml` or environment/`.env`, never hardcoded,
   never logged. `structlog` output must not include secret values —
   review new log lines that touch config. The Garmin **password** is
-  never persisted at all — `soft-floyd garmin-login` prompts for it once
-  (hidden input) and discards it; only the resulting token survives.
+  never persisted at all — only the resulting token survives, whether
+  login happens via `soft-floyd garmin-login` (hidden TTY prompt) or the
+  browser (below).
+- **Garmin login from the browser** (`POST
+  /api/connections/garmin/login`, exec-plan 0004) is a deliberate,
+  considered change from the CLI-only original design: the password now
+  crosses a loopback HTTP boundary in a POST body instead of staying in
+  a TTY prompt inside one process. On this app's actual threat model —
+  bound to `127.0.0.1`, no TLS to strip on loopback, CORS still pinned to
+  the Vite dev origin, nothing persisted beyond the request — the added
+  exposure is small, but it is real, so the rule is: the password must
+  never be written to the DB, `~/.soft-floyd/config.toml`, a log line, or
+  browser storage (`localStorage`/`sessionStorage`/IndexedDB); it may
+  live only in the request body and the login worker thread's stack
+  (`soft_floyd_core.garmin.login.PendingLogin` / `run_login_in_background`),
+  discarded once the login finishes or times out. The CLI's
+  `soft-floyd garmin-login` stays available as the lower-exposure
+  fallback. Do not add a browser-login flow for any future secret
+  (an OpenAI key, a second provider's credentials) without this same
+  review — treat it as a deliberate tradeoff each time, not a precedent
+  that makes the next one automatic.
 - **Garmin tokens are deliberately NOT Keychain/Fernet-wrapped**, unlike
   v0. `python-garminconnect` manages its own token cache at
   `settings.garmin_token_dir` (default `~/.soft-floyd/garmin/`) —

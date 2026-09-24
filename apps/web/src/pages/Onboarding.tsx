@@ -1,65 +1,149 @@
 import { useState } from "react";
 
 import { api } from "../api/client";
-import type { Discipline, ProfileOut } from "../api/types";
+import type { ProfileIn, ProfileOut, Weekday } from "../api/types";
+import type { AboutYouValue } from "../components/onboarding/AboutYouStep";
+import AboutYouStep from "../components/onboarding/AboutYouStep";
 import AnchorsStep from "../components/onboarding/AnchorsStep";
 import CapabilitySummary from "../components/CapabilitySummary";
-import GoalStep from "../components/onboarding/GoalStep";
-import SensorsStep, { type SensorAnswers } from "../components/onboarding/SensorsStep";
-import VolumeStep from "../components/onboarding/VolumeStep";
+import ConnectStep from "../components/onboarding/ConnectStep";
+import GarageStep from "../components/onboarding/GarageStep";
+import GoalsStep from "../components/onboarding/GoalsStep";
+import HabitsStep from "../components/onboarding/HabitsStep";
 
-type Step = "volume" | "goal" | "sensors" | "anchors" | "summary";
+type Step = "habits" | "goals" | "garage" | "about" | "anchors" | "connect" | "summary";
+
+const STEP_ORDER: Step[] = ["habits", "goals", "garage", "about", "anchors", "connect", "summary"];
 
 interface Props {
   initialProfile: ProfileOut;
   onComplete: (profile: ProfileOut) => void;
 }
 
+// Order follows docs/DESIGN.md: volume and goals before sensors, and
+// never ask for a number the rider can't produce. See
+// docs/product-specs/new-user-onboarding.md for the full flow.
 export default function Onboarding({ initialProfile, onComplete }: Props) {
-  const [step, setStep] = useState<Step>("volume");
+  const [step, setStep] = useState<Step>("habits");
   const [profile, setProfile] = useState<ProfileOut>(initialProfile);
+  const [error, setError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const steps = (profile.has_power_meter || profile.has_hr_monitor)
+    ? STEP_ORDER : STEP_ORDER.filter((item) => item !== "anchors");
+  const stepIndex = steps.indexOf(step);
 
-  async function submitAndAdvance(patch: Record<string, unknown>, next: Step) {
-    const updated = await api.updateProfile(patch);
-    setProfile(updated);
-    setStep(next);
+  async function submitAndAdvance(patch: ProfileIn, next: Step) {
+    setSaving(true);
+    setError(null);
+    try {
+      const updated = await api.updateProfile(patch);
+      setProfile(updated);
+      setStep(next);
+    } catch (reason) {
+      setError(String(reason));
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function goBack() {
+    if (stepIndex > 0) {
+      setError(null);
+      setStep(steps[stepIndex - 1]);
+    }
   }
 
   return (
-    <div className="mx-auto flex min-h-screen max-w-md items-center px-4">
-      <div className="w-full py-12">
-        <p className="mb-2 text-sm font-medium tracking-wide text-neutral-400">SOFT FLOYD</p>
+    <main className="app-shell min-h-screen">
+      <div className="page-wrap max-w-4xl">
+        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
+          <span className="brand">Soft Floyd / Getting started</span>
+          <span className="body-muted text-sm">A little context makes better coaching.</span>
+        </header>
+        <div className="mb-8 max-w-2xl">
+          <p className="eyebrow mb-3">Your starting point</p>
+          <h1 className="display-title">Let’s get to know your ride.</h1>
+        </div>
+        <div className="surface flow-panel mx-auto max-w-2xl p-5 sm:p-8">
 
-        {step === "volume" && (
-          <VolumeStep
+        {step !== "summary" && (
+          <div className="mb-6">
+            <p className="eyebrow mb-2">
+              Step {stepIndex + 1} of {steps.length - 1}
+            </p>
+            <div className="h-1.5 w-full rounded-full bg-[#e7ebe2]" role="progressbar" aria-valuenow={stepIndex + 1} aria-valuemin={1} aria-valuemax={steps.length - 1} aria-label="Onboarding progress">
+              <div
+                className="h-1.5 rounded-full bg-[#30553c] transition-all"
+                style={{
+                  width: `${((stepIndex + 1) / (steps.length - 1)) * 100}%`,
+                }}
+              />
+            </div>
+          </div>
+        )}
+        {error && <div className="notice-error mb-5" role="alert">Could not save: {error}</div>}
+        {saving && <p className="body-muted mb-4 text-sm" role="status">Saving your answers…</p>}
+
+        {step === "habits" && (
+          <HabitsStep
             initialRides={profile.weekly_rides}
             initialHours={profile.weekly_hours}
-            onNext={(values) => submitAndAdvance(values, "goal")}
-          />
-        )}
-
-        {step === "goal" && (
-          <GoalStep
-            initialGoal={profile.goal_text}
-            initialDiscipline={profile.primary_discipline as Discipline}
-            onNext={(values) => submitAndAdvance(values, "sensors")}
-          />
-        )}
-
-        {step === "sensors" && (
-          <SensorsStep
-            initial={{
-              has_power_meter: profile.has_power_meter,
-              has_hr_monitor: profile.has_hr_monitor,
-              has_cadence_sensor: profile.has_cadence_sensor,
-              has_speed_sensor: profile.has_speed_sensor,
+            initialAvailability={{
+              available_days: profile.available_days as Weekday[],
+              weekday_max_minutes: profile.weekday_max_minutes,
+              weekend_max_minutes: profile.weekend_max_minutes,
             }}
-            onNext={async (values: SensorAnswers) => {
-              const updated = await api.updateProfile(values);
-              setProfile(updated);
-              // Never ask for an anchor the rider has no way to produce.
-              const needsAnchors = values.has_power_meter || values.has_hr_monitor;
-              setStep(needsAnchors ? "anchors" : "summary");
+            onNext={(values) => submitAndAdvance(values, "goals")}
+          />
+        )}
+
+        {step === "goals" && (
+          <GoalsStep
+            initialGoal={profile.goal_text}
+            initialFocusAreas={profile.focus_areas}
+            initialTargetEventName={profile.target_event_name}
+            initialTargetEventDate={profile.target_event_date}
+            onNext={(values) => submitAndAdvance(values, "garage")}
+          />
+        )}
+
+        {step === "garage" && (
+          <GarageStep
+            onNext={async () => {
+              // Bikes don't live on the profile — refetch so
+              // has_power_meter/primary_discipline (derived from the
+              // garage) are current before Anchors/Summary need them.
+              setSaving(true);
+              setError(null);
+              try {
+                const refreshed = await api.getProfile();
+                setProfile(refreshed);
+                setStep("about");
+              } catch (reason) {
+                setError(String(reason));
+              } finally {
+                setSaving(false);
+              }
+            }}
+          />
+        )}
+
+        {step === "about" && (
+          <AboutYouStep
+            initial={{
+              has_hr_monitor: profile.has_hr_monitor,
+              birth_year: profile.birth_year,
+              weight_kg: profile.weight_kg,
+              max_hr: profile.max_hr,
+              years_riding: profile.years_riding,
+              longest_recent_ride_km: profile.longest_recent_ride_km,
+              self_rated_level: profile.self_rated_level,
+              followed_plan_before: profile.followed_plan_before,
+              health_notes: profile.health_notes,
+            }}
+            onNext={(values: AboutYouValue) => {
+              const needsAnchors = profile.has_power_meter || values.has_hr_monitor;
+              submitAndAdvance(values, needsAnchors ? "anchors" : "connect");
             }}
           />
         )}
@@ -70,26 +154,27 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
             hasHrMonitor={profile.has_hr_monitor}
             initialFtp={profile.ftp_watts}
             initialLthr={profile.lthr}
-            onNext={(values) => submitAndAdvance(values, "summary")}
+            onNext={(values) => submitAndAdvance(values, "connect")}
           />
         )}
 
+        {step === "connect" && <ConnectStep onNext={() => setStep("summary")} />}
+
         {step === "summary" && (
           <div className="space-y-6">
-            <div>
-              <h2 className="text-xl font-semibold">You're set up.</h2>
-              <p className="text-neutral-500 text-sm">Here's what I'll coach you on:</p>
-            </div>
-            <CapabilitySummary tier={profile.capability_tier} />
+            <div><p className="eyebrow mb-2">Ready to ride</p><h2 className="section-title">You’re set up.</h2><p className="body-muted mt-2 text-sm">Here’s what I can use to understand your rides:</p></div>
+            <CapabilitySummary profile={profile} />
             <button
               onClick={() => onComplete(profile)}
-              className="w-full rounded-md bg-neutral-900 py-2 text-white font-medium"
+              className="primary-button w-full"
             >
               Go to dashboard
             </button>
           </div>
         )}
+        {stepIndex > 0 && <button type="button" onClick={goBack} disabled={saving} className="text-button mt-6 text-sm">← Back</button>}
+        </div>
       </div>
-    </div>
+    </main>
   );
 }

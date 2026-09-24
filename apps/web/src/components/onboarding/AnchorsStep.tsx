@@ -9,7 +9,9 @@ interface Props {
 }
 
 // Onboarding.tsx skips this step entirely when neither sensor is present —
-// never ask for a number the rider has no way to produce. See
+// never ask for a number the rider has no way to produce. hasPowerMeter
+// reflects "any bike in the garage has a power meter" (a derived field
+// on ProfileOut, refreshed after GarageStep) — see
 // docs/product-specs/new-user-onboarding.md.
 export default function AnchorsStep({
   hasPowerMeter,
@@ -63,9 +65,9 @@ export default function AnchorsStep({
             lthr: lthr.trim() === "" ? null : Number(lthr),
           })
         }
-        className="w-full rounded-md bg-neutral-900 py-2 text-white font-medium"
+        className="primary-button w-full"
       >
-        Finish
+        Next
       </button>
     </div>
   );

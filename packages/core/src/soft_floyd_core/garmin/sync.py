@@ -13,12 +13,20 @@ from __future__ import annotations
 
 import asyncio
 import threading
+import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
 
 import anyio
 from sqlalchemy.orm import Session, sessionmaker
+
+if TYPE_CHECKING:
+    # Deferred to avoid a module-level import cycle: garmin.login imports
+    # get_or_create_sync_state from this module. login()/submit_mfa()
+    # below import garmin.login locally, at call time, instead.
+    from soft_floyd_core.garmin.login import PendingLogin
 
 from soft_floyd_core.activities.pipeline import ingest_activity
 from soft_floyd_core.config import Settings
@@ -51,6 +59,44 @@ class SyncResult:
     status: SyncStatus_ = "ok"
     message: str | None = None
     retry_after_s: int | None = None
+
+
+@dataclass(frozen=True)
+class LoginStartResult:
+    """Returned by SyncRunner.login()/submit_mfa() — exec-plan 0004's
+    browser login handshake. "mfa_required" means the caller must follow
+    up with submit_mfa(code); "connected" means the login already
+    finished (with or without MFA)."""
+
+    state: str  # "connected" | "mfa_required"
+
+
+class LoginAlreadyInProgress(Exception):
+    """Raised by SyncRunner.login() if a prior login is still pending an
+    MFA code — this single-rider app only ever has one Garmin login in
+    flight at a time."""
+
+
+class NoPendingLoginError(Exception):
+    """Raised by SyncRunner.submit_mfa() if no login is currently waiting
+    on an MFA code (never started, already finished, or already timed
+    out)."""
+
+
+def _wait_for_first_event(
+    events: list[threading.Event], timeout: float, poll_interval: float = 0.1
+) -> None:
+    """Blocks (on a worker thread — always call via anyio.to_thread.run_sync)
+    until any one of `events` is set, or `timeout` elapses. threading has
+    no native "wait for first of several events" primitive, so this polls
+    — the same shape as SyncRunner._sleep_or_stop's poll loop below.
+    """
+    elapsed = 0.0
+    while elapsed < timeout:
+        if any(e.is_set() for e in events):
+            return
+        time.sleep(poll_interval)
+        elapsed += poll_interval
 
 
 def get_or_create_sync_state(session: Session) -> GarminSyncState:
@@ -230,6 +276,8 @@ class SyncRunner:
         self._lock = asyncio.Lock()
         self._stop_event = threading.Event()
         self._notified_reauth = False
+        # exec-plan 0004's browser login handshake — see login()/submit_mfa().
+        self._pending_login: PendingLogin | None = None
 
     def _get_client(self) -> GarminClient:
         # Constructed lazily: GarminClient.load() makes a network call, so
@@ -250,6 +298,91 @@ class SyncRunner:
 
     def request_stop(self) -> None:
         self._stop_event.set()
+
+    def logout(self) -> None:
+        """Removes the cached Garmin token via this runner's own
+        GarminClient — never construct a second GarminClient to do this,
+        or the in-memory object sync_once()/login() keep reusing would
+        still believe it's logged in after a browser-initiated disconnect
+        (garminconnect.Garmin caches its session state in the object,
+        independent of the token file on disk)."""
+        self._get_client().logout()
+
+    async def login(self, email: str, password: str) -> LoginStartResult:
+        """Start a Garmin login from the browser (exec-plan 0004). Takes
+        the same `self._lock` sync_once() does, for as long as the login
+        is in flight — including across the two-request MFA handshake —
+        so a background poll cycle can never race a login attempt.
+
+        Returns "connected" if no MFA was needed (or it somehow finished
+        before we finished waiting), or "mfa_required" if the caller must
+        follow up with submit_mfa(). Re-raises whatever perform_login
+        raised (GarminRateLimited, ReauthRequired, GarminApiError) if the
+        login failed outright, before any MFA prompt.
+        """
+        # Local import — see the TYPE_CHECKING note above the class for why.
+        from soft_floyd_core.garmin.login import (
+            MFA_WAIT_TIMEOUT_S,
+            PendingLogin,
+            run_login_in_background,
+        )
+
+        if self._pending_login is not None and not self._pending_login.done.is_set():
+            raise LoginAlreadyInProgress("A Garmin login is already in progress.")
+
+        await self._lock.acquire()
+        pending = PendingLogin()
+        self._pending_login = pending
+        run_login_in_background(
+            self._session_factory, self._settings, self._get_client(), email, password, pending
+        )
+
+        await anyio.to_thread.run_sync(
+            _wait_for_first_event, [pending.mfa_requested, pending.done], MFA_WAIT_TIMEOUT_S
+        )
+
+        if pending.done.is_set():
+            if self._pending_login is pending:
+                self._pending_login = None
+            self._lock.release()
+            if pending.error is not None:
+                raise pending.error
+            return LoginStartResult(state="connected")
+
+        # MFA required and the rider hasn't answered yet. Hand off the
+        # lock/pending cleanup to a background watcher so it's released
+        # even if the browser tab is closed and submit_mfa() never comes
+        # — bounded by the worker thread's own MFA timeout.
+        asyncio.create_task(self._release_login_when_done(pending))
+        return LoginStartResult(state="mfa_required")
+
+    async def _release_login_when_done(self, pending: PendingLogin) -> None:
+        await anyio.to_thread.run_sync(pending.done.wait)
+        if self._pending_login is pending:
+            self._pending_login = None
+        self._lock.release()
+
+    async def submit_mfa(self, code: str) -> LoginStartResult:
+        """Second half of login() — provides the MFA code the worker
+        thread's login callback is blocked on. Does not touch the lock
+        itself; _release_login_when_done (already running, scheduled by
+        login()) owns that, so there is exactly one release path.
+        """
+        from soft_floyd_core.garmin.login import MFA_WAIT_TIMEOUT_S
+
+        pending = self._pending_login
+        if pending is None or not pending.mfa_requested.is_set() or pending.done.is_set():
+            raise NoPendingLoginError("No Garmin login is currently waiting for an MFA code.")
+
+        pending.mfa_code = code
+        pending.mfa_submitted.set()
+
+        finished = await anyio.to_thread.run_sync(pending.done.wait, MFA_WAIT_TIMEOUT_S + 10)
+        if not finished:
+            raise GarminApiError("Garmin login timed out after the MFA code was submitted.")
+        if pending.error is not None:
+            raise pending.error
+        return LoginStartResult(state="connected")
 
     async def _sleep_or_stop(self, seconds: float) -> None:
         remaining = seconds
