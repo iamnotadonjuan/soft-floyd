@@ -25,9 +25,13 @@ later advice can refer to sources without inventing sensor measurements.
   turn power-only guidance into unsupported advice for an HR-only rider.
 - **Cost.** Record each book and query embedding call in `llm_usage` using
   `LLMClient`'s pinned pricing.
+- **Interrupted imports.** Save each embedded passage with its usage record.
+  Resume by source-file hash and passage order; only complete books can be
+  retrieved. Existing imported books remain complete after migration.
 
 ## Remaining decisions for generated coaching
 
-- Which exact books to ingest. The rider supplies local PDFs with selectable
-  text and has approved sending extracted passages for OpenAI embeddings.
+- The rider selected *The Cyclist's Training Bible*, *Mastering Mountain Bike
+  Skills*, and *Training and Racing with a Power Meter*. Their local PDFs
+  contain selectable text; embeddings require an OpenAI API key.
 - Whether real books need chapter-aware chunking or OCR.

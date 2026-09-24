@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import hashlib
 import struct
 
 import pytest
@@ -150,7 +151,7 @@ async def test_textless_pdf_rejected_before_embedding(session, tmp_path, monkeyp
     assert embedder.calls == 0
 
 
-async def test_partial_embedding_failure_records_cost_without_partial_book(
+async def test_partial_embedding_failure_resumes_without_reembedding(
     session, tmp_path, monkeypatch
 ):
     class Page:
@@ -176,7 +177,59 @@ async def test_partial_embedding_failure_records_cost_without_partial_book(
     with pytest.raises(RuntimeError, match="unavailable"):
         await rag.import_pdf(session, path, "Book", None, FailingEmbedder())
     assert session.scalar(select(func.count()).select_from(LLMUsageRecord)) == 1
-    assert session.scalar(select(func.count()).select_from(Book)) == 0
+    book = session.scalar(select(Book))
+    assert book.import_status == "importing"
+    assert session.scalar(select(func.count()).select_from(BookPassage)) == 1
+
+    # An unfinished book must not leak into search results.
+    before = await rag.get_training_context(session, "endurance", FakeEmbedder())
+    assert before.passages == []
+
+    retry_embedder = FakeEmbedder()
+    resumed = await rag.import_pdf(session, path, "Ignored title", None, retry_embedder)
+    assert resumed.resumed_from == 1
+    assert resumed.passages == 2
+    assert retry_embedder.calls == 1
+    assert book.import_status == "complete"
+    assert session.scalar(select(func.count()).select_from(LLMUsageRecord)) == 2
+    ordinals = session.scalars(select(BookPassage.ordinal).order_by(BookPassage.ordinal)).all()
+    assert ordinals == [0, 1]
+
+
+async def test_resume_rejects_changed_chunking(session, tmp_path, monkeypatch):
+    class Page:
+        def extract_text(self):
+            return "Different extracted text"
+
+    class Reader:
+        is_encrypted = False
+        pages = [Page()]
+
+    path = tmp_path / "book.pdf"
+    path.write_bytes(b"book")
+    book = Book(
+        sha256=hashlib.sha256(b"book").hexdigest(),
+        title="Book",
+        source_name="book.pdf",
+        import_status="importing",
+    )
+    session.add(book)
+    session.flush()
+    session.add(
+        BookPassage(
+            book_id=book.id,
+            ordinal=0,
+            page_start=1,
+            page_end=1,
+            text="Old text",
+            embedding=struct.pack("<2f", 1.0, 0.0),
+        )
+    )
+    session.commit()
+    monkeypatch.setattr(rag, "PdfReader", lambda _: Reader())
+
+    with pytest.raises(ValueError, match="differs from current PDF chunking"):
+        await rag.import_pdf(session, path, "Book", None, FakeEmbedder())
 
 
 async def test_latest_ride_context_hides_unverified_power_and_failed_fit(session):

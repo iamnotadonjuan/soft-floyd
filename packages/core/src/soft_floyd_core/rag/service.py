@@ -6,6 +6,7 @@ import hashlib
 import math
 import re
 import struct
+from collections.abc import Callable
 from pathlib import Path
 from typing import Protocol
 
@@ -36,6 +37,7 @@ class ImportResult(BaseModel):
     book_id: int
     passages: int
     already_imported: bool
+    resumed_from: int = 0
 
 
 class PassageOut(BaseModel):
@@ -133,12 +135,15 @@ def _record_usage(session: Session, usage: Usage) -> None:
             cost_usd=usage.cost_usd,
         )
     )
-    # Persist each paid call even if a later passage or database write fails.
-    session.commit()
 
 
 async def import_pdf(
-    session: Session, path: Path, title: str, author: str | None, embedder: Embedder
+    session: Session,
+    path: Path,
+    title: str,
+    author: str | None,
+    embedder: Embedder,
+    progress: Callable[[int, int], None] | None = None,
 ) -> ImportResult:
     if not path.is_file() or path.suffix.lower() != ".pdf":
         raise ValueError("Provide an existing PDF file")
@@ -146,34 +151,65 @@ async def import_pdf(
         raise ValueError("Book title must not be empty")
     digest = hashlib.sha256(path.read_bytes()).hexdigest()
     existing = session.scalar(select(Book).where(Book.sha256 == digest))
-    if existing is not None:
+    if existing is not None and existing.import_status == "complete":
         count = len(
             session.scalars(select(BookPassage.id).where(BookPassage.book_id == existing.id)).all()
         )
         return ImportResult(book_id=existing.id, passages=count, already_imported=True)
 
     chunks = _chunks(path)
-    embedded: list[tuple[int, str, bytes]] = []
-    for page, text in chunks:
+    if existing is None:
+        book = Book(
+            sha256=digest,
+            title=title.strip(),
+            author=author,
+            source_name=path.name,
+            import_status="importing",
+        )
+        session.add(book)
+        session.commit()
+    else:
+        book = existing
+
+    saved = session.scalars(
+        select(BookPassage).where(BookPassage.book_id == book.id).order_by(BookPassage.ordinal)
+    ).all()
+    for ordinal, passage in enumerate(saved):
+        if (
+            ordinal >= len(chunks)
+            or passage.ordinal != ordinal
+            or (passage.page_start, passage.text) != chunks[ordinal]
+        ):
+            raise ValueError("Saved import differs from current PDF chunking; cannot resume")
+
+    resumed_from = len(saved)
+    if progress is not None:
+        progress(resumed_from, len(chunks))
+    for ordinal in range(resumed_from, len(chunks)):
+        page, text = chunks[ordinal]
         vector, usage = await embedder.embed(text)
         _record_usage(session, usage)
-        embedded.append((page, text, _pack(vector)))
-
-    book = Book(sha256=digest, title=title.strip(), author=author, source_name=path.name)
-    session.add(book)
-    session.flush()
-    for page, text, vector in embedded:
         session.add(
             BookPassage(
                 book_id=book.id,
+                ordinal=ordinal,
                 page_start=page,
                 page_end=page,
                 text=text,
-                embedding=vector,
+                embedding=_pack(vector),
             )
         )
-    session.flush()
-    return ImportResult(book_id=book.id, passages=len(embedded), already_imported=False)
+        session.commit()
+        if progress is not None:
+            progress(ordinal + 1, len(chunks))
+    book.import_status = "complete"
+    session.commit()
+    return ImportResult(
+        book_id=book.id,
+        passages=len(chunks),
+        already_imported=False,
+        resumed_from=resumed_from,
+    )
 
 
 def _ride_context(session: Session, activity: Activity) -> RideContextOut:
@@ -231,13 +267,16 @@ async def get_training_context(
 
     passages: list[PassageOut] = []
     rows = session.execute(
-        select(BookPassage, Book).join(Book, Book.id == BookPassage.book_id)
+        select(BookPassage, Book)
+        .join(Book, Book.id == BookPassage.book_id)
+        .where(Book.import_status == "complete")
     ).all()
     if rows:
         if embedder is None:
             raise ValueError("SOFT_FLOYD_OPENAI_API_KEY is required for book search")
         vector, usage = await embedder.embed(query)
         _record_usage(session, usage)
+        session.commit()
         ranked = sorted(
             rows,
             key=lambda row: _similarity(vector, row[0].embedding),

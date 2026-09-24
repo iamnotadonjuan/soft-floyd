@@ -10,6 +10,7 @@ from pathlib import Path
 
 import typer
 import uvicorn
+from openai import OpenAIError
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.db import make_engine, make_session_factory, session_scope
 from soft_floyd_core.garmin.client import GarminClient
@@ -148,14 +149,25 @@ def import_book(
     if embedder is None:
         typer.secho("SOFT_FLOYD_OPENAI_API_KEY is required to import books.", err=True)
         raise typer.Exit(1)
+
+    def show_progress(done: int, total: int) -> None:
+        if done == 0 or done == total or done % 25 == 0:
+            typer.echo(f"Embedded {done}/{total} passages.")
+
     try:
         with session_scope(session_factory) as session:
-            result = asyncio.run(rag_service.import_pdf(session, path, title, author, embedder))
-    except ValueError as exc:
+            result = asyncio.run(
+                rag_service.import_pdf(session, path, title, author, embedder, show_progress)
+            )
+    except (ValueError, OpenAIError) as exc:
         typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        typer.echo("Rerun the same command to resume this book.", err=True)
         raise typer.Exit(1) from exc
     status = "Already imported" if result.already_imported else "Imported"
-    typer.echo(f"{status} book {result.book_id}: {result.passages} passages.")
+    typer.echo(
+        f"{status} book {result.book_id}: {result.passages} passages"
+        f" (resumed from {result.resumed_from})."
+    )
 
 
 if __name__ == "__main__":

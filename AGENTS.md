@@ -76,6 +76,8 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 - **0005-tiny-book-rag** (done): local PDF book import, SQLite-backed
   semantic passage retrieval, and verified latest-ride context through
   MCP and REST. See `docs/product-specs/training-book-retrieval.md`.
+  Book imports checkpoint passages so interrupted imports can resume;
+  incomplete books are hidden from retrieval.
 - **0004-rider-profile-and-connections-ui** (done): coach-shaped
   onboarding (habits, goals, a per-bike garage, about-you, anchors,
   connected apps), a post-onboarding Settings screen, and a

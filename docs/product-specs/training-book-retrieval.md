@@ -6,6 +6,9 @@ generated coaching.
 The rider imports a local, selectable-text PDF with `soft-floyd books import
 PATH --title TITLE [--author AUTHOR]`. Reimporting the same file reports the
 existing book. A PDF with no extractable text fails with an actionable error.
+The importer checkpoints embedded passages and reports progress. Repeating
+the command after an interruption continues from the saved passage. Until
+every passage is embedded, the book is excluded from search results.
 
 `get_training_context(query, activity_id?)` on MCP and
 `GET /api/training-context?query=...&activity_id=...` on REST return the

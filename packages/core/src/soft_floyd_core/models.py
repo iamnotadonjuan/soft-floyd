@@ -237,16 +237,21 @@ class Book(Base):
     author: Mapped[str | None] = mapped_column(default=None)
     source_name: Mapped[str]
     imported_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+    import_status: Mapped[str] = mapped_column(default="complete", server_default="complete")
 
 
 class BookPassage(Base):
     """A cited, embedded passage from one PDF page."""
 
     __tablename__ = "book_passage"
-    __table_args__ = (Index("ix_book_passage_book_id", "book_id"),)
+    __table_args__ = (
+        Index("ix_book_passage_book_id", "book_id"),
+        Index("ix_book_passage_book_ordinal", "book_id", "ordinal", unique=True),
+    )
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     book_id: Mapped[int] = mapped_column(ForeignKey("book.id", ondelete="CASCADE"))
+    ordinal: Mapped[int | None] = mapped_column(default=None)
     page_start: Mapped[int]
     page_end: Mapped[int]
     text: Mapped[str] = mapped_column(Text)
