@@ -52,12 +52,13 @@ def test_usual_riding_days_determine_weekly_ride_count(client):
     updated = client.put(
         "/api/profile",
         json={
-            "available_days": ["mon", "wed", "fri"],
+            "available_days": ["mon", "wed", "fri", "mon"],
             "weekly_rides": 99,
             "weekday_max_minutes": 60,
         },
     ).json()
     assert updated["weekly_rides"] == 3
+    assert updated["available_days"] == ["mon", "wed", "fri"]
     assert updated["weekday_max_minutes"] == 60
 
     # Once days have been chosen, old clients cannot overwrite the count.

@@ -244,7 +244,8 @@ def upsert_profile(session: Session, data: ProfileIn) -> ProfileOut:
         # The selected usual riding days are the source of truth for this
         # count. Preserve legacy weekly_rides-only updates until days have
         # been selected for the first time.
-        changes["weekly_rides"] = len(set(changes["available_days"]))
+        changes["available_days"] = list(dict.fromkeys(changes["available_days"]))
+        changes["weekly_rides"] = len(changes["available_days"])
     elif profile.available_days and "weekly_rides" in changes:
         del changes["weekly_rides"]
     for field, value in changes.items():

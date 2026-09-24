@@ -94,7 +94,7 @@ export default function Dashboard({
           <div className="surface p-5 sm:p-6">
             <p className="eyebrow mb-2">What you’re riding toward</p>
             <p className="text-lg font-semibold leading-snug">{profile.goal_text}</p>
-            <p className="body-muted mt-3 text-sm">{profile.weekly_rides} rides · {profile.weekly_hours} hours each week{profile.primary_discipline ? ` · ${profile.primary_discipline}` : ""}</p>
+            <p className="body-muted mt-3 text-sm">{profile.weekly_rides} ride {profile.weekly_rides === 1 ? "day" : "days"} · {profile.weekly_hours} hours each week{profile.primary_discipline ? ` · ${profile.primary_discipline}` : ""}</p>
             <span className="status-pill mt-4" data-tone="good">{TIER_LABEL[profile.capability_tier]} view</span>
           </div>
         </section>
