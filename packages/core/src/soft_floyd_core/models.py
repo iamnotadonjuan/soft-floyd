@@ -13,7 +13,7 @@ from __future__ import annotations
 import datetime as dt
 from typing import Literal
 
-from sqlalchemy import JSON, ForeignKey, Index, String, UniqueConstraint
+from sqlalchemy import JSON, ForeignKey, Index, LargeBinary, String, Text, UniqueConstraint
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
 Discipline = Literal["road", "mtb", "gravel"]
@@ -224,3 +224,49 @@ class GarminSyncState(Base):
     # cleared on a successful login. While in the future, `perform_login`
     # refuses locally without a network call — see exec-plan 0003.
     login_blocked_until: Mapped[dt.datetime | None] = mapped_column(default=None)
+
+
+class Book(Base):
+    """One locally imported PDF; the hash makes repeat imports idempotent."""
+
+    __tablename__ = "book"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    sha256: Mapped[str] = mapped_column(String(64), unique=True)
+    title: Mapped[str]
+    author: Mapped[str | None] = mapped_column(default=None)
+    source_name: Mapped[str]
+    imported_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+    import_status: Mapped[str] = mapped_column(default="complete", server_default="complete")
+
+
+class BookPassage(Base):
+    """A cited, embedded passage from one PDF page."""
+
+    __tablename__ = "book_passage"
+    __table_args__ = (
+        Index("ix_book_passage_book_id", "book_id"),
+        Index("ix_book_passage_book_ordinal", "book_id", "ordinal", unique=True),
+    )
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    book_id: Mapped[int] = mapped_column(ForeignKey("book.id", ondelete="CASCADE"))
+    ordinal: Mapped[int | None] = mapped_column(default=None)
+    page_start: Mapped[int]
+    page_end: Mapped[int]
+    text: Mapped[str] = mapped_column(Text)
+    embedding: Mapped[bytes] = mapped_column(LargeBinary)
+
+
+class LLMUsageRecord(Base):
+    """One successful paid LLM request, including query embeddings."""
+
+    __tablename__ = "llm_usage"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    occurred_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+    model: Mapped[str]
+    prompt_tokens: Mapped[int]
+    cached_tokens: Mapped[int]
+    completion_tokens: Mapped[int]
+    cost_usd: Mapped[float]

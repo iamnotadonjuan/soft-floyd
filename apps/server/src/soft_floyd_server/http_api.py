@@ -21,6 +21,7 @@ from soft_floyd_core.garmin.sync import (
     SyncResult,
 )
 from soft_floyd_core.profile import service as profile_service
+from soft_floyd_core.rag import service as rag_service
 
 from soft_floyd_server.runtime import get_session_factory, get_sync_runner
 
@@ -86,6 +87,22 @@ def sync_garmin_status() -> activities_service.SyncStatusOut:
     settings = get_settings()
     with session_scope(get_session_factory()) as session:
         return activities_service.get_sync_status(session, settings)
+
+
+@router.get("/training-context", response_model=rag_service.TrainingContextOut)
+async def get_training_context(
+    query: str, activity_id: int | None = None
+) -> rag_service.TrainingContextOut:
+    settings = get_settings()
+    try:
+        with session_scope(get_session_factory()) as session:
+            return await rag_service.get_training_context(
+                session, query, rag_service.make_embedder(settings.openai_api_key), activity_id
+            )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/bikes", response_model=list[bikes_service.BikeOut])

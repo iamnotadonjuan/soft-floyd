@@ -144,6 +144,33 @@ def test_0004_seeds_nothing_for_a_fresh_database(tmp_path):
     assert count == 0
 
 
+def test_existing_books_migrate_as_complete(tmp_path):
+    db_path = tmp_path / "db.sqlite"
+    cfg = _alembic_config(db_path)
+    command.upgrade(cfg, "a93d827f6c10")
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        with engine.begin() as conn:
+            conn.execute(
+                text(
+                    "INSERT INTO book (sha256, title, source_name, imported_at) "
+                    "VALUES (:sha256, 'Existing', 'existing.pdf', '2026-01-01 00:00:00')"
+                ),
+                {"sha256": "a" * 64},
+            )
+    finally:
+        engine.dispose()
+
+    command.upgrade(cfg, "head")
+    engine = create_engine(f"sqlite:///{db_path}")
+    try:
+        with engine.connect() as conn:
+            status = conn.execute(text("SELECT import_status FROM book")).scalar_one()
+    finally:
+        engine.dispose()
+    assert status == "complete"
+
+
 def test_autogenerate_produces_no_diff_against_current_models(tmp_path):
     """The drift guard: if models.py and the migrations directory ever
     disagree, alembic's own diff comparison would report added/removed
