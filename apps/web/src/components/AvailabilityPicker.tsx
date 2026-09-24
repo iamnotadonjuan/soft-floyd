@@ -32,7 +32,7 @@ export default function AvailabilityPicker({ value, onChange }: Props) {
   return (
     <div className="space-y-3">
       <div>
-        <span className="text-sm font-medium">Which days can you usually ride?</span>
+        <span className="text-sm font-medium">Which days do you usually ride?</span>
         <div className="mt-2 flex flex-wrap gap-2">
           {DAYS.map(({ key, label }) => (
             <button
@@ -46,11 +46,16 @@ export default function AvailabilityPicker({ value, onChange }: Props) {
             </button>
           ))}
         </div>
+        <p className="body-muted mt-2 text-sm">
+          {value.available_days.length === 0
+            ? "Select your usual riding days."
+            : `${value.available_days.length} ${value.available_days.length === 1 ? "day" : "days"} per week`}
+        </p>
       </div>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Weekday max (minutes)</span>
+          <span className="text-sm font-medium">Max minutes per weekday</span>
           <input
             type="number"
             min={0}
@@ -63,9 +68,10 @@ export default function AvailabilityPicker({ value, onChange }: Props) {
             }
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
+          <span className="body-muted block text-xs">For each selected Monday–Friday ride day.</span>
         </label>
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Weekend max (minutes)</span>
+          <span className="text-sm font-medium">Max minutes per weekend day</span>
           <input
             type="number"
             min={0}

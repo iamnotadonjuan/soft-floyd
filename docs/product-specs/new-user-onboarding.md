@@ -15,10 +15,12 @@ completed onboarding yet. Seven steps, one screen each, in this order
 (per `docs/DESIGN.md`: volume and goals before sensors; never ask for a
 number the rider can't produce):
 
-1. **Habits** — "How do you ride now?" Rides per week, hours per week
-   (`weekly_rides`, `weekly_hours`), plus which days the rider can
-   usually ride and a weekday/weekend max duration
-   (`available_days`, `weekday_max_minutes`, `weekend_max_minutes`).
+1. **Habits** — "How do you ride now?" Hours per week (`weekly_hours`),
+   which days the rider usually rides (`available_days`), and a maximum
+   duration **per selected weekday or weekend day**
+   (`weekday_max_minutes`, `weekend_max_minutes`). `weekly_rides` is the
+   count of selected usual riding days, not a separate input. Until a
+   legacy profile's days are edited, its saved `weekly_rides` is preserved.
 2. **Goals** — "What do you want to get better at?" A fixed set of
    focus chips (`focus_areas`: `endurance`, `climbing`, `flat_speed`,
    `sprint`, `technical_skill`, `weight`, `first_event`, `consistency`,

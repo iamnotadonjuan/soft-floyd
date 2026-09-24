@@ -116,6 +116,8 @@ class ProfileIn(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # Legacy callers may still send this when no usual days have been set.
+    # Once available_days is supplied, its distinct day count wins.
     weekly_rides: int | None = None
     weekly_hours: float | None = None
     goal_text: str | None = None
@@ -237,7 +239,15 @@ def get_profile(session: Session) -> ProfileOut:
 
 def upsert_profile(session: Session, data: ProfileIn) -> ProfileOut:
     profile = get_or_create_profile(session)
-    for field, value in data.model_dump(exclude_unset=True).items():
+    changes = data.model_dump(exclude_unset=True)
+    if "available_days" in changes and changes["available_days"] is not None:
+        # The selected usual riding days are the source of truth for this
+        # count. Preserve legacy weekly_rides-only updates until days have
+        # been selected for the first time.
+        changes["weekly_rides"] = len(set(changes["available_days"]))
+    elif profile.available_days and "weekly_rides" in changes:
+        del changes["weekly_rides"]
+    for field, value in changes.items():
         setattr(profile, field, value)
     session.flush()
     return _to_out(profile, _list_bikes(session))

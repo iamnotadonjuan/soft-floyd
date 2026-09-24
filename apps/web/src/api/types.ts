@@ -23,6 +23,7 @@ export type SelfRatedLevel = "beginner" | "recreational" | "enthusiast" | "compe
 export type Weekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
 
 export interface ProfileOut {
+  // Derived from the selected usual riding days after habits are saved.
   weekly_rides: number;
   weekly_hours: number;
   goal_text: string;

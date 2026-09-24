@@ -128,8 +128,7 @@ interface SectionProps {
 }
 
 function HabitsSection({ profile, save }: SectionProps) {
-  const [rides, setRides] = useState(profile.weekly_rides);
-  const [hours, setHours] = useState(profile.weekly_hours);
+  const [hours, setHours] = useState(profile.weekly_hours ? String(profile.weekly_hours) : "");
   const [availability, setAvailability] = useState<AvailabilityValue>({
     available_days: profile.available_days as Weekday[],
     weekday_max_minutes: profile.weekday_max_minutes,
@@ -138,17 +137,7 @@ function HabitsSection({ profile, save }: SectionProps) {
 
   return (
     <SettingsSection title="Habits" description="How much and when you ride.">
-      <div className="grid grid-cols-2 gap-3">
-        <label className="block space-y-1">
-          <span className="text-sm font-medium">Rides per week</span>
-          <input
-            type="number"
-            min={0}
-            value={rides}
-            onChange={(e) => setRides(Number(e.target.value))}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2"
-          />
-        </label>
+      <div className="max-w-xs">
         <label className="block space-y-1">
           <span className="text-sm font-medium">Hours per week</span>
           <input
@@ -156,14 +145,14 @@ function HabitsSection({ profile, save }: SectionProps) {
             min={0}
             step={0.5}
             value={hours}
-            onChange={(e) => setHours(Number(e.target.value))}
+            onChange={(e) => setHours(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
         </label>
       </div>
       <AvailabilityPicker value={availability} onChange={setAvailability} />
       <SaveButton
-        onSave={() => save({ weekly_rides: rides, weekly_hours: hours, ...availability })}
+        onSave={() => save({ weekly_hours: Number(hours), ...availability })}
       />
     </SettingsSection>
   );

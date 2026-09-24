@@ -86,7 +86,6 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
 
         {step === "habits" && (
           <HabitsStep
-            initialRides={profile.weekly_rides}
             initialHours={profile.weekly_hours}
             initialAvailability={{
               available_days: profile.available_days as Weekday[],

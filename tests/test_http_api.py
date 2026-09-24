@@ -44,6 +44,27 @@ def test_profile_round_trip_and_tier_flip(client):
     assert fetched == powered
 
 
+def test_usual_riding_days_determine_weekly_ride_count(client):
+    # A legacy profile can still carry a ride count before days are set.
+    legacy = client.put("/api/profile", json={"weekly_rides": 4}).json()
+    assert legacy["weekly_rides"] == 4
+
+    updated = client.put(
+        "/api/profile",
+        json={
+            "available_days": ["mon", "wed", "fri"],
+            "weekly_rides": 99,
+            "weekday_max_minutes": 60,
+        },
+    ).json()
+    assert updated["weekly_rides"] == 3
+    assert updated["weekday_max_minutes"] == 60
+
+    # Once days have been chosen, old clients cannot overwrite the count.
+    assert client.put("/api/profile", json={"weekly_rides": 7}).json()["weekly_rides"] == 3
+    assert client.put("/api/profile", json={"available_days": []}).json()["weekly_rides"] == 0
+
+
 # Activities/sync REST routes are covered in tests/test_activities_api.py
 # now that they're wired to real data (exec-plan 0002) — the old
 # "always []" stub test lived here when that was still true.

@@ -57,6 +57,13 @@ async def test_mcp_and_rest_agree_on_capability_tier(client):
     assert result.data.capability_tier == rest_profile["capability_tier"] == "power"
 
 
+async def test_mcp_and_rest_agree_on_usual_ride_days(client):
+    rest_profile = client.put("/api/profile", json={"available_days": ["tue", "thu", "sat"]}).json()
+    async with Client(mcp) as mcp_client:
+        result = await mcp_client.call_tool("get_rider_profile", {})
+    assert result.data.weekly_rides == rest_profile["weekly_rides"] == 3
+
+
 async def test_mcp_and_rest_agree_on_bikes(client):
     client.post("/api/bikes", json={"kind": "road", "has_power_meter": True})
     client.post("/api/bikes", json={"kind": "mtb"})
