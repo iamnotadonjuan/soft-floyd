@@ -1,3 +1,4 @@
+import { useI18n } from "../../i18n/I18nProvider";
 import ConnectionsPanel from "../connections/ConnectionsPanel";
 
 interface Props {
@@ -6,12 +7,13 @@ interface Props {
 
 // Skippable — a rider can always connect Garmin later from Settings.
 export default function ConnectStep({ onNext }: Props) {
+  const { m } = useI18n();
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">Connect your apps</h2>
+        <h2 className="text-xl font-semibold">{m.onboarding.connect.title}</h2>
         <p className="text-neutral-500 text-sm">
-          Link Garmin so rides sync automatically. You can always do this later from Settings.
+          {m.onboarding.connect.body}
         </p>
       </div>
 
@@ -21,7 +23,7 @@ export default function ConnectStep({ onNext }: Props) {
         onClick={onNext}
         className="primary-button w-full"
       >
-        Next
+        {m.common.next}
       </button>
     </div>
   );

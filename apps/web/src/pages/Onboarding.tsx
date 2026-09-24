@@ -10,6 +10,8 @@ import ConnectStep from "../components/onboarding/ConnectStep";
 import GarageStep from "../components/onboarding/GarageStep";
 import GoalsStep from "../components/onboarding/GoalsStep";
 import HabitsStep from "../components/onboarding/HabitsStep";
+import LanguageToggle from "../components/LanguageToggle";
+import { useI18n } from "../i18n/I18nProvider";
 
 type Step = "habits" | "goals" | "garage" | "about" | "anchors" | "connect" | "summary";
 
@@ -24,6 +26,7 @@ interface Props {
 // never ask for a number the rider can't produce. See
 // docs/product-specs/new-user-onboarding.md for the full flow.
 export default function Onboarding({ initialProfile, onComplete }: Props) {
+  const { m } = useI18n();
   const [step, setStep] = useState<Step>("habits");
   const [profile, setProfile] = useState<ProfileOut>(initialProfile);
   const [error, setError] = useState<string | null>(null);
@@ -57,21 +60,24 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
     <main className="app-shell min-h-screen">
       <div className="page-wrap max-w-4xl">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">Soft Floyd / Getting started</span>
-          <span className="body-muted text-sm">A little context makes better coaching.</span>
+          <span className="brand">{m.onboarding.brand}</span>
+          <div className="flex items-center gap-4">
+            <span className="body-muted text-sm">{m.onboarding.tagline}</span>
+            <LanguageToggle />
+          </div>
         </header>
         <div className="mb-8 max-w-2xl">
-          <p className="eyebrow mb-3">Your starting point</p>
-          <h1 className="display-title">Let’s get to know your ride.</h1>
+          <p className="eyebrow mb-3">{m.onboarding.eyebrow}</p>
+          <h1 className="display-title">{m.onboarding.title}</h1>
         </div>
         <div className="surface flow-panel mx-auto max-w-2xl p-5 sm:p-8">
 
         {step !== "summary" && (
           <div className="mb-6">
             <p className="eyebrow mb-2">
-              Step {stepIndex + 1} of {steps.length - 1}
+              {m.onboarding.stepOf(stepIndex + 1, steps.length - 1)}
             </p>
-            <div className="h-1.5 w-full rounded-full bg-[#e7ebe2]" role="progressbar" aria-valuenow={stepIndex + 1} aria-valuemin={1} aria-valuemax={steps.length - 1} aria-label="Onboarding progress">
+            <div className="h-1.5 w-full rounded-full bg-[#e7ebe2]" role="progressbar" aria-valuenow={stepIndex + 1} aria-valuemin={1} aria-valuemax={steps.length - 1} aria-label={m.onboarding.progressAria}>
               <div
                 className="h-1.5 rounded-full bg-[#30553c] transition-all"
                 style={{
@@ -81,8 +87,8 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
             </div>
           </div>
         )}
-        {error && <div className="notice-error mb-5" role="alert">Could not save: {error}</div>}
-        {saving && <p className="body-muted mb-4 text-sm" role="status">Saving your answers…</p>}
+        {error && <div className="notice-error mb-5" role="alert">{m.onboarding.saveError(error)}</div>}
+        {saving && <p className="body-muted mb-4 text-sm" role="status">{m.onboarding.savingAnswers}</p>}
 
         {step === "habits" && (
           <HabitsStep
@@ -161,17 +167,17 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
 
         {step === "summary" && (
           <div className="space-y-6">
-            <div><p className="eyebrow mb-2">Ready to ride</p><h2 className="section-title">You’re set up.</h2><p className="body-muted mt-2 text-sm">Here’s what I can use to understand your rides:</p></div>
+            <div><p className="eyebrow mb-2">{m.onboarding.readyEyebrow}</p><h2 className="section-title">{m.onboarding.readyTitle}</h2><p className="body-muted mt-2 text-sm">{m.onboarding.readyBody}</p></div>
             <CapabilitySummary profile={profile} />
             <button
               onClick={() => onComplete(profile)}
               className="primary-button w-full"
             >
-              Go to dashboard
+              {m.onboarding.goToDashboard}
             </button>
           </div>
         )}
-        {stepIndex > 0 && <button type="button" onClick={goBack} disabled={saving} className="text-button mt-6 text-sm">← Back</button>}
+        {stepIndex > 0 && <button type="button" onClick={goBack} disabled={saving} className="text-button mt-6 text-sm">{m.common.back}</button>}
         </div>
       </div>
     </main>

@@ -1,0 +1,299 @@
+import type {
+  BikeKind,
+  CapabilityTier,
+  ConnectionStatus,
+  FocusArea,
+  SelfRatedLevel,
+  Weekday,
+} from "../api/types";
+
+// Source of truth for UI copy. es.ts is typed as `Messages`, so adding a
+// key here fails `tsc` until the Spanish side has it too — see
+// docs/FRONTEND.md "Localization". Strings with values are functions.
+// Server-provided text (coach replies, API error details, goal text) is
+// not translated here.
+const en = {
+  common: {
+    language: "Language",
+    back: "← Back",
+    backToRides: "← Back to rides",
+    next: "Next",
+    save: "Save",
+    saving: "Saving…",
+    saved: "Saved",
+    loading: "Loading…",
+    noAppsYet: "No apps available yet.",
+  },
+
+  app: {
+    serverError: (error: string) => `Couldn't reach the server: ${error}`,
+    loading: "Loading your ride journal…",
+  },
+
+  rides: {
+    titles: {
+      road: "Road ride", mtb: "Mountain bike ride", indoor: "Indoor ride", other: "Ride",
+    } as Record<string, string>,
+    fallbackTitle: "Ride",
+    indoor: "Indoor",
+    outdoor: "Outdoor",
+    climbing: (metres: number) => `${metres} m climbing`,
+  },
+
+  dashboard: {
+    brand: "Soft Floyd / Ride journal",
+    askCoach: "Ask your coach",
+    settings: "Settings",
+    coachHint: "Connect Garmin in Settings to unlock your coach.",
+    eyebrow: "Your cycling home",
+    title: "Ride with intention.",
+    subtitle: "Your goal, your equipment, and the rides you actually recorded—in one place.",
+    goalEyebrow: "What you’re riding toward",
+    weeklySummary: (days: number, hours: number) =>
+      `${days} ride ${days === 1 ? "day" : "days"} · ${hours} hours each week`,
+    tierView: {
+      power: "Power + available signals view",
+      hr: "Heart rate view",
+      cadence: "Cadence view",
+      basic: "GPS basics view",
+    } satisfies Record<CapabilityTier, string>,
+    connectionStatus: {
+      connected: "Connected",
+      disconnected: "Not connected",
+      reauth_required: "Sign in again",
+      rate_limited: "Temporarily limited",
+      error: "Needs attention",
+    } satisfies Record<ConnectionStatus, string>,
+    connectedApps: "Connected apps",
+    connectionsAria: "Connected apps status",
+    connectionsError: (error: string) => `Could not load connection status: ${error}`,
+    checkingConnections: "Checking connections…",
+    manageConnections: "Manage connections →",
+    latestEyebrow: "The latest",
+    newestRide: "Your newest ride",
+    loadingRides: "Loading your rides…",
+    emptyTitle: "Your ride journal starts here.",
+    emptyBody: "Connect Garmin in Settings to sync new rides automatically. The first connection brings in the latest activity; older Garmin rides need a separate backfill.",
+    connectGarmin: "Connect Garmin",
+    ridesError: (error: string) => `Could not load rides: ${error}`,
+    lookBack: "Look back",
+    rideHistory: "Ride history",
+    loadingMore: "Loading rides…",
+    showOlder: "Show older rides",
+    viewRide: "View ride →",
+  },
+
+  rideDetail: {
+    loadError: (error: string) => `Could not load this ride: ${error}`,
+    loading: "Loading ride…",
+    recordedBy: (setting: string) => `Recorded by Garmin · ${setting}`,
+    summaryAria: "Ride summary",
+    distance: "Distance",
+    duration: "Duration",
+    elevationGain: "Elevation gain",
+    avgHr: "Average heart rate",
+    avgPower: "Average power",
+    avgCadence: "Average cadence",
+    recordedHeading: "What this ride recorded",
+    noSensors: "No sensor streams detected",
+    onlyRecorded: "Only recorded signals appear above and in the laps below.",
+    fitUnavailable: "The FIT file was unavailable or could not be read. Distance, time, and elevation come from the Garmin summary; sensor readings cannot be verified for this ride.",
+    laps: "Laps",
+    lap: (n: number) => `Lap ${n}`,
+  },
+
+  coach: {
+    brand: "Soft Floyd / Coach",
+    suggestions: [
+      "How did my last month of riding go?",
+      "What should I work on to climb better?",
+      "Plan my next week of training around my schedule.",
+    ],
+    sourcesAria: "Book sources",
+    sourcePages: (title: string, pages: string) => `${title}, p. ${pages}`,
+    sidebarAria: "Conversations and memory",
+    newConversation: "New conversation",
+    conversationsAria: "Conversations",
+    noConversations: "No conversations yet.",
+    deleteConversation: (title: string) => `Delete conversation ${title}`,
+    memorySummary: (count: number) => `What the coach remembers (${count})`,
+    memoryEmpty: "Nothing yet. Tell the coach about injuries, schedule or preferences and it will keep them in mind.",
+    forget: (text: string) => `Forget: ${text}`,
+    chatAria: "Coach chat",
+    eyebrow: "Your cycling coach",
+    title: "Ask about your rides, training, or how to get faster.",
+    intro: "The coach reads your synced rides and imported training books, and remembers what you tell it. It only talks cycling.",
+    thinking: "Thinking…",
+    turnError: "The coach couldn't answer. Please try again.",
+    messageLabel: "Message the coach",
+    placeholder: "Ask your coach… (Shift+Enter for a new line)",
+    coaching: "Coaching…",
+    send: "Send",
+  },
+
+  fields: {
+    hoursPerWeek: "Hours per week",
+    birthYear: "Birth year",
+    weightKg: "Weight (kg)",
+    maxHr: "Max heart rate (bpm)",
+    yearsRiding: "Years riding",
+    longestRide: "Longest ride in the last few months (km)",
+    describeYourself: "How would you describe yourself?",
+    followedPlan: "I've followed a structured training plan before",
+    healthNotes: "Anything to know — injuries, limits, etc.",
+    ftp: "FTP (watts)",
+    lthr: "Lactate threshold HR (bpm)",
+    ownWords: "In your own words",
+    eventName: "Event name",
+  },
+
+  levels: {
+    beginner: "Just starting out",
+    recreational: "Recreational",
+    enthusiast: "Enthusiast",
+    competitive: "Competitive / racing",
+  } satisfies Record<SelfRatedLevel, string>,
+
+  focus: {
+    endurance: "Ride longer without fading",
+    climbing: "Climb better",
+    flat_speed: "Go faster on the flats",
+    sprint: "Sprint / short hard efforts",
+    technical_skill: "Bike handling & technical skill",
+    weight: "Lose weight",
+    first_event: "Finish a first event",
+    consistency: "Just ride more consistently",
+    enjoy: "Enjoy it more, less pressure",
+  } satisfies Record<FocusArea, string>,
+
+  availability: {
+    days: {
+      mon: "Mon", tue: "Tue", wed: "Wed", thu: "Thu", fri: "Fri", sat: "Sat", sun: "Sun",
+    } satisfies Record<Weekday, string>,
+    whichDays: "Which days do you usually ride?",
+    selectDays: "Select your usual riding days.",
+    daysPerWeek: (n: number) => `${n} ${n === 1 ? "day" : "days"} per week`,
+    weekdayMax: "Max minutes per weekday",
+    weekdayHint: "For each selected Monday–Friday ride day.",
+    weekendMax: "Max minutes per weekend day",
+  },
+
+  onboarding: {
+    brand: "Soft Floyd / Getting started",
+    tagline: "A little context makes better coaching.",
+    eyebrow: "Your starting point",
+    title: "Let’s get to know your ride.",
+    stepOf: (step: number, total: number) => `Step ${step} of ${total}`,
+    progressAria: "Onboarding progress",
+    saveError: (error: string) => `Could not save: ${error}`,
+    savingAnswers: "Saving your answers…",
+    readyEyebrow: "Ready to ride",
+    readyTitle: "You’re set up.",
+    readyBody: "Here’s what I can use to understand your rides:",
+    goToDashboard: "Go to dashboard",
+    habits: {
+      title: "How do you ride now?",
+      body: "Rough numbers are fine — we'll refine this from your actual rides later.",
+    },
+    goals: {
+      title: "What do you want to get better at?",
+      body: "Pick everything that applies — this shapes how the coach frames everything else.",
+      goalPlaceholder: "e.g. climb better for an upcoming gran fondo",
+      eventQuestion: "Got an event in mind? (optional)",
+    },
+    garage: {
+      title: "What do you ride?",
+      body: "Add every bike you actually ride — sensors vary bike to bike, so we ask per bike. An indoor trainer counts as a bike too.",
+    },
+    about: {
+      title: "A bit about you",
+      body: "All optional — skip anything you'd rather not answer.",
+      hrMonitor: "I wear a heart rate monitor when I ride",
+    },
+    anchors: {
+      title: "A couple of anchor numbers",
+      body: "Skip either if you don't know it yet.",
+      ftpPlaceholder: "e.g. 240",
+      lthrDefault: "Default 165 if you're not sure.",
+    },
+    connect: {
+      title: "Connect your apps",
+      body: "Link Garmin so rides sync automatically. You can always do this later from Settings.",
+    },
+  },
+
+  settings: {
+    brand: "Soft Floyd / Your setup",
+    eyebrow: "A coach that knows your context",
+    title: "Your riding setup.",
+    intro: "Change any part as your goals, schedule, or equipment evolve. Each section saves on its own.",
+    habits: { title: "Habits", description: "How much and when you ride." },
+    goals: { title: "Goals", description: "What you're training for." },
+    garage: { title: "Garage", description: "Bikes and the sensors mounted on each one." },
+    about: { title: "About you", description: "Body and experience — all optional." },
+    anchors: {
+      title: "Heart rate & anchors",
+      description: "Power/cadence/speed sensors live per-bike in the garage above.",
+    },
+    connections: { title: "Connected apps", description: "Bring your recorded rides into Soft Floyd." },
+    hrMonitor: "I wear a heart rate monitor",
+  },
+
+  bikes: {
+    kinds: {
+      road: "Road", gravel: "Gravel", mtb: "Mountain", tt: "TT / triathlon", indoor: "Indoor trainer",
+    } satisfies Record<BikeKind, string>,
+    loadError: (error: string) => `Could not load bikes: ${error}`,
+    loading: "Loading your garage…",
+    nicknameAria: (kind: string) => `${kind} bike nickname`,
+    powerMeter: "Power meter",
+    cadence: "Cadence",
+    speed: "Speed",
+    primary: "Primary bike",
+    makePrimary: "Make primary",
+    remove: "Remove",
+  },
+
+  capability: {
+    power: (hasHr: boolean) =>
+      `Your garage includes a power meter${hasHr ? " and you wear a heart rate monitor" : ""}. I’ll only use those signals on rides where Garmin actually recorded them.`,
+    hr: "You ride with a heart rate monitor. I’ll use heart rate on rides where it was recorded, alongside time, distance, and elevation.",
+    cadence: (hasCadence: boolean) =>
+      `Your garage includes ${hasCadence ? "a cadence sensor" : "a speed sensor"}. I’ll work from the signals recorded on each ride, plus time, distance, and elevation.`,
+    basic: "With your current setup I can use ride time, distance, and elevation. I won’t invent heart rate or power readings.",
+    tierLabel: {
+      power: "power", hr: "heart rate", cadence: "cadence", basic: "GPS only",
+    } satisfies Record<CapabilityTier, string>,
+    bikeLine: (name: string, tier: string, primary: boolean) =>
+      `${name} — read through ${tier}${primary ? " (primary)" : ""}`,
+  },
+
+  connections: {
+    status: {
+      connected: "Connected",
+      disconnected: "Not connected",
+      reauth_required: "Needs sign-in again",
+      rate_limited: "Rate limited — try again soon",
+      error: "Error",
+    } satisfies Record<ConnectionStatus, string>,
+    lastChecked: (when: string) => `Last checked ${when}`,
+    disconnect: "Disconnect",
+    loadError: (error: string) => `Could not load connected apps: ${error}`,
+    loading: "Loading connected apps…",
+    garmin: {
+      codePrompt: "Enter the code Garmin just sent you",
+      codeAria: "Garmin verification code",
+      verifying: "Verifying…",
+      verify: "Verify",
+      email: "Garmin email",
+      password: "Password",
+      passwordPlaceholder: "Garmin password",
+      connecting: "Connecting…",
+      connect: "Connect Garmin",
+      privacy: "Your password goes only to your local Soft Floyd server for this sign-in.",
+    },
+  },
+};
+
+export type Messages = typeof en;
+export default en;

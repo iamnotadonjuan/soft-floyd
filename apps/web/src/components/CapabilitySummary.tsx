@@ -1,29 +1,20 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
-import type { BikeOut, CapabilityTier, ProfileOut } from "../api/types";
+import type { BikeOut, ProfileOut } from "../api/types";
+import type { Messages } from "../i18n/en";
+import { bikeKindLabel } from "./activityFormat";
+import { useI18n } from "../i18n/I18nProvider";
 
-function capabilityCopy(profile: ProfileOut): string {
-  if (profile.capability_tier === "power") {
-    return `Your garage includes a power meter${profile.has_hr_monitor ? " and you wear a heart rate monitor" : ""}. I’ll only use those signals on rides where Garmin actually recorded them.`;
-  }
-  if (profile.capability_tier === "hr") {
-    return "You ride with a heart rate monitor. I’ll use heart rate on rides where it was recorded, alongside time, distance, and elevation.";
-  }
-  if (profile.capability_tier === "cadence") {
-    return `Your garage includes ${profile.has_cadence_sensor ? "a cadence sensor" : "a speed sensor"}. I’ll work from the signals recorded on each ride, plus time, distance, and elevation.`;
-  }
-  return "With your current setup I can use ride time, distance, and elevation. I won’t invent heart rate or power readings.";
+function capabilityCopy(profile: ProfileOut, m: Messages): string {
+  if (profile.capability_tier === "power") return m.capability.power(profile.has_hr_monitor);
+  if (profile.capability_tier === "hr") return m.capability.hr;
+  if (profile.capability_tier === "cadence") return m.capability.cadence(profile.has_cadence_sensor);
+  return m.capability.basic;
 }
 
-const TIER_LABEL: Record<CapabilityTier, string> = {
-  power: "power",
-  hr: "heart rate",
-  cadence: "cadence",
-  basic: "GPS only",
-};
-
 export default function CapabilitySummary({ profile }: { profile: ProfileOut }) {
+  const { m } = useI18n();
   const [bikes, setBikes] = useState<BikeOut[] | null>(null);
 
   useEffect(() => {
@@ -36,7 +27,7 @@ export default function CapabilitySummary({ profile }: { profile: ProfileOut }) 
   return (
     <div className="space-y-2">
       <div className="surface-soft px-5 py-4 text-sm leading-relaxed">
-        {capabilityCopy(profile)}
+        {capabilityCopy(profile, m)}
       </div>
 
       {/* Only worth breaking out per-bike once there's more than one —
@@ -46,8 +37,11 @@ export default function CapabilitySummary({ profile }: { profile: ProfileOut }) 
         <div className="body-muted space-y-1 px-1 text-sm">
           {bikes.map((bike) => (
             <p key={bike.id}>
-              {bike.nickname || bike.kind} — read through {TIER_LABEL[bike.capability_tier]}
-              {bike.is_primary ? " (primary)" : ""}
+              {m.capability.bikeLine(
+                bike.nickname || bikeKindLabel(bike.kind, m),
+                m.capability.tierLabel[bike.capability_tier],
+                bike.is_primary,
+              )}
             </p>
           ))}
         </div>

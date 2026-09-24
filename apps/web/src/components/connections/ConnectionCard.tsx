@@ -2,15 +2,8 @@ import { useState } from "react";
 
 import { api } from "../../api/client";
 import type { ConnectionOut } from "../../api/types";
+import { useI18n } from "../../i18n/I18nProvider";
 import GarminLoginForm from "./GarminLoginForm";
-
-const STATUS_COPY: Record<ConnectionOut["status"], string> = {
-  connected: "Connected",
-  disconnected: "Not connected",
-  reauth_required: "Needs sign-in again",
-  rate_limited: "Rate limited — try again soon",
-  error: "Error",
-};
 
 const STATUS_TONE: Record<ConnectionOut["status"], string> = {
   connected: "good", disconnected: "neutral", reauth_required: "warning",
@@ -23,6 +16,7 @@ interface Props {
 }
 
 export default function ConnectionCard({ connection, onChanged }: Props) {
+  const { m, intlLocale } = useI18n();
   const [disconnecting, setDisconnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -52,12 +46,12 @@ export default function ConnectionCard({ connection, onChanged }: Props) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <span className="font-semibold text-[#243e2c]">{connection.display_name}</span>
         <span className="status-pill" data-tone={STATUS_TONE[connection.status]}>
-          {STATUS_COPY[connection.status]}
+          {m.connections.status[connection.status]}
         </span>
       </div>
 
       {connection.detail && <p className="body-muted mt-2 text-sm">{connection.detail}</p>}
-      {connection.last_sync_at && <p className="body-muted mt-1 text-sm">Last checked {new Date(connection.last_sync_at).toLocaleString()}</p>}
+      {connection.last_sync_at && <p className="body-muted mt-1 text-sm">{m.connections.lastChecked(new Date(connection.last_sync_at).toLocaleString(intlLocale))}</p>}
       {connection.last_error && connection.status !== "connected" && (
         <p className="notice-error mt-3" role="alert">{connection.last_error}</p>
       )}
@@ -69,7 +63,7 @@ export default function ConnectionCard({ connection, onChanged }: Props) {
           disabled={disconnecting}
           className="text-button mt-4 text-sm disabled:opacity-40"
         >
-          Disconnect
+          {m.connections.disconnect}
         </button>
       )}
 

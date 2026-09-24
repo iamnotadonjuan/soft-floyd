@@ -1,18 +1,12 @@
 import type { FocusArea } from "../api/types";
+import { useI18n } from "../i18n/I18nProvider";
 
 // Fixed vocabulary — see docs/product-specs/new-user-onboarding.md. Kept
 // in plain-language order (no jargon), matching SensorsStep/AnchorsStep's
-// existing convention for onboarding copy.
-const FOCUS_OPTIONS: { key: FocusArea; label: string }[] = [
-  { key: "endurance", label: "Ride longer without fading" },
-  { key: "climbing", label: "Climb better" },
-  { key: "flat_speed", label: "Go faster on the flats" },
-  { key: "sprint", label: "Sprint / short hard efforts" },
-  { key: "technical_skill", label: "Bike handling & technical skill" },
-  { key: "weight", label: "Lose weight" },
-  { key: "first_event", label: "Finish a first event" },
-  { key: "consistency", label: "Just ride more consistently" },
-  { key: "enjoy", label: "Enjoy it more, less pressure" },
+// existing convention for onboarding copy. Labels live in i18n `focus`.
+const FOCUS_OPTIONS: FocusArea[] = [
+  "endurance", "climbing", "flat_speed", "sprint", "technical_skill",
+  "weight", "first_event", "consistency", "enjoy",
 ];
 
 interface Props {
@@ -21,12 +15,13 @@ interface Props {
 }
 
 export default function FocusPicker({ value, onChange }: Props) {
+  const { m } = useI18n();
   const toggle = (key: FocusArea) =>
     onChange(value.includes(key) ? value.filter((v) => v !== key) : [...value, key]);
 
   return (
     <div className="flex flex-wrap gap-2">
-      {FOCUS_OPTIONS.map(({ key, label }) => (
+      {FOCUS_OPTIONS.map((key) => (
         <button
           key={key}
           type="button"
@@ -34,7 +29,7 @@ export default function FocusPicker({ value, onChange }: Props) {
           aria-pressed={value.includes(key)}
           className="choice-chip"
         >
-          {label}
+          {m.focus[key]}
         </button>
       ))}
     </div>

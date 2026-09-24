@@ -1,20 +1,30 @@
 import type { ActivitySummaryOut } from "../api/types";
+import type { Messages } from "../i18n/en";
 
-export function rideTitle(ride: ActivitySummaryOut): string {
-  if (ride.is_indoor) return "Indoor ride";
-  return {
-    road: "Road ride", mtb: "Mountain bike ride", indoor: "Indoor ride", other: "Ride",
-  }[ride.bike_type] ?? "Ride";
+// Callers pass `m` and `intlLocale` from useI18n() so copy, dates, and
+// decimal separators follow the rider's chosen language.
+
+export function rideTitle(ride: ActivitySummaryOut, m: Messages): string {
+  if (ride.is_indoor) return m.rides.titles.indoor;
+  return m.rides.titles[ride.bike_type] ?? m.rides.fallbackTitle;
 }
 
-export function rideDate(value: string): string {
-  return new Date(value).toLocaleDateString(undefined, {
+// BikeOut.kind is a plain string from the API; fall back to it verbatim.
+export function bikeKindLabel(kind: string, m: Messages): string {
+  return (m.bikes.kinds as Record<string, string>)[kind] ?? kind;
+}
+
+export function rideDate(value: string, intlLocale: string): string {
+  return new Date(value).toLocaleDateString(intlLocale, {
     weekday: "short", month: "short", day: "numeric", year: "numeric",
   });
 }
 
-export function rideDistance(metres: number): string {
-  return `${(metres / 1000).toFixed(1)} km`;
+export function rideDistance(metres: number, intlLocale: string): string {
+  const km = (metres / 1000).toLocaleString(intlLocale, {
+    minimumFractionDigits: 1, maximumFractionDigits: 1,
+  });
+  return `${km} km`;
 }
 
 export function rideDuration(seconds: number): string {

@@ -2,12 +2,14 @@ import { useEffect, useState } from "react";
 
 import { api } from "../../api/client";
 import type { ConnectionOut } from "../../api/types";
+import { useI18n } from "../../i18n/I18nProvider";
 import ConnectionCard from "./ConnectionCard";
 
 // Fetches and renders every connected app generically — today that's
 // just Garmin, but adding a provider means adding a row to
 // connections/service.py's list_connections, not touching this component.
 export default function ConnectionsPanel() {
+  const { m } = useI18n();
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -25,12 +27,12 @@ export default function ConnectionsPanel() {
     );
   }
 
-  if (error) return <p className="notice-error" role="alert">Could not load connected apps: {error}</p>;
-  if (connections === null) return <p className="body-muted text-sm">Loading connected apps…</p>;
+  if (error) return <p className="notice-error" role="alert">{m.connections.loadError(error)}</p>;
+  if (connections === null) return <p className="body-muted text-sm">{m.connections.loading}</p>;
 
   return (
     <div className="space-y-3">
-      {connections.length === 0 && <p className="body-muted text-sm">No apps available yet.</p>}
+      {connections.length === 0 && <p className="body-muted text-sm">{m.common.noAppsYet}</p>}
       {connections.map((connection) => (
         <ConnectionCard key={connection.provider} connection={connection} onChanged={handleChanged} />
       ))}

@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import type { SelfRatedLevel } from "../../api/types";
+import { useI18n } from "../../i18n/I18nProvider";
 
 export interface AboutYouValue {
   has_hr_monitor: boolean;
@@ -19,12 +20,7 @@ interface Props {
   onNext: (values: AboutYouValue) => void;
 }
 
-const LEVEL_OPTIONS: { key: SelfRatedLevel; label: string }[] = [
-  { key: "beginner", label: "Just starting out" },
-  { key: "recreational", label: "Recreational" },
-  { key: "enthusiast", label: "Enthusiast" },
-  { key: "competitive", label: "Competitive / racing" },
-];
+const LEVELS: SelfRatedLevel[] = ["beginner", "recreational", "enthusiast", "competitive"];
 
 function numberField(raw: string): number | null {
   return raw.trim() === "" ? null : Number(raw);
@@ -32,6 +28,7 @@ function numberField(raw: string): number | null {
 
 // Every field here is skippable — see docs/product-specs/new-user-onboarding.md.
 export default function AboutYouStep({ initial, onNext }: Props) {
+  const { m } = useI18n();
   const [values, setValues] = useState<AboutYouValue>(initial);
 
   function set<K extends keyof AboutYouValue>(key: K, value: AboutYouValue[K]) {
@@ -41,9 +38,9 @@ export default function AboutYouStep({ initial, onNext }: Props) {
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">A bit about you</h2>
+        <h2 className="text-xl font-semibold">{m.onboarding.about.title}</h2>
         <p className="text-neutral-500 text-sm">
-          All optional — skip anything you'd rather not answer.
+          {m.onboarding.about.body}
         </p>
       </div>
 
@@ -53,12 +50,12 @@ export default function AboutYouStep({ initial, onNext }: Props) {
           checked={values.has_hr_monitor}
           onChange={(e) => set("has_hr_monitor", e.target.checked)}
         />
-        I wear a heart rate monitor when I ride
+        {m.onboarding.about.hrMonitor}
       </label>
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Birth year</span>
+          <span className="text-sm font-medium">{m.fields.birthYear}</span>
           <input
             type="number"
             value={values.birth_year ?? ""}
@@ -67,7 +64,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Weight (kg)</span>
+          <span className="text-sm font-medium">{m.fields.weightKg}</span>
           <input
             type="number"
             step={0.1}
@@ -80,7 +77,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
 
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Max heart rate (bpm)</span>
+          <span className="text-sm font-medium">{m.fields.maxHr}</span>
           <input
             type="number"
             value={values.max_hr ?? ""}
@@ -89,7 +86,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Years riding</span>
+          <span className="text-sm font-medium">{m.fields.yearsRiding}</span>
           <input
             type="number"
             step={0.5}
@@ -101,7 +98,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
       </div>
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Longest ride in the last few months (km)</span>
+        <span className="text-sm font-medium">{m.fields.longestRide}</span>
         <input
           type="number"
           value={values.longest_recent_ride_km ?? ""}
@@ -111,9 +108,9 @@ export default function AboutYouStep({ initial, onNext }: Props) {
       </label>
 
       <div className="space-y-1">
-        <span className="text-sm font-medium">How would you describe yourself?</span>
+        <span className="text-sm font-medium">{m.fields.describeYourself}</span>
         <div className="flex flex-wrap gap-2">
-          {LEVEL_OPTIONS.map(({ key, label }) => (
+          {LEVELS.map((key) => (
             <button
               key={key}
               type="button"
@@ -121,7 +118,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
               aria-pressed={values.self_rated_level === key}
               className="choice-chip"
             >
-              {label}
+              {m.levels[key]}
             </button>
           ))}
         </div>
@@ -133,11 +130,11 @@ export default function AboutYouStep({ initial, onNext }: Props) {
           checked={values.followed_plan_before === true}
           onChange={(e) => set("followed_plan_before", e.target.checked)}
         />
-        I've followed a structured training plan before
+        {m.fields.followedPlan}
       </label>
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Anything to know — injuries, limits, etc.</span>
+        <span className="text-sm font-medium">{m.fields.healthNotes}</span>
         <textarea
           value={values.health_notes ?? ""}
           onChange={(e) => set("health_notes", e.target.value === "" ? null : e.target.value)}
@@ -150,7 +147,7 @@ export default function AboutYouStep({ initial, onNext }: Props) {
         onClick={() => onNext(values)}
         className="primary-button w-full"
       >
-        Next
+        {m.common.next}
       </button>
     </div>
   );

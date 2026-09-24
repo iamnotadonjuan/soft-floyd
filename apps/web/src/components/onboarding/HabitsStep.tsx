@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useI18n } from "../../i18n/I18nProvider";
 import AvailabilityPicker, { type AvailabilityValue } from "../AvailabilityPicker";
 
 interface Props {
@@ -17,21 +18,22 @@ export default function HabitsStep({
   initialAvailability,
   onNext,
 }: Props) {
+  const { m } = useI18n();
   const [hours, setHours] = useState(initialHours ? String(initialHours) : "");
   const [availability, setAvailability] = useState<AvailabilityValue>(initialAvailability);
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">How do you ride now?</h2>
+        <h2 className="text-xl font-semibold">{m.onboarding.habits.title}</h2>
         <p className="text-neutral-500 text-sm">
-          Rough numbers are fine — we'll refine this from your actual rides later.
+          {m.onboarding.habits.body}
         </p>
       </div>
 
       <div className="max-w-xs">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Hours per week</span>
+          <span className="text-sm font-medium">{m.fields.hoursPerWeek}</span>
           <input
             type="number"
             min={0}
@@ -49,7 +51,7 @@ export default function HabitsStep({
         onClick={() => onNext({ weekly_hours: Number(hours), ...availability })}
         className="primary-button w-full"
       >
-        Next
+        {m.common.next}
       </button>
     </div>
   );

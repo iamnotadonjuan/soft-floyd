@@ -1,5 +1,7 @@
 import { useState } from "react";
 
+import { useI18n } from "../../i18n/I18nProvider";
+
 interface Props {
   hasPowerMeter: boolean;
   hasHrMonitor: boolean;
@@ -20,25 +22,26 @@ export default function AnchorsStep({
   initialLthr,
   onNext,
 }: Props) {
+  const { m } = useI18n();
   const [ftp, setFtp] = useState<string>(initialFtp?.toString() ?? "");
   const [lthr, setLthr] = useState<string>((initialLthr ?? 165).toString());
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">A couple of anchor numbers</h2>
-        <p className="text-neutral-500 text-sm">Skip either if you don't know it yet.</p>
+        <h2 className="text-xl font-semibold">{m.onboarding.anchors.title}</h2>
+        <p className="text-neutral-500 text-sm">{m.onboarding.anchors.body}</p>
       </div>
 
       {hasPowerMeter && (
         <label className="block space-y-1">
-          <span className="text-sm font-medium">FTP (watts)</span>
+          <span className="text-sm font-medium">{m.fields.ftp}</span>
           <input
             type="number"
             min={0}
             value={ftp}
             onChange={(e) => setFtp(e.target.value)}
-            placeholder="e.g. 240"
+            placeholder={m.onboarding.anchors.ftpPlaceholder}
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
         </label>
@@ -46,7 +49,7 @@ export default function AnchorsStep({
 
       {hasHrMonitor && (
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Lactate threshold HR (bpm)</span>
+          <span className="text-sm font-medium">{m.fields.lthr}</span>
           <input
             type="number"
             min={0}
@@ -54,7 +57,7 @@ export default function AnchorsStep({
             onChange={(e) => setLthr(e.target.value)}
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
-          <span className="text-xs text-neutral-400">Default 165 if you're not sure.</span>
+          <span className="text-xs text-neutral-400">{m.onboarding.anchors.lthrDefault}</span>
         </label>
       )}
 
@@ -67,7 +70,7 @@ export default function AnchorsStep({
         }
         className="primary-button w-full"
       >
-        Next
+        {m.common.next}
       </button>
     </div>
   );

@@ -6,6 +6,8 @@ import AvailabilityPicker, { type AvailabilityValue } from "../components/Availa
 import BikeEditor from "../components/BikeEditor";
 import ConnectionsPanel from "../components/connections/ConnectionsPanel";
 import FocusPicker from "../components/FocusPicker";
+import LanguageToggle from "../components/LanguageToggle";
+import { useI18n } from "../i18n/I18nProvider";
 
 interface Props {
   profile: ProfileOut;
@@ -13,12 +15,7 @@ interface Props {
   onBack: () => void;
 }
 
-const LEVEL_OPTIONS: { key: SelfRatedLevel; label: string }[] = [
-  { key: "beginner", label: "Just starting out" },
-  { key: "recreational", label: "Recreational" },
-  { key: "enthusiast", label: "Enthusiast" },
-  { key: "competitive", label: "Competitive / racing" },
-];
+const LEVELS: SelfRatedLevel[] = ["beginner", "recreational", "enthusiast", "competitive"];
 
 function numberField(raw: string): number | null {
   return raw.trim() === "" ? null : Number(raw);
@@ -29,6 +26,7 @@ function numberField(raw: string): number | null {
 // BikeEditor, ConnectionsPanel) onboarding walks as steps, here stacked
 // as always-visible sections instead. See docs/FRONTEND.md.
 export default function Settings({ profile, onProfileChange, onBack }: Props) {
+  const { m } = useI18n();
   async function save(patch: Record<string, unknown>) {
     const updated = await api.updateProfile(patch);
     onProfileChange(updated);
@@ -39,26 +37,29 @@ export default function Settings({ profile, onProfileChange, onBack }: Props) {
     <main className="app-shell">
       <div className="page-wrap">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">Soft Floyd / Your setup</span>
-          <button onClick={onBack} className="text-button">← Back to rides</button>
+          <span className="brand">{m.settings.brand}</span>
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="text-button">{m.common.backToRides}</button>
+            <LanguageToggle />
+          </div>
         </header>
         <div className="mb-10 max-w-2xl">
-          <p className="eyebrow mb-3">A coach that knows your context</p>
-          <h1 className="display-title">Your riding setup.</h1>
-          <p className="body-muted mt-4">Change any part as your goals, schedule, or equipment evolve. Each section saves on its own.</p>
+          <p className="eyebrow mb-3">{m.settings.eyebrow}</p>
+          <h1 className="display-title">{m.settings.title}</h1>
+          <p className="body-muted mt-4">{m.settings.intro}</p>
         </div>
         <div className="settings-panel mx-auto max-w-3xl space-y-5">
           <HabitsSection profile={profile} save={save} />
           <GoalsSection profile={profile} save={save} />
 
-          <SettingsSection title="Garage" description="Bikes and the sensors mounted on each one.">
+          <SettingsSection title={m.settings.garage.title} description={m.settings.garage.description}>
             <BikeEditor onBikesChange={() => api.getProfile().then(onProfileChange)} />
           </SettingsSection>
 
           <AboutYouSection profile={profile} save={save} />
           <SensorsAndAnchorsSection profile={profile} save={save} />
 
-          <SettingsSection title="Connected apps" description="Bring your recorded rides into Soft Floyd.">
+          <SettingsSection title={m.settings.connections.title} description={m.settings.connections.description}>
             <ConnectionsPanel />
           </SettingsSection>
         </div>
@@ -88,6 +89,7 @@ function SettingsSection({
 }
 
 function SaveButton({ onSave }: { onSave: () => Promise<unknown> }) {
+  const { m } = useI18n();
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -114,9 +116,9 @@ function SaveButton({ onSave }: { onSave: () => Promise<unknown> }) {
         disabled={saving}
         className="primary-button"
       >
-        {saving ? "Saving…" : "Save"}
+        {saving ? m.common.saving : m.common.save}
       </button>
-      {saved && <span className="text-sm text-green-700" role="status">Saved</span>}
+      {saved && <span className="text-sm text-green-700" role="status">{m.common.saved}</span>}
       {error && <span className="notice-error" role="alert">{error}</span>}
     </div>
   );
@@ -128,6 +130,7 @@ interface SectionProps {
 }
 
 function HabitsSection({ profile, save }: SectionProps) {
+  const { m } = useI18n();
   const [hours, setHours] = useState(profile.weekly_hours ? String(profile.weekly_hours) : "");
   const [availability, setAvailability] = useState<AvailabilityValue>({
     available_days: profile.available_days as Weekday[],
@@ -136,10 +139,10 @@ function HabitsSection({ profile, save }: SectionProps) {
   });
 
   return (
-    <SettingsSection title="Habits" description="How much and when you ride.">
+    <SettingsSection title={m.settings.habits.title} description={m.settings.habits.description}>
       <div className="max-w-xs">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Hours per week</span>
+          <span className="text-sm font-medium">{m.fields.hoursPerWeek}</span>
           <input
             type="number"
             min={0}
@@ -159,16 +162,17 @@ function HabitsSection({ profile, save }: SectionProps) {
 }
 
 function GoalsSection({ profile, save }: SectionProps) {
+  const { m } = useI18n();
   const [goal, setGoal] = useState(profile.goal_text);
   const [focusAreas, setFocusAreas] = useState<string[]>(profile.focus_areas);
   const [eventName, setEventName] = useState(profile.target_event_name ?? "");
   const [eventDate, setEventDate] = useState(profile.target_event_date ?? "");
 
   return (
-    <SettingsSection title="Goals" description="What you're training for.">
+    <SettingsSection title={m.settings.goals.title} description={m.settings.goals.description}>
       <FocusPicker value={focusAreas} onChange={setFocusAreas} />
       <label className="block space-y-1">
-        <span className="text-sm font-medium">In your own words</span>
+        <span className="text-sm font-medium">{m.fields.ownWords}</span>
         <textarea
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
@@ -180,7 +184,7 @@ function GoalsSection({ profile, save }: SectionProps) {
         <input
           value={eventName}
           onChange={(e) => setEventName(e.target.value)}
-          placeholder="Event name"
+          placeholder={m.fields.eventName}
           className="w-full rounded-md border border-neutral-300 px-3 py-2"
         />
         <input
@@ -205,6 +209,7 @@ function GoalsSection({ profile, save }: SectionProps) {
 }
 
 function AboutYouSection({ profile, save }: SectionProps) {
+  const { m } = useI18n();
   const [birthYear, setBirthYear] = useState(profile.birth_year);
   const [weightKg, setWeightKg] = useState(profile.weight_kg);
   const [maxHr, setMaxHr] = useState(profile.max_hr);
@@ -215,10 +220,10 @@ function AboutYouSection({ profile, save }: SectionProps) {
   const [healthNotes, setHealthNotes] = useState(profile.health_notes ?? "");
 
   return (
-    <SettingsSection title="About you" description="Body and experience — all optional.">
+    <SettingsSection title={m.settings.about.title} description={m.settings.about.description}>
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Birth year</span>
+          <span className="text-sm font-medium">{m.fields.birthYear}</span>
           <input
             type="number"
             value={birthYear ?? ""}
@@ -227,7 +232,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Weight (kg)</span>
+          <span className="text-sm font-medium">{m.fields.weightKg}</span>
           <input
             type="number"
             step={0.1}
@@ -239,7 +244,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
       </div>
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Max heart rate (bpm)</span>
+          <span className="text-sm font-medium">{m.fields.maxHr}</span>
           <input
             type="number"
             value={maxHr ?? ""}
@@ -248,7 +253,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
           />
         </label>
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Years riding</span>
+          <span className="text-sm font-medium">{m.fields.yearsRiding}</span>
           <input
             type="number"
             step={0.5}
@@ -259,7 +264,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
         </label>
       </div>
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Longest ride in the last few months (km)</span>
+        <span className="text-sm font-medium">{m.fields.longestRide}</span>
         <input
           type="number"
           value={longestRide ?? ""}
@@ -268,7 +273,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
         />
       </label>
       <div className="flex flex-wrap gap-2">
-        {LEVEL_OPTIONS.map(({ key, label }) => (
+        {LEVELS.map((key) => (
           <button
             key={key}
             type="button"
@@ -276,7 +281,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
             aria-pressed={level === key}
             className="choice-chip"
           >
-            {label}
+            {m.levels[key]}
           </button>
         ))}
       </div>
@@ -286,10 +291,10 @@ function AboutYouSection({ profile, save }: SectionProps) {
           checked={followedPlan}
           onChange={(e) => setFollowedPlan(e.target.checked)}
         />
-        I've followed a structured training plan before
+        {m.fields.followedPlan}
       </label>
       <label className="block space-y-1">
-        <span className="text-sm font-medium">Anything to know — injuries, limits, etc.</span>
+        <span className="text-sm font-medium">{m.fields.healthNotes}</span>
         <textarea
           value={healthNotes}
           onChange={(e) => setHealthNotes(e.target.value)}
@@ -316,14 +321,15 @@ function AboutYouSection({ profile, save }: SectionProps) {
 }
 
 function SensorsAndAnchorsSection({ profile, save }: SectionProps) {
+  const { m } = useI18n();
   const [hasHrMonitor, setHasHrMonitor] = useState(profile.has_hr_monitor);
   const [ftp, setFtp] = useState(profile.ftp_watts?.toString() ?? "");
   const [lthr, setLthr] = useState(profile.lthr?.toString() ?? "");
 
   return (
     <SettingsSection
-      title="Heart rate & anchors"
-      description="Power/cadence/speed sensors live per-bike in the garage above."
+      title={m.settings.anchors.title}
+      description={m.settings.anchors.description}
     >
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -331,12 +337,12 @@ function SensorsAndAnchorsSection({ profile, save }: SectionProps) {
           checked={hasHrMonitor}
           onChange={(e) => setHasHrMonitor(e.target.checked)}
         />
-        I wear a heart rate monitor
+        {m.settings.hrMonitor}
       </label>
 
       {profile.has_power_meter && (
         <label className="block space-y-1">
-          <span className="text-sm font-medium">FTP (watts)</span>
+          <span className="text-sm font-medium">{m.fields.ftp}</span>
           <input
             type="number"
             min={0}
@@ -349,7 +355,7 @@ function SensorsAndAnchorsSection({ profile, save }: SectionProps) {
 
       {hasHrMonitor && (
         <label className="block space-y-1">
-          <span className="text-sm font-medium">Lactate threshold HR (bpm)</span>
+          <span className="text-sm font-medium">{m.fields.lthr}</span>
           <input
             type="number"
             min={0}

@@ -2,18 +2,10 @@ import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
 import type { BikeIn, BikeKind, BikeOut } from "../api/types";
+import { useI18n } from "../i18n/I18nProvider";
+import { bikeKindLabel } from "./activityFormat";
 
-const BIKE_KIND_OPTIONS: { key: BikeKind; label: string }[] = [
-  { key: "road", label: "Road" },
-  { key: "gravel", label: "Gravel" },
-  { key: "mtb", label: "Mountain" },
-  { key: "tt", label: "TT / triathlon" },
-  { key: "indoor", label: "Indoor trainer" },
-];
-
-const BIKE_KIND_LABEL: Record<string, string> = Object.fromEntries(
-  BIKE_KIND_OPTIONS.map(({ key, label }) => [key, label]),
-);
+const BIKE_KINDS: BikeKind[] = ["road", "gravel", "mtb", "tt", "indoor"];
 
 interface Props {
   // Fires once after the initial load, and again after every mutation —
@@ -22,6 +14,7 @@ interface Props {
 }
 
 export default function BikeEditor({ onBikesChange }: Props) {
+  const { m } = useI18n();
   const [bikes, setBikes] = useState<BikeOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
@@ -88,8 +81,8 @@ export default function BikeEditor({ onBikesChange }: Props) {
 
   if (bikes === null) {
     return error
-      ? <p className="notice-error" role="alert">Could not load bikes: {error}</p>
-      : <p className="body-muted text-sm">Loading your garage…</p>;
+      ? <p className="notice-error" role="alert">{m.bikes.loadError(error)}</p>
+      : <p className="body-muted text-sm">{m.bikes.loading}</p>;
   }
 
   return (
@@ -111,7 +104,7 @@ export default function BikeEditor({ onBikesChange }: Props) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        {BIKE_KIND_OPTIONS.map(({ key, label }) => (
+        {BIKE_KINDS.map((key) => (
           <button
             key={key}
             type="button"
@@ -119,7 +112,7 @@ export default function BikeEditor({ onBikesChange }: Props) {
             onClick={() => handleAdd(key)}
             className="secondary-button text-sm disabled:opacity-40"
           >
-            + {label}
+            + {m.bikes.kinds[key]}
           </button>
         ))}
       </div>
@@ -138,20 +131,22 @@ function BikeRow({
   onUpdate: (patch: BikeIn) => void;
   onDelete: () => void;
 }) {
+  const { m } = useI18n();
+  const label = bikeKindLabel(bike.kind, m);
   return (
     <div className="surface-soft p-4">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <input
-          aria-label={`${BIKE_KIND_LABEL[bike.kind] ?? bike.kind} bike nickname`}
+          aria-label={m.bikes.nicknameAria(label)}
           defaultValue={bike.nickname}
           onBlur={(e) => {
             if (e.target.value !== bike.nickname) onUpdate({ nickname: e.target.value });
           }}
-          placeholder={BIKE_KIND_LABEL[bike.kind] ?? bike.kind}
+          placeholder={label}
           className="min-w-0 flex-1 font-semibold"
         />
         <span className="status-pill" data-tone="neutral">
-          {bike.kind}
+          {label}
         </span>
       </div>
 
@@ -162,7 +157,7 @@ function BikeRow({
             checked={bike.has_power_meter}
             onChange={(e) => onUpdate({ has_power_meter: e.target.checked })}
           />
-          Power meter
+          {m.bikes.powerMeter}
         </label>
         <label className="flex items-center gap-1.5">
           <input
@@ -170,7 +165,7 @@ function BikeRow({
             checked={bike.has_cadence_sensor}
             onChange={(e) => onUpdate({ has_cadence_sensor: e.target.checked })}
           />
-          Cadence
+          {m.bikes.cadence}
         </label>
         <label className="flex items-center gap-1.5">
           <input
@@ -178,21 +173,21 @@ function BikeRow({
             checked={bike.has_speed_sensor}
             onChange={(e) => onUpdate({ has_speed_sensor: e.target.checked })}
           />
-          Speed
+          {m.bikes.speed}
         </label>
       </div>
 
       <div className="body-muted mt-4 flex flex-wrap items-center justify-between gap-2 text-sm">
         {bike.is_primary ? (
-          <span className="font-semibold text-[#30553c]">Primary bike</span>
+          <span className="font-semibold text-[#30553c]">{m.bikes.primary}</span>
         ) : (
           <button type="button" onClick={() => onUpdate({ is_primary: true })} className="text-button">
-            Make primary
+            {m.bikes.makePrimary}
           </button>
         )}
         {canDelete && (
           <button type="button" onClick={onDelete} className="font-semibold text-red-700 underline">
-            Remove
+            {m.bikes.remove}
           </button>
         )}
       </div>

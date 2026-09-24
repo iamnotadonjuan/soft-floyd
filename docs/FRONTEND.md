@@ -67,3 +67,21 @@ apps/web/src/
 - Follow `.agents/skills/vercel-react-best-practices` rules where they
   apply (already vendored in this repo) — derived state without effects,
   functional `setState`, avoiding inline component definitions, etc.
+
+## Localization
+
+The UI is available in English (the default) and Spanish. The rider switches with the EN / ES toggle
+(`components/LanguageToggle.tsx`) that appears in every page header, including onboarding.
+
+- Copy lives in `src/i18n/en.ts`, grouped by screen. `en.ts` is the source of truth, and its type
+  (`Messages`) is the contract. `es.ts` is typed as `Messages`, so a missing Spanish key fails `tsc`.
+- To add a string, put it in `en.ts` first, then add the same key to `es.ts`. Strings that include
+  values are functions, for example `m.coach.memorySummary(count)`. Labels for enum values are
+  `Record<EnumType, string>` maps, for example `m.focus`, `m.levels` and `m.bikes.kinds`. Don't
+  hardcode user-facing text in components.
+- Components get `{ m, intlLocale }` from `useI18n()`. Dates and decimals go through `intlLocale`,
+  as in `rideDate` and `rideDistance` in `components/activityFormat.ts`.
+- `i18n/I18nProvider.tsx` is the only code that knows where the choice is stored. For now that is
+  `localStorage["soft-floyd.locale"]`. Moving it to the profile only changes that file.
+- Only the UI's own copy is translated. Server text (coach replies, API error `detail`s, tool status
+  lines, and the rider's own goal text or bike nicknames) is shown as the server sends it.

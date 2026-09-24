@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 import { api } from "./api/client";
 import { hasCompletedOnboarding, type ProfileOut } from "./api/types";
+import LanguageToggle from "./components/LanguageToggle";
+import { useI18n } from "./i18n/I18nProvider";
 import Coach from "./pages/Coach";
 import Dashboard from "./pages/Dashboard";
 import Onboarding from "./pages/Onboarding";
@@ -13,6 +15,7 @@ import RideDetail from "./pages/RideDetail";
 type View = "dashboard" | "settings" | "ride" | "coach";
 
 export default function App() {
+  const { m } = useI18n();
   const [profile, setProfile] = useState<ProfileOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
@@ -25,14 +28,15 @@ export default function App() {
 
   if (error) {
     return (
-      <div className="app-shell page-wrap text-red-700">
-        Couldn't reach the server: {error}
+      <div className="app-shell page-wrap">
+        <div className="mb-6 flex justify-end"><LanguageToggle /></div>
+        <p className="text-red-700">{m.app.serverError(error)}</p>
       </div>
     );
   }
 
   if (!profile) {
-    return <div className="app-shell page-wrap body-muted">Loading your ride journal…</div>;
+    return <div className="app-shell page-wrap body-muted">{m.app.loading}</div>;
   }
 
   if (!hasCompletedOnboarding(profile)) {

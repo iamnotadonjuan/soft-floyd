@@ -1,5 +1,6 @@
 import { useState } from "react";
 
+import { useI18n } from "../../i18n/I18nProvider";
 import FocusPicker from "../FocusPicker";
 
 interface Props {
@@ -22,6 +23,7 @@ export default function GoalsStep({
   initialTargetEventDate,
   onNext,
 }: Props) {
+  const { m } = useI18n();
   const [goal, setGoal] = useState(initialGoal);
   const [focusAreas, setFocusAreas] = useState<string[]>(initialFocusAreas);
   const [eventName, setEventName] = useState(initialTargetEventName ?? "");
@@ -30,32 +32,32 @@ export default function GoalsStep({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold">What do you want to get better at?</h2>
+        <h2 className="text-xl font-semibold">{m.onboarding.goals.title}</h2>
         <p className="text-neutral-500 text-sm">
-          Pick everything that applies — this shapes how the coach frames everything else.
+          {m.onboarding.goals.body}
         </p>
       </div>
 
       <FocusPicker value={focusAreas} onChange={setFocusAreas} />
 
       <label className="block space-y-1">
-        <span className="text-sm font-medium">In your own words</span>
+        <span className="text-sm font-medium">{m.fields.ownWords}</span>
         <textarea
           value={goal}
           onChange={(e) => setGoal(e.target.value)}
-          placeholder="e.g. climb better for an upcoming gran fondo"
+          placeholder={m.onboarding.goals.goalPlaceholder}
           rows={3}
           className="w-full rounded-md border border-neutral-300 px-3 py-2"
         />
       </label>
 
       <div className="space-y-1">
-        <span className="text-sm font-medium">Got an event in mind? (optional)</span>
+        <span className="text-sm font-medium">{m.onboarding.goals.eventQuestion}</span>
         <div className="grid grid-cols-2 gap-3">
           <input
             value={eventName}
             onChange={(e) => setEventName(e.target.value)}
-            placeholder="Event name"
+            placeholder={m.fields.eventName}
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
           <input
@@ -79,7 +81,7 @@ export default function GoalsStep({
         }
         className="primary-button w-full"
       >
-        Next
+        {m.common.next}
       </button>
     </div>
   );

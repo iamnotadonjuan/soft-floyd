@@ -1,6 +1,7 @@
 import { useState } from "react";
 
 import { ApiError, api } from "../../api/client";
+import { useI18n } from "../../i18n/I18nProvider";
 
 type Stage = "credentials" | "mfa";
 
@@ -13,6 +14,8 @@ interface Props {
 // lives only in this component's state and the POST body; it is never
 // written to browser storage. See docs/SECURITY.md.
 export default function GarminLoginForm({ onConnected }: Props) {
+  const { m } = useI18n();
+  const g = m.connections.garmin;
   const [stage, setStage] = useState<Stage>("credentials");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -54,9 +57,9 @@ export default function GarminLoginForm({ onConnected }: Props) {
   if (stage === "mfa") {
     return (
       <div className="space-y-3 pt-4">
-        <p className="text-sm font-medium">Enter the code Garmin just sent you</p>
+        <p className="text-sm font-medium">{g.codePrompt}</p>
         <input
-          aria-label="Garmin verification code"
+          aria-label={g.codeAria}
           value={code}
           onChange={(e) => setCode(e.target.value)}
           placeholder="123456"
@@ -68,7 +71,7 @@ export default function GarminLoginForm({ onConnected }: Props) {
           disabled={submitting || code.trim().length === 0}
           className="primary-button w-full"
         >
-          {submitting ? "Verifying…" : "Verify"}
+          {submitting ? g.verifying : g.verify}
         </button>
       </div>
     );
@@ -76,18 +79,18 @@ export default function GarminLoginForm({ onConnected }: Props) {
 
   return (
     <div className="space-y-3 pt-4">
-      <label className="block"><span className="form-label">Garmin email</span><input
+      <label className="block"><span className="form-label">{g.email}</span><input
         type="email"
         value={email}
         onChange={(e) => setEmail(e.target.value)}
-        placeholder="Garmin email"
+        placeholder={g.email}
         className="form-field"
       /></label>
-      <label className="block"><span className="form-label">Password</span><input
+      <label className="block"><span className="form-label">{g.password}</span><input
         type="password"
         value={password}
         onChange={(e) => setPassword(e.target.value)}
-        placeholder="Garmin password"
+        placeholder={g.passwordPlaceholder}
         className="form-field"
       /></label>
       {error && <p className="notice-error" role="alert">{error}</p>}
@@ -96,10 +99,10 @@ export default function GarminLoginForm({ onConnected }: Props) {
         disabled={submitting || email.trim().length === 0 || password.length === 0}
         className="primary-button w-full"
       >
-        {submitting ? "Connecting…" : "Connect Garmin"}
+        {submitting ? g.connecting : g.connect}
       </button>
       <p className="body-muted text-xs">
-        Your password goes only to your local Soft Floyd server for this sign-in.
+        {g.privacy}
       </p>
     </div>
   );

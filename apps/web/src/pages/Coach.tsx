@@ -8,12 +8,8 @@ import type {
   CoachSourceOut,
 } from "../api/types";
 import CoachText from "../components/CoachText";
-
-const SUGGESTIONS = [
-  "How did my last month of riding go?",
-  "What should I work on to climb better?",
-  "Plan my next week of training around my schedule.",
-];
+import LanguageToggle from "../components/LanguageToggle";
+import { useI18n } from "../i18n/I18nProvider";
 
 interface Draft {
   text: string;
@@ -26,12 +22,13 @@ function errorText(e: unknown): string {
 }
 
 function SourceList({ sources }: { sources: CoachSourceOut[] }) {
+  const { m } = useI18n();
   if (!sources.length) return null;
   return (
-    <ul className="mt-3 flex flex-wrap gap-2" aria-label="Book sources">
+    <ul className="mt-3 flex flex-wrap gap-2" aria-label={m.coach.sourcesAria}>
       {sources.map((s) => (
         <li key={`${s.book_id}-${s.page_start}`} className="status-pill" data-tone="neutral">
-          {s.title}, p. {s.page_start}{s.page_end !== s.page_start ? `–${s.page_end}` : ""}
+          {m.coach.sourcePages(s.title, s.page_end !== s.page_start ? `${s.page_start}–${s.page_end}` : String(s.page_start))}
         </li>
       ))}
     </ul>
@@ -41,6 +38,7 @@ function SourceList({ sources }: { sources: CoachSourceOut[] }) {
 // The coach chat (exec-plan 0007). Dashboard only offers this view once a
 // ride source is connected; the server enforces cycling-only scope.
 export default function Coach({ onBack }: { onBack: () => void }) {
+  const { m } = useI18n();
   const [conversations, setConversations] = useState<CoachConversationOut[] | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
   const [messages, setMessages] = useState<CoachMessageOut[]>([]);
@@ -139,7 +137,7 @@ export default function Coach({ onBack }: { onBack: () => void }) {
         } else if (event.type === "done" && event.message) {
           setMessages((items) => [...items, event.message!]);
         } else if (event.type === "error") {
-          setError(event.text ?? "The coach couldn't answer. Please try again.");
+          setError(event.text ?? m.coach.turnError);
         }
       }, controller.signal);
       setConversations(await api.listCoachConversations());
@@ -148,7 +146,7 @@ export default function Coach({ onBack }: { onBack: () => void }) {
       if (!controller.signal.aborted) {
         setError(errorText(e));
         // A turn refused up front (budget, no API key) was never saved.
-        setMessages((items) => items.filter((m) => m.id !== optimistic.id));
+        setMessages((items) => items.filter((msg) => msg.id !== optimistic.id));
         setInput(text);
       }
     } finally {
@@ -172,67 +170,70 @@ export default function Coach({ onBack }: { onBack: () => void }) {
     <main className="app-shell">
       <div className="page-wrap">
         <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">Soft Floyd / Coach</span>
-          <button onClick={onBack} className="text-button">← Back to rides</button>
+          <span className="brand">{m.coach.brand}</span>
+          <div className="flex items-center gap-4">
+            <button onClick={onBack} className="text-button">{m.common.backToRides}</button>
+            <LanguageToggle />
+          </div>
         </header>
 
         <div className="grid gap-6 lg:grid-cols-[17rem_1fr]">
-          <aside className="space-y-5" aria-label="Conversations and memory">
-            <button onClick={startNew} disabled={busy} className="primary-button w-full">New conversation</button>
-            <nav className="surface p-3" aria-label="Conversations">
-              {conversations === null ? <p className="body-muted p-2 text-sm">Loading…</p> :
-                conversations.length === 0 ? <p className="body-muted p-2 text-sm">No conversations yet.</p> :
+          <aside className="space-y-5" aria-label={m.coach.sidebarAria}>
+            <button onClick={startNew} disabled={busy} className="primary-button w-full">{m.coach.newConversation}</button>
+            <nav className="surface p-3" aria-label={m.coach.conversationsAria}>
+              {conversations === null ? <p className="body-muted p-2 text-sm">{m.common.loading}</p> :
+                conversations.length === 0 ? <p className="body-muted p-2 text-sm">{m.coach.noConversations}</p> :
                 <ul className="space-y-1">
                   {conversations.map((c) => (
                     <li key={c.id} className="coach-thread-row" data-active={c.id === activeId}>
                       <button className="coach-thread-title" disabled={busy} onClick={() => void openConversation(c.id)}
                         aria-current={c.id === activeId ? "true" : undefined}>{c.title}</button>
                       <button className="coach-thread-delete" disabled={busy} onClick={() => void removeConversation(c.id)}
-                        aria-label={`Delete conversation ${c.title}`}>×</button>
+                        aria-label={m.coach.deleteConversation(c.title)}>×</button>
                     </li>
                   ))}
                 </ul>}
             </nav>
             <details className="surface-soft p-4">
-              <summary className="eyebrow cursor-pointer">What the coach remembers ({notes.length})</summary>
+              <summary className="eyebrow cursor-pointer">{m.coach.memorySummary(notes.length)}</summary>
               {notes.length === 0 ?
-                <p className="body-muted mt-3 text-sm">Nothing yet. Tell the coach about injuries, schedule or preferences and it will keep them in mind.</p> :
+                <p className="body-muted mt-3 text-sm">{m.coach.memoryEmpty}</p> :
                 <ul className="mt-3 space-y-2">
                   {notes.map((n) => (
                     <li key={n.id} className="flex items-start justify-between gap-2 text-sm">
                       <span>{n.text}</span>
                       <button className="coach-thread-delete" onClick={() => void removeNote(n.id)}
-                        aria-label={`Forget: ${n.text}`}>×</button>
+                        aria-label={m.coach.forget(n.text)}>×</button>
                     </li>
                   ))}
                 </ul>}
             </details>
           </aside>
 
-          <section className="surface coach-panel" aria-label="Coach chat">
+          <section className="surface coach-panel" aria-label={m.coach.chatAria}>
             <div className="coach-thread" aria-live="polite">
               {messages.length === 0 && !busy && (
                 <div className="py-6">
-                  <p className="eyebrow mb-3">Your cycling coach</p>
-                  <h1 className="section-title">Ask about your rides, training, or how to get faster.</h1>
-                  <p className="body-muted mt-3 max-w-xl">The coach reads your synced rides and imported training books, and remembers what you tell it. It only talks cycling.</p>
+                  <p className="eyebrow mb-3">{m.coach.eyebrow}</p>
+                  <h1 className="section-title">{m.coach.title}</h1>
+                  <p className="body-muted mt-3 max-w-xl">{m.coach.intro}</p>
                   <div className="mt-5 flex flex-wrap gap-2">
-                    {SUGGESTIONS.map((s) => (
+                    {m.coach.suggestions.map((s) => (
                       <button key={s} className="choice-chip" onClick={() => void send(s)}>{s}</button>
                     ))}
                   </div>
                 </div>
               )}
-              {messages.map((m) => (
-                <article key={m.id} className="coach-message" data-role={m.role}>
-                  {m.role === "assistant" ? <CoachText text={m.content} /> : <p className="whitespace-pre-wrap">{m.content}</p>}
-                  <SourceList sources={m.sources} />
+              {messages.map((msg) => (
+                <article key={msg.id} className="coach-message" data-role={msg.role}>
+                  {msg.role === "assistant" ? <CoachText text={msg.content} /> : <p className="whitespace-pre-wrap">{msg.content}</p>}
+                  <SourceList sources={msg.sources} />
                 </article>
               ))}
               {draft && (
                 <article className="coach-message" data-role="assistant" aria-busy="true">
                   {draft.text ? <CoachText text={draft.text} /> : null}
-                  <p className="body-muted text-sm">{draft.status ? `${draft.status}…` : draft.text ? "" : "Thinking…"}</p>
+                  <p className="body-muted text-sm">{draft.status ? `${draft.status}…` : draft.text ? "" : m.coach.thinking}</p>
                   <SourceList sources={draft.sources} />
                 </article>
               )}
@@ -242,12 +243,12 @@ export default function Coach({ onBack }: { onBack: () => void }) {
             {error && <p className="notice-error mx-5 mb-3" role="alert">{error}</p>}
 
             <form onSubmit={onSubmit} className="coach-composer">
-              <label htmlFor="coach-input" className="sr-only">Message the coach</label>
+              <label htmlFor="coach-input" className="sr-only">{m.coach.messageLabel}</label>
               <textarea id="coach-input" className="form-field" rows={2} maxLength={4000} value={input}
-                placeholder="Ask your coach… (Shift+Enter for a new line)"
+                placeholder={m.coach.placeholder}
                 onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown} />
               <button type="submit" className="primary-button" disabled={busy || !input.trim()}>
-                {busy ? "Coaching…" : "Send"}
+                {busy ? m.coach.coaching : m.coach.send}
               </button>
             </form>
           </section>

@@ -43,6 +43,9 @@ button:disabled { cursor: not-allowed; }
 .status-pill[data-tone="warning"] { background: #f8edda; color: #785b28; }
 .status-pill[data-tone="error"] { background: #f8e9e4; color: #9a4332; }
 .status-pill[data-tone="neutral"] { background: #eef0eb; color: #5a655d; }
+.lang-toggle { display: inline-flex; gap: 2px; padding: 2px; border: 1px solid #bac6b7; border-radius: 999px; background: #fffef9; }
+.lang-toggle button { min-width: 2.2rem; padding: .22rem .55rem; border-radius: 999px; color: #375040; font-size: .72rem; font-weight: 800; letter-spacing: .08em; }
+.lang-toggle button[aria-pressed="true"] { background: #30553c; color: white; }
 .notice-error { border-radius: .7rem; background: #f8e9e4; color: #8c3c2d; padding: .65rem .8rem; font-size: .86rem; }
 .rule { border-color: #dce2d6; }
 .ride-tile { width: 100%; text-align: left; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
