@@ -68,6 +68,14 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0010-training-sessions** (done): an optional Training section — the
+  rider says their device(s), and what they have in mind for their next
+  ride (day, minutes, indoor/outdoor, discipline, a free-text idea, how
+  they feel); the coach blends that with a deterministic read on their
+  recent load/goal into one sensor-honest structured workout, over REST,
+  MCP, and a coach tool. Push to Garmin Connect (scheduled, synced to the
+  Edge/trainer) or download `.fit`/`.zwo`/`.erg`. See
+  `docs/product-specs/training-sessions.md`.
 - **0009-google-accounts** (done): Google registration/sign-in, revocable
   JWT sessions, account-owned rider data, protected MCP tools for the web
   coach, a shared book corpus, and simple Profile. See
