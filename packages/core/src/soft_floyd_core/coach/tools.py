@@ -23,6 +23,8 @@ from soft_floyd_core.coach import memory
 from soft_floyd_core.models import Activity, Lap
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
+from soft_floyd_core.training import service as training_service
+from soft_floyd_core.training.schemas import SessionRequest
 
 
 class SourceOut(BaseModel):

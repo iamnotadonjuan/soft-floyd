@@ -18,6 +18,8 @@ from soft_floyd_core.db import session_scope
 from soft_floyd_core.garmin.sync import SyncResult
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
+from soft_floyd_core.training import service as training_service
+from soft_floyd_core.training.schemas import SessionRequest
 
 from soft_floyd_server.runtime import current_sync_runner, get_session_factory
 
@@ -228,3 +230,53 @@ def delete_coach_memory(note_id: int) -> None:
     """Delete a coach memory note that is wrong or no longer true."""
     with session_scope(get_session_factory()) as session:
         coach_memory.delete_note(session, note_id)
+
+
+@mcp.tool
+async def plan_training_session(request: SessionRequest) -> training_service.TrainingSessionOut:
+    """Generate one structured, sensor-honest workout for a rider's next
+    ride — exec-plan 0010. Blends the rider's own idea (route, available
+    minutes, setting, discipline, how they feel) with a deterministic read
+    on what they should be doing (recent load, goal, focus areas). Never
+    states a watt/HR/bpm number the rider's declared sensors don't back;
+    unsupported targets fall back to a plain-language cue. Subject to the
+    same monthly LLM budget as the coach.
+    """
+    settings = get_settings()
+    llm = training_service.make_training_llm(settings.openai_api_key)
+    if llm is None:
+        raise ValueError("SOFT_FLOYD_OPENAI_API_KEY is required to plan a training session")
+    with session_scope(get_session_factory()) as session:
+        return await training_service.plan_session(
+            session, llm, llm, request, budget_usd=settings.llm_monthly_budget_usd
+        )
+
+
+@mcp.tool
+def list_training_sessions() -> list[training_service.TrainingSessionOut]:
+    """List the rider's planned/done/skipped training sessions, newest
+    planned_date first."""
+    with session_scope(get_session_factory()) as session:
+        return training_service.list_sessions(session)
+
+
+@mcp.tool
+def get_training_session(training_session_id: int) -> training_service.TrainingSessionOut:
+    """One training session in full: the request, the deterministic
+    intent behind it, the sanitized workout, and its rationale."""
+    with session_scope(get_session_factory()) as session:
+        return training_service.get_session(session, training_session_id)
+
+
+@mcp.tool
+async def send_training_session_to_garmin(
+    training_session_id: int,
+) -> training_service.TrainingSessionOut:
+    """Push a planned session to Garmin Connect and schedule it on its
+    planned date, so it syncs to the Edge or a paired smart trainer.
+    Sending an already-sent session updates that Garmin workout instead
+    of creating a duplicate."""
+    with session_scope(get_session_factory()) as session:
+        return await training_service.send_to_garmin(
+            session, training_session_id, current_sync_runner()
+        )

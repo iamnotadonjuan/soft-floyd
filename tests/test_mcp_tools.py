@@ -35,6 +35,10 @@ async def test_tools_are_registered():
         "get_activity",
         "sync_garmin_now",
         "get_garmin_sync_status",
+        "plan_training_session",
+        "list_training_sessions",
+        "get_training_session",
+        "send_training_session_to_garmin",
     } <= names
     # Deliberate: a Garmin login takes a password, which never belongs
     # behind an LLM tool-call. Browser-only, see http_api.py — exec-plan 0004.
@@ -161,3 +165,63 @@ async def test_mcp_and_rest_agree_on_sync_result(client, monkeypatch):
         result = await mcp_client.call_tool("sync_garmin_now", {})
 
     assert _as_json(result.data) == rest_result
+
+
+async def test_mcp_and_rest_agree_on_a_planned_training_session(client, monkeypatch):
+    """Plans a session over MCP, then reads it back over REST — same
+    pattern as the other cross-surface agreement tests: one shared
+    soft_floyd_core.training.service, two adapters."""
+    from soft_floyd_core.llm.client import CHAT_MODEL, EMBEDDING_MODEL, Usage
+    from soft_floyd_core.training import service as training_service
+
+    class FakeLLM:
+        async def chat_structured(
+            self, messages, schema_name, schema, *, max_completion_tokens, temperature=0
+        ):
+            response = {
+                "workout": {
+                    "name": "Easy spin",
+                    "est_minutes": 30,
+                    "steps": [
+                        {
+                            "kind": "warmup",
+                            "name": "Warm up",
+                            "cue": "Easy",
+                            "end": {"kind": "time", "seconds": 1800, "meters": None},
+                            "target": {"kind": "none", "low": None, "high": None, "hr_zone": None},
+                        },
+                    ],
+                },
+                "rationale": "A gentle spin.",
+                "adjustments": None,
+            }
+            return response, Usage(CHAT_MODEL, 500, 0, 200)
+
+        async def embed(self, text):
+            return [1.0, 0.0], Usage(EMBEDDING_MODEL, 10, 0, 0)
+
+    monkeypatch.setattr(training_service, "make_training_llm", lambda _key: FakeLLM())
+
+    async with Client(mcp) as mcp_client:
+        result = await mcp_client.call_tool(
+            "plan_training_session",
+            {
+                "request": {
+                    "planned_date": "2026-09-25",
+                    "available_minutes": 30,
+                    "setting": "indoor",
+                    "discipline": "road",
+                }
+            },
+        )
+    created = _as_json(result.data)
+
+    rest_session = client.get(f"/api/training/sessions/{created['id']}").json()
+    assert rest_session["workout"]["name"] == "Easy spin"
+    # created_at/updated_at differ only in a trailing "Z" (FastMCP's naive
+    # vs. FastAPI's timezone-aware datetime JSON encoding) — not a real
+    # cross-surface disagreement.
+    for key in ("created_at", "updated_at"):
+        rest_session.pop(key)
+        created.pop(key)
+    assert rest_session == created
