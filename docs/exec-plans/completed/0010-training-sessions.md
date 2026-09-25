@@ -124,3 +124,77 @@ and `es.ts`.
 - MCP: `plan_training_session` with the same inputs as the REST call
   should return an equivalent session.
 - `SOFT_FLOYD_LLM_MONTHLY_BUDGET_USD=0` should 402 with a clear message.
+
+## Result
+
+- Built `packages/core/src/soft_floyd_core/training/`: `schemas.py`
+  (request/intent/workout, plus the LLM's abstract "draft" shapes),
+  `intent.py` (deterministic emphasis + reasons), `sanitize.py` (the one
+  place a numeric target is allowed to exist — resolves %FTP/HR-zone/
+  cadence-rpm against the rider's actual sensors/anchors, drops to a
+  plain-language cue otherwise, and clamps duration to the ask),
+  `generator.py` (prompt + `LLMClient.chat_structured` call, budget
+  checked first), `export.py` (Garmin JSON via `garminconnect.workout`,
+  a real FIT workout via `fit-tool` with correct
+  `REPEAT_UNTIL_STEPS_CMPLT` repeat semantics, `.zwo`/`.erg`), and
+  `service.py` (CRUD, regenerate, export gating, Garmin push).
+- Added `llm/schema.py::to_strict_schema` — a general pydantic-model ->
+  OpenAI-strict-JSON-Schema converter (nullable-not-omitted fields,
+  `additionalProperties: false` throughout `$defs`) — and
+  `LLMClient.chat_structured`, with `chat_json` now a thin 50-token
+  wrapper over it.
+- `TrainingSession` table + `RiderProfile.workout_devices`, migration
+  `487fbddd43bf` (verified against the drift-guard test and a scratch-DB
+  autogenerate round trip). `GarminClient.upload_and_schedule_workout`
+  and `SyncRunner.send_workout` reuse the account's existing lock/thread
+  pattern.
+- REST (`/api/training/sessions*`), MCP (`plan_training_session`,
+  `list_training_sessions`, `get_training_session`,
+  `send_training_session_to_garmin`), and a coach tool
+  (`plan_training_session`, `list_training_sessions`) all call the same
+  `training/service.py` — verified equivalent with a cross-surface test
+  in `tests/test_mcp_tools.py`.
+- Web: `pages/Training.tsx` (devices step once, then a plan form, result
+  card, upcoming/past lists), `components/training/WorkoutCard.tsx`,
+  a Dashboard "Plan a session" button plus an upcoming-session card, and
+  a Settings devices section. Full `en`/`es` coverage.
+- `make check` passes: 200 backend tests (25 in `test_training.py`, 3 in
+  `test_training_api.py`, plus new coach/MCP coverage), ruff lint +
+  format, and the web `tsc` typecheck; `pnpm run build` also succeeds.
+  Fixed an incidental break this migration caused in
+  `book_copy.py` (its account-era check was hardcoded to the
+  pre-existing head revision) by resolving the head dynamically instead.
+- **Not verified live** (no Garmin test account or OpenAI spend in this
+  session): an actual push to Garmin Connect and a real
+  `chat_structured` call against OpenAI's API. The FIT output was
+  validated with `fit_tool.validation.validate_fit_file` and a decode
+  round-trip; the Garmin JSON payload's shape follows the reverse-engineered
+  structure `garminconnect.workout`'s own builders use, extended with
+  `targetValueOne`/`targetValueTwo` for custom ranges. Do the manual
+  verification steps above before treating either as field-tested.
+
+## Quality self-score
+
+1. Correctness: automated verification (tests, schema/FIT validators,
+   drift guard) all pass; the two live-network paths above are unverified
+   pending real credentials.
+2. Single source of truth: yes — REST/MCP/coach tool are thin adapters
+   over one `training/service.py`, cross-surface-tested.
+3. Sensor honesty: yes — `sanitize.py` is the only place a target is
+   created, gated on the same sensor/anchor rules as the rest of the app;
+   unsupported targets become an RPE cue, never a fabricated number.
+4. Tests: yes — unit tests for sanitize/intent/export, generator/service
+   tests with a fake LLM, REST/MCP/coach adapter tests, a cross-surface
+   agreement test.
+5. Docs kept honest: yes — `docs/product-specs/training-sessions.md`,
+   `docs/product-specs/index.md`, this exec-plan, `AGENTS.md`, and
+   `docs/generated/db-schema.md` are updated; a new tech-debt row covers
+   what's deferred.
+6. Scope discipline: mostly — added `RiderProfile.workout_devices`/
+   `TrainingSession.sources` (a `sources` column beyond the original
+   plan's field list) to support device selection and book citations
+   properly rather than skipping them; both were implied by the plan's
+   Design section, not scope creep beyond it.
+7. Local-only, account-safe: yes — `TrainingSession` is in
+   `account_scope.OWNED_MODELS`; the Garmin push reuses the existing
+   per-account `SyncRunner`.
