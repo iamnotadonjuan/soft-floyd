@@ -52,7 +52,13 @@ export default function ConnectionCard({ connection, onChanged }: Props) {
 
       {connection.detail && <p className="body-muted mt-2 text-sm">{connection.detail}</p>}
       {connection.last_sync_at && <p className="body-muted mt-1 text-sm">{m.connections.lastChecked(new Date(connection.last_sync_at).toLocaleString(intlLocale))}</p>}
-      {connection.last_error && connection.status !== "connected" && (
+      {connection.status === "disconnected" && connection.provider === "garmin" && (
+        <p className="body-muted mt-3 text-sm">{m.connections.garmin.notConnected}</p>
+      )}
+      {connection.status === "reauth_required" && connection.provider === "garmin" && (
+        <p className="notice-error mt-3" role="alert">{m.connections.garmin.signInAgain}</p>
+      )}
+      {connection.last_error && connection.status !== "connected" && (connection.provider !== "garmin" || !needsLogin) && (
         <p className="notice-error mt-3" role="alert">{connection.last_error}</p>
       )}
       {error && <p className="notice-error mt-3" role="alert">{error}</p>}

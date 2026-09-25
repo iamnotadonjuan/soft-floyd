@@ -307,6 +307,8 @@ const en = {
     loadError: (error: string) => `Could not load connected apps: ${error}`,
     loading: "Loading connected apps…",
     garmin: {
+      notConnected: "Connect your Garmin account below to bring in your rides.",
+      signInAgain: "Your Garmin connection needs a fresh sign-in. Sign in below to resume syncing.",
       codePrompt: "Enter the code Garmin just sent you",
       codeAria: "Garmin verification code",
       verifying: "Verifying…",

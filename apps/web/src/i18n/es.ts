@@ -297,6 +297,8 @@ const es: Messages = {
     loadError: (error) => `No se pudieron cargar las apps conectadas: ${error}`,
     loading: "Cargando apps conectadas…",
     garmin: {
+      notConnected: "Conecta tu cuenta de Garmin abajo para importar tus salidas.",
+      signInAgain: "La conexión con Garmin necesita un nuevo inicio de sesión. Inicia sesión abajo para reanudar la sincronización.",
       codePrompt: "Ingresa el código que Garmin te acaba de enviar",
       codeAria: "Código de verificación de Garmin",
       verifying: "Verificando…",
