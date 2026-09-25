@@ -24,6 +24,7 @@ network I/O) or imports `garminconnect` at all.
 
 from __future__ import annotations
 
+import datetime as dt
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
@@ -139,3 +140,35 @@ class GarminClient:
 
         dest_path.write_bytes(_fit_payload(bytes(payload)))
         return dest_path
+
+    def upload_and_schedule_workout(
+        self,
+        payload: dict[str, Any],
+        planned_date: dt.date,
+        existing_workout_id: str | None = None,
+    ) -> str:
+        """Create (or update) a Garmin Connect workout from a
+        training.export.to_garmin_payload() dict, and schedule it on
+        planned_date so it syncs to the Edge / paired trainer on its own.
+        Passing existing_workout_id updates that workout in place instead
+        of creating a duplicate — training/service.py's re-send path.
+        """
+        client = self._ensure_client()
+        try:
+            if existing_workout_id is not None:
+                client.update_workout(existing_workout_id, payload)
+                workout_id = str(existing_workout_id)
+            else:
+                result = client.upload_workout(payload)
+                raw_id = result.get("workoutId") if isinstance(result, dict) else None
+                if raw_id is None:
+                    raise GarminApiError(
+                        "Garmin accepted the workout but returned no workoutId."
+                    )
+                workout_id = str(raw_id)
+            client.schedule_workout(workout_id, planned_date.isoformat())
+        except GarminApiError:
+            raise
+        except Exception as exc:
+            map_garmin_exception(exc, action="Garmin workout upload")
+        return workout_id

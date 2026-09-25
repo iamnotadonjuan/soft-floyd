@@ -16,7 +16,7 @@ import threading
 import time
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 from typing import TYPE_CHECKING
 
 import anyio
@@ -300,6 +300,24 @@ class SyncRunner:
     async def sync_once(self) -> SyncResult:
         async with self._lock:
             return await anyio.to_thread.run_sync(self._run_cycle_sync)
+
+    def _send_workout_sync(
+        self, payload: dict, planned_date: date, existing_workout_id: str | None
+    ) -> str:
+        return self._get_client().upload_and_schedule_workout(
+            payload, planned_date, existing_workout_id
+        )
+
+    async def send_workout(
+        self, payload: dict, planned_date: date, existing_workout_id: str | None = None
+    ) -> str:
+        """Push a training/export.to_garmin_payload() dict and schedule it
+        — exec-plan 0010. Takes the same lock as sync_once()/login() so a
+        workout push can never race a sync cycle or a login handshake."""
+        async with self._lock:
+            return await anyio.to_thread.run_sync(
+                self._send_workout_sync, payload, planned_date, existing_workout_id
+            )
 
     def request_stop(self) -> None:
         self._stop_event.set()

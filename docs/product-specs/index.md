@@ -21,3 +21,6 @@ User-facing behavior specs — *what* a feature must do. Pair with
   cited semantic search, and verified ride context.
 - [coach-chat.md](coach-chat.md) — implemented (exec-plan 0007).
   Cycling-only coach chat over rides, books and rider memory notes.
+- [training-sessions.md](training-sessions.md) — implemented
+  (exec-plan 0010). Optional "what should I ride next" flow — a
+  sensor-honest structured workout, pushed to Garmin or downloaded.

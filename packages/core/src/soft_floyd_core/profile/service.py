@@ -141,6 +141,10 @@ class ProfileIn(BaseModel):
     ftp_watts: int | None = None
     lthr: int | None = None
 
+    # Devices the Training flow (exec-plan 0010) offers to export/push
+    # a planned session to. List of "garmin" | "wahoo" | "zwift" | "other".
+    workout_devices: list[str] | None = None
+
 
 class ProfileOut(BaseModel):
     weekly_rides: int
@@ -167,6 +171,8 @@ class ProfileOut(BaseModel):
     has_hr_monitor: bool
     ftp_watts: int | None
     lthr: int | None
+
+    workout_devices: list[str]
 
     # Derived from the garage — see module docstring. Kept under these
     # field names for backward compatibility with every consumer written
@@ -205,6 +211,7 @@ def _to_out(profile: RiderProfile, bikes: list[Bike]) -> ProfileOut:
         has_hr_monitor=profile.has_hr_monitor,
         ftp_watts=profile.ftp_watts,
         lthr=profile.lthr,
+        workout_devices=list(profile.workout_devices or []),
         has_power_meter=any(b.has_power_meter for b in bikes),
         has_cadence_sensor=any(b.has_cadence_sensor for b in bikes),
         has_speed_sensor=any(b.has_speed_sensor for b in bikes),

@@ -98,6 +98,11 @@ class RiderProfile(Base):
     weekday_max_minutes: Mapped[int | None] = mapped_column(default=None)
     weekend_max_minutes: Mapped[int | None] = mapped_column(default=None)
 
+    # Devices the rider plans structured training sessions for — exec-plan
+    # 0010. JSON list of "garmin" | "wahoo" | "zwift" | "other". Asked once
+    # by the Training flow, editable in Settings.
+    workout_devices: Mapped[list[str]] = mapped_column(JSON, default=list)
+
     # Body & health
     birth_year: Mapped[int | None] = mapped_column(default=None)
     weight_kg: Mapped[float | None] = mapped_column(default=None)
@@ -351,3 +356,42 @@ class CoachMemoryNote(Base):
     account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     text: Mapped[str] = mapped_column(String(300))
     created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+
+
+TrainingSetting = Literal["indoor", "outdoor"]
+TrainingSessionStatus = Literal["planned", "done", "skipped"]
+
+
+class TrainingSession(Base):
+    """One planned, structured workout (exec-plan 0010) — the rider's own
+    request plus the deterministic `SessionIntent` (training/intent.py)
+    that shaped it, the generated `Workout` (training/schemas.py), and
+    the rationale explaining the trade-off between the two. `workout` is
+    already sanitized (training/sanitize.py) before it is ever stored —
+    never re-trust it against the sensor rule downstream.
+    """
+
+    __tablename__ = "training_session"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
+    planned_date: Mapped[dt.date]
+    bike_id: Mapped[int | None] = mapped_column(ForeignKey("bike.id"), default=None)
+    setting: Mapped[str] = mapped_column(String(16))
+    discipline: Mapped[str] = mapped_column(String(16))
+
+    request: Mapped[dict] = mapped_column(JSON)
+    intent: Mapped[dict] = mapped_column(JSON)
+    workout: Mapped[dict] = mapped_column(JSON)
+    rationale: Mapped[str] = mapped_column(Text)
+    adjustments: Mapped[str | None] = mapped_column(Text, default=None)
+    # Book citations used while generating this session, same shape as
+    # CoachMessage.sources: [{book_id, title, author, page_start, page_end}].
+    sources: Mapped[list[dict]] = mapped_column(JSON, default=list)
+
+    status: Mapped[str] = mapped_column(String(16), default="planned")
+    garmin_workout_id: Mapped[str | None] = mapped_column(default=None)
+    sent_to_garmin_at: Mapped[dt.datetime | None] = mapped_column(default=None)
+
+    created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)

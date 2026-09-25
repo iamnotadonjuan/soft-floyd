@@ -20,6 +20,7 @@ from soft_floyd_core.models import (
     LLMUsageRecord,
     Record,
     RiderProfile,
+    TrainingSession,
 )
 
 _current_account: ContextVar[int | None] = ContextVar("soft_floyd_account", default=None)
@@ -33,6 +34,7 @@ OWNED_MODELS = (
     CoachConversation,
     CoachMessage,
     CoachMemoryNote,
+    TrainingSession,
 )
 
 

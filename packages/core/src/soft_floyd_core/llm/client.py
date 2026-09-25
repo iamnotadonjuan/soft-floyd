@@ -132,14 +132,20 @@ class LLMClient:
             tool_calls=[ToolCall(**pending[i]) for i in sorted(pending)],
         )
 
-    async def chat_json(
-        self, messages: list[dict[str, Any]], schema_name: str, schema: dict[str, Any]
+    async def chat_structured(
+        self,
+        messages: list[dict[str, Any]],
+        schema_name: str,
+        schema: dict[str, Any],
+        *,
+        max_completion_tokens: int,
+        temperature: float = 0,
     ) -> tuple[dict[str, Any], Usage]:
         response = await self._client.chat.completions.create(
             model=CHAT_MODEL,
             messages=messages,
-            temperature=0,
-            max_completion_tokens=50,
+            temperature=temperature,
+            max_completion_tokens=max_completion_tokens,
             response_format={
                 "type": "json_schema",
                 "json_schema": {"name": schema_name, "schema": schema, "strict": True},
@@ -147,3 +153,13 @@ class LLMClient:
         )
         content = response.choices[0].message.content or "{}"
         return json.loads(content), _chat_usage(response.usage)
+
+    async def chat_json(
+        self, messages: list[dict[str, Any]], schema_name: str, schema: dict[str, Any]
+    ) -> tuple[dict[str, Any], Usage]:
+        """The guardrail's tiny classification call — a fixed 50-token cap
+        keeps it cheap. Anything bigger (training session generation) uses
+        chat_structured directly with its own budget."""
+        return await self.chat_structured(
+            messages, schema_name, schema, max_completion_tokens=50
+        )
