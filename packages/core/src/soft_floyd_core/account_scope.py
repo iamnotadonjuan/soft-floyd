@@ -64,7 +64,7 @@ def account_id(session: Session | None = None) -> int:
 
 @event.listens_for(Session, "do_orm_execute")
 def _scope_reads(state: ORMExecuteState) -> None:
-    if not state.is_select or state.execution_options.get("skip_account_scope"):
+    if not state.is_select:
         return
     owner = state.session.info.get("account_id", _current_account.get())
     if owner is None:
