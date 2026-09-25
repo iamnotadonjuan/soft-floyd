@@ -8,7 +8,7 @@ import datetime as dt
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Request
-from fastapi.responses import StreamingResponse
+from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.auth import service as auth_service
@@ -25,10 +25,13 @@ from soft_floyd_core.garmin.sync import (
     NoPendingLoginError,
     SyncResult,
 )
+from soft_floyd_core.llm.client import LLMClient
 from soft_floyd_core.llm.usage import BudgetExceededError
 from soft_floyd_core.log import get_logger
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
+from soft_floyd_core.training import service as training_service
+from soft_floyd_core.training.schemas import SessionRequest, SessionStatus
 
 from soft_floyd_server.mcp_bridge import CoachMCPBridge
 from soft_floyd_server.runtime import current_sync_runner, get_session_factory
@@ -118,6 +121,128 @@ async def get_training_context(
 def get_training_summary(weeks: int = 8) -> activities_service.TrainingSummaryOut:
     with session_scope(get_session_factory()) as session:
         return activities_service.get_training_summary(session, weeks)
+
+
+def _training_llm() -> LLMClient:
+    settings = get_settings()
+    llm = training_service.make_training_llm(settings.openai_api_key)
+    if llm is None:
+        raise HTTPException(
+            status_code=400, detail="SOFT_FLOYD_OPENAI_API_KEY is required to plan a session"
+        )
+    return llm
+
+
+@router.post("/training/sessions", response_model=training_service.TrainingSessionOut)
+async def plan_training_session(data: SessionRequest) -> training_service.TrainingSessionOut:
+    settings = get_settings()
+    llm = _training_llm()
+    with session_scope(get_session_factory()) as session:
+        try:
+            return await training_service.plan_session(
+                session, llm, llm, data, budget_usd=settings.llm_monthly_budget_usd
+            )
+        except BudgetExceededError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+
+
+@router.get("/training/sessions", response_model=list[training_service.TrainingSessionOut])
+def list_training_sessions() -> list[training_service.TrainingSessionOut]:
+    with session_scope(get_session_factory()) as session:
+        return training_service.list_sessions(session)
+
+
+@router.get(
+    "/training/sessions/{training_session_id}", response_model=training_service.TrainingSessionOut
+)
+def get_training_session(training_session_id: int) -> training_service.TrainingSessionOut:
+    with session_scope(get_session_factory()) as session:
+        try:
+            return training_service.get_session(session, training_session_id)
+        except training_service.SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post(
+    "/training/sessions/{training_session_id}/regenerate",
+    response_model=training_service.TrainingSessionOut,
+)
+async def regenerate_training_session(
+    training_session_id: int,
+) -> training_service.TrainingSessionOut:
+    settings = get_settings()
+    llm = _training_llm()
+    with session_scope(get_session_factory()) as session:
+        try:
+            return await training_service.regenerate_session(
+                session, llm, llm, training_session_id, budget_usd=settings.llm_monthly_budget_usd
+            )
+        except training_service.SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except BudgetExceededError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+
+
+class TrainingStatusIn(BaseModel):
+    status: SessionStatus
+
+
+@router.patch(
+    "/training/sessions/{training_session_id}", response_model=training_service.TrainingSessionOut
+)
+def update_training_session(
+    training_session_id: int, data: TrainingStatusIn
+) -> training_service.TrainingSessionOut:
+    with session_scope(get_session_factory()) as session:
+        try:
+            return training_service.update_status(session, training_session_id, data.status)
+        except training_service.SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.delete("/training/sessions/{training_session_id}", status_code=204)
+def delete_training_session(training_session_id: int) -> None:
+    with session_scope(get_session_factory()) as session:
+        try:
+            training_service.delete_session(session, training_session_id)
+        except training_service.SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.get("/training/sessions/{training_session_id}/export")
+def export_training_session(training_session_id: int, format: str) -> Response:
+    with session_scope(get_session_factory()) as session:
+        try:
+            content, content_type, filename = training_service.export_session(
+                session, training_session_id, format
+            )
+        except training_service.SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except training_service.ExportNotAvailableError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return Response(
+        content=content,
+        media_type=content_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+@router.post(
+    "/training/sessions/{training_session_id}/garmin",
+    response_model=training_service.TrainingSessionOut,
+)
+async def send_training_session_to_garmin(
+    training_session_id: int,
+) -> training_service.TrainingSessionOut:
+    with session_scope(get_session_factory()) as session:
+        try:
+            return await training_service.send_to_garmin(
+                session, training_session_id, current_sync_runner()
+            )
+        except training_service.SessionNotFoundError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except GarminApiError as exc:
+            raise _map_garmin_login_error(exc) from exc
 
 
 @router.get("/bikes", response_model=list[bikes_service.BikeOut])

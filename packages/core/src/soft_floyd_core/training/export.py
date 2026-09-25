@@ -106,7 +106,9 @@ def to_garmin_payload(workout: Workout) -> dict[str, Any]:
         target_type, extra = target(step.target)
         return ExecutableStep(
             stepOrder=order,
-            stepType={"stepTypeId": step_type_id, "stepTypeKey": step_key, "displayOrder": step_order},
+            stepType={
+                "stepTypeId": step_type_id, "stepTypeKey": step_key, "displayOrder": step_order,
+            },
             endCondition=end_cond,
             endConditionValue=end_value,
             targetType=target_type,
@@ -269,9 +271,13 @@ def to_zwo(workout: Workout, *, ftp_watts: int) -> str:
         seconds = round(estimate_step_seconds(step, "road"))
         low, high = _watts_fraction(step, ftp_watts)
         if step.kind == "warmup":
-            lines.append(f'    <Warmup Duration="{seconds}" PowerLow="{low:.2f}" PowerHigh="{high:.2f}"/>')
+            lines.append(
+                f'    <Warmup Duration="{seconds}" PowerLow="{low:.2f}" PowerHigh="{high:.2f}"/>'
+            )
         elif step.kind == "cooldown":
-            lines.append(f'    <Cooldown Duration="{seconds}" PowerLow="{high:.2f}" PowerHigh="{low:.2f}"/>')
+            lines.append(
+                f'    <Cooldown Duration="{seconds}" PowerLow="{high:.2f}" PowerHigh="{low:.2f}"/>'
+            )
         else:
             power = (low + high) / 2
             lines.append(f'    <SteadyState Duration="{seconds}" Power="{power:.2f}"/>')

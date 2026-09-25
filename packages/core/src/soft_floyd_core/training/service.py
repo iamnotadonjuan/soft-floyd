@@ -38,6 +38,13 @@ _SUMMARY_WEEKS = 8
 _RECENT_RIDES = 5
 
 
+def make_training_llm(api_key: str | None) -> LLMClient | None:
+    """Same shape as coach.service.make_coach_llm — a monkeypatch seam for
+    adapter tests, and the one place a missing key becomes None instead
+    of a constructor error."""
+    return LLMClient(api_key) if api_key else None
+
+
 class SessionNotFoundError(Exception):
     pass
 
@@ -202,7 +209,9 @@ async def plan_session(
     if request.bike_id is None and bike is not None:
         request = request.model_copy(update={"bike_id": bike.id})
 
-    intent, result = await _build(session, llm, embedder, request, bike, budget_usd=budget_usd, now=now)
+    intent, result = await _build(
+        session, llm, embedder, request, bike, budget_usd=budget_usd, now=now
+    )
 
     row = TrainingSession(
         planned_date=request.planned_date,
@@ -235,7 +244,9 @@ async def regenerate_session(
     bikes = list_bikes(session)
     bike = _bike_out(bikes, row.bike_id)
 
-    intent, result = await _build(session, llm, embedder, request, bike, budget_usd=budget_usd, now=now)
+    intent, result = await _build(
+        session, llm, embedder, request, bike, budget_usd=budget_usd, now=now
+    )
 
     row.intent = json.loads(intent.model_dump_json())
     row.workout = json.loads(result.workout.model_dump_json())
@@ -250,7 +261,9 @@ async def regenerate_session(
     return _out_for_row(session, row)
 
 
-def update_status(session: Session, training_session_id: int, status: SessionStatus) -> TrainingSessionOut:
+def update_status(
+    session: Session, training_session_id: int, status: SessionStatus
+) -> TrainingSessionOut:
     row = _get(session, training_session_id)
     row.status = status
     session.flush()
@@ -282,10 +295,12 @@ def export_session(session: Session, training_session_id: int, fmt: str) -> tupl
         return export_mod.to_fit_workout(workout), "application/octet-stream", f"{slug}.fit"
     if fmt == "zwo":
         assert profile.ftp_watts is not None  # guaranteed by _export_formats's gate
-        return export_mod.to_zwo(workout, ftp_watts=profile.ftp_watts).encode(), "application/xml", f"{slug}.zwo"
+        zwo = export_mod.to_zwo(workout, ftp_watts=profile.ftp_watts)
+        return zwo.encode(), "application/xml", f"{slug}.zwo"
     if fmt == "erg":
         assert profile.ftp_watts is not None
-        return export_mod.to_erg(workout, ftp_watts=profile.ftp_watts).encode(), "text/plain", f"{slug}.erg"
+        erg = export_mod.to_erg(workout, ftp_watts=profile.ftp_watts)
+        return erg.encode(), "text/plain", f"{slug}.erg"
     raise ExportNotAvailableError(f"Unknown export format {fmt!r}")
 
 

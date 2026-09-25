@@ -18,7 +18,12 @@ from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
 from soft_floyd_core.profile.service import ProfileOut
 from soft_floyd_core.rag.service import Embedder, PassageOut, get_training_context
 from soft_floyd_core.training.sanitize import sanitize_workout
-from soft_floyd_core.training.schemas import GeneratedSession, SessionIntent, SessionRequest, Workout
+from soft_floyd_core.training.schemas import (
+    GeneratedSession,
+    SessionIntent,
+    SessionRequest,
+    Workout,
+)
 
 _MAX_COMPLETION_TOKENS = 1500
 

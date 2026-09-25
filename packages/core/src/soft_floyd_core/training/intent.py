@@ -80,7 +80,8 @@ def recommend_intent(
     elif days_since_last_ride is not None and days_since_last_ride >= 4:
         emphasis = "endurance"
         reasons.append(
-            f"It's been {days_since_last_ride} days since your last ride — building back up steadily."
+            f"It's been {days_since_last_ride} days since your last ride — "
+            "building back up steadily."
         )
     elif profile.self_rated_level in ("enthusiast", "competitive"):
         emphasis = "threshold"

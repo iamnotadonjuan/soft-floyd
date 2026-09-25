@@ -100,7 +100,9 @@ class Workout(BaseModel):
         return out
 
     def has_power_targets(self) -> bool:
-        return any(s.target is not None and s.target.kind == "power" for s in self.flattened_steps())
+        return any(
+            s.target is not None and s.target.kind == "power" for s in self.flattened_steps()
+        )
 
 
 # Assumed outdoor speed (m/s) for turning a distance-ended step into a

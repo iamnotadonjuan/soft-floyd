@@ -38,7 +38,9 @@ _MIN_STEP_SECONDS = 30.0
 _MAX_REPEAT_COUNT = 20
 
 
-def _resolve_target(draft: DraftTarget, *, bike: BikeOut | None, profile: ProfileOut) -> StepTarget | None:
+def _resolve_target(
+    draft: DraftTarget, *, bike: BikeOut | None, profile: ProfileOut
+) -> StepTarget | None:
     if draft.kind == "power_pct_ftp":
         if bike is None or not bike.has_power_meter or not profile.ftp_watts:
             return None
@@ -125,7 +127,8 @@ def _clamp_duration(workout: Workout, *, discipline: str, available_minutes: int
     new_items: list[WorkoutStep | RepeatBlock] = []
     for item in workout.steps:
         if isinstance(item, RepeatBlock):
-            new_items.append(item.model_copy(update={"steps": [_scale_step(s) for s in item.steps]}))
+            scaled_steps = [_scale_step(s) for s in item.steps]
+            new_items.append(item.model_copy(update={"steps": scaled_steps}))
         else:
             new_items.append(_scale_step(item))
 

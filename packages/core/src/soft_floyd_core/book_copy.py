@@ -5,7 +5,16 @@ from __future__ import annotations
 import sqlite3
 from pathlib import Path
 
-from soft_floyd_core.db import run_migrations
+from alembic.script import ScriptDirectory
+
+from soft_floyd_core.db import _alembic_config, run_migrations
+
+
+def _current_head() -> str:
+    """The migrations directory's head revision, resolved dynamically so
+    this check doesn't go stale every time a new migration lands (it did
+    once already — see the git history of this line)."""
+    return ScriptDirectory.from_config(_alembic_config(Path("unused"))).get_current_head()
 
 
 def copy_books(source: Path, target: Path) -> tuple[int, int]:
@@ -26,7 +35,7 @@ def copy_books(source: Path, target: Path) -> tuple[int, int]:
         with sqlite3.connect(staging, uri=True) as conn:
             if existing:
                 version = conn.execute("SELECT version_num FROM alembic_version").fetchone()
-                if version != ("6767c65736c0",):
+                if version != (_current_head(),):
                     raise ValueError("Existing target is not an account-era database")
                 for table in (
                     "account",
