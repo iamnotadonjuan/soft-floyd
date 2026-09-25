@@ -2,9 +2,12 @@ import type {
   BikeKind,
   CapabilityTier,
   ConnectionStatus,
+  Emphasis,
   FocusArea,
   SelfRatedLevel,
+  SessionStatus,
   Weekday,
+  WorkoutStepKind,
 } from "../api/types";
 
 // Source of truth for UI copy. es.ts is typed as `Messages`, so adding a
@@ -69,6 +72,7 @@ const en = {
   dashboard: {
     brand: "Soft Floyd / Ride journal",
     askCoach: "Ask your coach",
+    planSession: "Plan a session",
     settings: "Settings",
     coachHint: "Connect Garmin in Settings to unlock your coach.",
     eyebrow: "Your cycling home",
@@ -107,6 +111,8 @@ const en = {
     loadingMore: "Loading rides…",
     showOlder: "Show older rides",
     viewRide: "View ride →",
+    upcomingSessionEyebrow: "Coming up",
+    viewSession: "View session →",
   },
 
   rideDetail: {
@@ -262,6 +268,7 @@ const en = {
       description: "Power/cadence/speed sensors live per-bike in the garage above.",
     },
     connections: { title: "Connected apps", description: "Bring your recorded rides into Soft Floyd." },
+    devices: { title: "Training devices", description: "Which device(s) you plan structured sessions for." },
     hrMonitor: "I wear a heart rate monitor",
   },
 
@@ -320,6 +327,82 @@ const en = {
       connect: "Connect Garmin",
       privacy: "Your password goes only to your local Soft Floyd server for this sign-in.",
     },
+  },
+
+  training: {
+    brand: "Soft Floyd / Training",
+    eyebrow: "Plan a session",
+    title: "What should you ride next?",
+    intro: "Tell me what you have in mind, and I'll blend it with your recent training into one session.",
+    loadError: (error: string) => `Could not load training sessions: ${error}`,
+    planError: (error: string) => `Could not plan this session: ${error}`,
+    devices: {
+      title: "Which device do you train with?",
+      body: "This decides how you can get a session onto your bike or trainer. You can change this later in Settings.",
+      garmin: "Garmin Edge / watch",
+      wahoo: "Wahoo",
+      zwift: "Zwift",
+      other: "Something else",
+      continue: "Continue",
+    } satisfies { title: string; body: string; continue: string } & Record<
+      "garmin" | "wahoo" | "zwift" | "other",
+      string
+    >,
+    form: {
+      dateLabel: "Date",
+      minutesLabel: "Minutes available",
+      settingLabel: "Where",
+      indoor: "Indoor / trainer",
+      outdoor: "Outdoor",
+      disciplineLabel: "Bike",
+      bikeLabel: "Which bike",
+      ideaLabel: "Your idea (optional)",
+      ideaPlaceholder: "e.g. hill repeats at Patios",
+      feelLabel: "How do you feel?",
+      fresh: "Fresh",
+      normal: "Normal",
+      tired: "Tired",
+      submit: "Build my session",
+      building: "Building your session…",
+    },
+    offSchedule: "This isn't one of your usual riding days — that's fine, keeping it flexible.",
+    rationaleLabel: "Why this session",
+    adjustmentsLabel: "What changed from your idea",
+    sourcesAria: "Book sources",
+    emphasisLabel: {
+      recovery: "Recovery", endurance: "Endurance", tempo: "Tempo",
+      threshold: "Threshold", vo2: "VO2 max", climbing: "Climbing",
+    } satisfies Record<Emphasis, string>,
+    stepKind: {
+      warmup: "Warm up", interval: "Interval", recovery: "Recovery", cooldown: "Cool down",
+    } satisfies Record<WorkoutStepKind, string>,
+    repeatLabel: (count: number) => `× ${count}`,
+    untilLapButton: "Until you press lap",
+    estMinutes: (n: number) => `~${n} min`,
+    actions: {
+      sendToGarmin: "Send to Garmin",
+      sending: "Sending…",
+      sentAt: (when: string) => `Sent to Garmin ${when}`,
+      garminError: (error: string) => `Could not send to Garmin: ${error}`,
+      download: "Download",
+      regenerate: "Regenerate",
+      regenerating: "Regenerating…",
+      markDone: "Mark done",
+      markSkipped: "Mark skipped",
+      delete: "Delete",
+    },
+    status: {
+      planned: "Planned", done: "Done", skipped: "Skipped",
+    } satisfies Record<SessionStatus, string>,
+    formats: {
+      fit: ".fit — any head unit",
+      zwo: ".zwo — Zwift / SYSTM",
+      erg: ".erg — ERG-mode trainer software",
+    },
+    upcomingHeading: "Upcoming",
+    historyHeading: "Past sessions",
+    noSessions: "No sessions planned yet.",
+    backToDashboard: "← Back to dashboard",
   },
 };
 

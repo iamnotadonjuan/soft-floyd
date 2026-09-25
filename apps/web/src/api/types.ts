@@ -49,6 +49,10 @@ export interface ProfileOut {
   ftp_watts: number | null;
   lthr: number | null;
 
+  // Devices the Training flow (exec-plan 0010) offers to export/push a
+  // planned session to. Asked once, editable in Settings.
+  workout_devices: string[];
+
   // Derived from the garage (bikes) — read-only. Update via the bikes
   // endpoints, not PUT /api/profile. See docs/design-docs/sensor-capability-model.md.
   has_power_meter: boolean;
@@ -196,4 +200,93 @@ export interface AccountOut {
   email: string;
   name: string;
   picture_url: string | null;
+}
+
+// Training sessions (exec-plan 0010) — mirrors
+// packages/core/src/soft_floyd_core/training/schemas.py and service.py.
+export type Discipline = "road" | "mtb" | "gravel";
+export type WorkoutDevice = "garmin" | "wahoo" | "zwift" | "other";
+export type SessionSetting = "indoor" | "outdoor";
+export type Feel = "fresh" | "normal" | "tired";
+export type SessionStatus = "planned" | "done" | "skipped";
+export type Emphasis = "recovery" | "endurance" | "tempo" | "threshold" | "vo2" | "climbing";
+export type WorkoutStepKind = "warmup" | "interval" | "recovery" | "cooldown";
+export type ExportFormat = "fit" | "zwo" | "erg";
+
+export interface SessionRequest {
+  planned_date: string;
+  available_minutes: number;
+  setting: SessionSetting;
+  discipline: Discipline;
+  bike_id: number | null;
+  route_idea: string;
+  feel: Feel;
+}
+
+// The POST body — bike_id/route_idea/feel may be omitted, matching the
+// server's own defaults (ProfileIn-style partial-input convention).
+export type SessionRequestIn = Pick<
+  SessionRequest,
+  "planned_date" | "available_minutes" | "setting" | "discipline"
+> &
+  Partial<Pick<SessionRequest, "bike_id" | "route_idea" | "feel">>;
+
+export interface SessionIntent {
+  emphasis: Emphasis;
+  reasons: string[];
+  off_schedule: boolean;
+}
+
+export interface StepEnd {
+  kind: "time" | "distance" | "lap_button";
+  seconds: number | null;
+  meters: number | null;
+}
+
+export interface StepTarget {
+  kind: "power" | "hr" | "cadence";
+  low: number;
+  high: number;
+}
+
+export interface WorkoutStep {
+  kind: WorkoutStepKind;
+  name: string;
+  cue: string;
+  end: StepEnd;
+  target: StepTarget | null;
+}
+
+export interface RepeatBlock {
+  kind: "repeat";
+  count: number;
+  steps: WorkoutStep[];
+}
+
+export type WorkoutItem = WorkoutStep | RepeatBlock;
+
+export interface Workout {
+  name: string;
+  est_minutes: number;
+  steps: WorkoutItem[];
+}
+
+export interface TrainingSessionOut {
+  id: number;
+  planned_date: string;
+  bike_id: number | null;
+  setting: SessionSetting;
+  discipline: Discipline;
+  request: SessionRequest;
+  intent: SessionIntent;
+  workout: Workout;
+  rationale: string;
+  adjustments: string | null;
+  sources: CoachSourceOut[];
+  status: SessionStatus;
+  garmin_workout_id: string | null;
+  sent_to_garmin_at: string | null;
+  available_export_formats: ExportFormat[];
+  created_at: string;
+  updated_at: string;
 }

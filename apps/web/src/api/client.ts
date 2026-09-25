@@ -12,9 +12,13 @@ import type {
   CoachEvent,
   CoachMemoryNoteOut,
   ConnectionOut,
+  ExportFormat,
   LoginStartResult,
   ProfileIn,
   ProfileOut,
+  SessionRequestIn,
+  SessionStatus,
+  TrainingSessionOut,
 } from "./types";
 
 class ApiError extends Error {
@@ -134,6 +138,26 @@ export const api = {
   streamCoachMessage,
   listCoachMemory: () => request<CoachMemoryNoteOut[]>("/coach/memory"),
   deleteCoachMemory: (id: number) => request<void>(`/coach/memory/${id}`, { method: "DELETE" }),
+
+  listTrainingSessions: () => request<TrainingSessionOut[]>("/training/sessions"),
+  planTrainingSession: (data: SessionRequestIn) =>
+    request<TrainingSessionOut>("/training/sessions", { method: "POST", body: JSON.stringify(data) }),
+  getTrainingSession: (id: number) => request<TrainingSessionOut>(`/training/sessions/${id}`),
+  regenerateTrainingSession: (id: number) =>
+    request<TrainingSessionOut>(`/training/sessions/${id}/regenerate`, { method: "POST" }),
+  updateTrainingSessionStatus: (id: number, status: SessionStatus) =>
+    request<TrainingSessionOut>(`/training/sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status }),
+    }),
+  deleteTrainingSession: (id: number) => request<void>(`/training/sessions/${id}`, { method: "DELETE" }),
+  sendTrainingSessionToGarmin: (id: number) =>
+    request<TrainingSessionOut>(`/training/sessions/${id}/garmin`, { method: "POST" }),
+  // A direct download link — the browser follows it with the session
+  // cookie, same-origin, and the server sets Content-Disposition; no
+  // fetch() needed.
+  trainingSessionExportUrl: (id: number, format: ExportFormat) =>
+    `/api/training/sessions/${id}/export?format=${format}`,
 };
 
 export { ApiError };
