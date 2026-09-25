@@ -45,15 +45,23 @@ CHAT_USAGE = Usage(CHAT_MODEL, 1000, 0, 100)
 class FakeLLM:
     """Scripted stand-in for LLMClient: each chat_stream call pops one round."""
 
-    def __init__(self, *, in_scope=True, rounds=None, scope_result=None):
+    def __init__(self, *, in_scope=True, rounds=None, scope_result=None, structured_result=None):
         self.scope_result = scope_result if scope_result is not None else {"in_scope": in_scope}
+        self.structured_result = structured_result
         self.rounds = list(rounds or [])
         self.stream_calls: list[tuple[list, list | None]] = []
         self.json_calls: list[list] = []
+        self.structured_calls: list[list] = []
 
     async def chat_json(self, messages, schema_name, schema):
         self.json_calls.append(messages)
         return self.scope_result, Usage(CHAT_MODEL, 120, 0, 5)
+
+    async def chat_structured(
+        self, messages, schema_name, schema, *, max_completion_tokens, temperature=0
+    ):
+        self.structured_calls.append(messages)
+        return self.structured_result, Usage(CHAT_MODEL, 500, 0, 200)
 
     async def chat_stream(self, messages, tools=None):
         self.stream_calls.append((json.loads(json.dumps(messages)), tools))
@@ -332,6 +340,44 @@ async def test_get_ride_tool_hides_unverified_lap_power(session):
     assert payload["ride"]["avg_power_w"] is None
     assert payload["laps"][0]["avg_power_w"] is None
     assert payload["laps"][0]["avg_hr"] == 138
+
+
+async def test_plan_training_session_tool_generates_and_lists(session):
+    _seed(session, power_bike=False)
+    structured = {
+        "workout": {
+            "name": "Easy spin",
+            "est_minutes": 30,
+            "steps": [
+                {
+                    "kind": "warmup",
+                    "name": "Warm up",
+                    "cue": "Easy",
+                    "end": {"kind": "time", "seconds": 1800, "meters": None},
+                    "target": {"kind": "power_pct_ftp", "low": 50, "high": 60, "hr_zone": None},
+                },
+            ],
+        },
+        "rationale": "A gentle spin.",
+        "adjustments": None,
+    }
+    llm = FakeLLM(structured_result=structured)
+
+    plan_result = await run_tool(
+        session,
+        "plan_training_session",
+        json.dumps({"setting": "indoor", "discipline": "road", "planned_date": "2026-09-25"}),
+        llm,
+    )
+    payload = json.loads(plan_result.content)
+    # No power meter in _seed()'s garage — the draft's power target must not
+    # survive into the persisted session.
+    assert payload["workout"]["steps"][0]["target"] is None
+
+    list_result = await run_tool(session, "list_training_sessions", "{}", llm)
+    listed = json.loads(list_result.content)
+    assert len(listed["sessions"]) == 1
+    assert listed["sessions"][0]["id"] == payload["id"]
 
 
 async def test_tool_errors_go_back_to_the_model(session):

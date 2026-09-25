@@ -9,6 +9,7 @@ coach never gets a raw Garmin HR/power number the FIT data didn't verify.
 
 from __future__ import annotations
 
+import datetime as dt
 import json
 from dataclasses import dataclass, field
 from typing import Any
@@ -20,6 +21,8 @@ from sqlalchemy.orm import Session
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.bikes import service as bikes_service
 from soft_floyd_core.coach import memory
+from soft_floyd_core.config import get_settings
+from soft_floyd_core.llm.usage import BudgetExceededError
 from soft_floyd_core.models import Activity, Lap
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
@@ -100,6 +103,41 @@ TOOLS: list[dict[str, Any]] = [
         ["query"],
     ),
     _fn(
+        "plan_training_session",
+        "Generate one structured, sensor-honest workout for a specific upcoming ride and save it "
+        "as a training session the rider can review, export to a file, or send to Garmin. Use "
+        'this when the rider asks what to do for a specific ride ("what should I do tomorrow", '
+        '"plan hard intervals for Saturday"), not for general training advice. Never invent a '
+        "watt/HR/bpm number yourself — the tool resolves targets against the rider's own sensors.",
+        {
+            "planned_date": {
+                "type": "string",
+                "description": "ISO date, e.g. 2026-09-25. Defaults to tomorrow if omitted.",
+            },
+            "available_minutes": {
+                "type": ["integer", "null"],
+                "description": "Minutes available. Defaults from the rider's usual availability.",
+            },
+            "setting": {"type": "string", "enum": ["indoor", "outdoor"]},
+            "discipline": {"type": "string", "enum": ["road", "mtb", "gravel"]},
+            "route_idea": {
+                "type": ["string", "null"],
+                "description": "The rider's own idea, in their words, e.g. 'hill repeats'.",
+            },
+            "feel": {
+                "type": ["string", "null"],
+                "enum": ["fresh", "normal", "tired", None],
+            },
+        },
+        ["setting", "discipline"],
+    ),
+    _fn(
+        "list_training_sessions",
+        "List the rider's planned/done/skipped training sessions, most recent planned_date first.",
+        {},
+        [],
+    ),
+    _fn(
         "remember",
         "Save one short, durable fact about the rider for future coaching.",
         {"note": {"type": "string", "description": f"At most {memory.MAX_NOTE_CHARS} chars."}},
@@ -172,6 +210,42 @@ def _ride(session: Session, activity_id: int) -> ToolResult:
     return ToolResult(_json(payload), "Opening a ride")
 
 
+async def _plan_training_session(session: Session, args: dict[str, Any], llm: Any) -> ToolResult:
+    status = "Planning a training session"
+    settings = get_settings()
+    profile = profile_service.get_profile(session)
+    planned_date_raw = args.get("planned_date")
+    planned_date = (
+        dt.date.fromisoformat(planned_date_raw)
+        if planned_date_raw
+        else dt.date.today() + dt.timedelta(days=1)
+    )
+    available_minutes = args.get("available_minutes") or (
+        profile.weekday_max_minutes or profile.weekend_max_minutes or 60
+    )
+    request = SessionRequest(
+        planned_date=planned_date,
+        available_minutes=int(available_minutes),
+        setting=args["setting"],
+        discipline=args["discipline"],
+        route_idea=str(args.get("route_idea") or ""),
+        feel=args.get("feel") or "normal",
+    )
+    try:
+        result = await training_service.plan_session(
+            session, llm, llm, request, budget_usd=settings.llm_monthly_budget_usd
+        )
+    except BudgetExceededError as exc:
+        return ToolResult(_json({"error": str(exc)}), status)
+    return ToolResult(_json(result), status)
+
+
+def _list_training_sessions(session: Session) -> ToolResult:
+    sessions = training_service.list_sessions(session)
+    payload = {"sessions": [s.model_dump(mode="json") for s in sessions]}
+    return ToolResult(_json(payload), "Checking your planned sessions")
+
+
 async def _search_books(session: Session, query: str, embedder: Any) -> ToolResult:
     status = "Checking your training books"
     try:
@@ -216,6 +290,10 @@ async def run_tool(session: Session, name: str, raw_args: str, embedder: Any) ->
             return _ride(session, int(args["activity_id"]))
         if name == "search_training_books":
             return await _search_books(session, str(args.get("query", "")), embedder)
+        if name == "plan_training_session":
+            return await _plan_training_session(session, args, embedder)
+        if name == "list_training_sessions":
+            return _list_training_sessions(session)
         if name == "remember":
             note = memory.add_note(session, str(args.get("note", "")))
             return ToolResult(_json(note), "Saving that to memory")
