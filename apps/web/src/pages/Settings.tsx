@@ -1,7 +1,7 @@
 import { type ReactNode, useState } from "react";
 
 import { api } from "../api/client";
-import type { ProfileOut, SelfRatedLevel, Weekday } from "../api/types";
+import type { ProfileOut, SelfRatedLevel, Weekday, WorkoutDevice } from "../api/types";
 import AvailabilityPicker, { type AvailabilityValue } from "../components/AvailabilityPicker";
 import BikeEditor from "../components/BikeEditor";
 import ConnectionsPanel from "../components/connections/ConnectionsPanel";
@@ -17,6 +17,7 @@ interface Props {
 }
 
 const LEVELS: SelfRatedLevel[] = ["beginner", "recreational", "enthusiast", "competitive"];
+const DEVICES: WorkoutDevice[] = ["garmin", "wahoo", "zwift", "other"];
 
 function numberField(raw: string): number | null {
   return raw.trim() === "" ? null : Number(raw);
@@ -60,6 +61,7 @@ export default function Settings({ profile, onProfileChange, onBack, onOpenProfi
 
           <AboutYouSection profile={profile} save={save} />
           <SensorsAndAnchorsSection profile={profile} save={save} />
+          <DevicesSection profile={profile} save={save} />
 
           <SettingsSection title={m.settings.connections.title} description={m.settings.connections.description}>
             <ConnectionsPanel />
@@ -377,6 +379,33 @@ function SensorsAndAnchorsSection({ profile, save }: SectionProps) {
           })
         }
       />
+    </SettingsSection>
+  );
+}
+
+function DevicesSection({ profile, save }: SectionProps) {
+  const { m } = useI18n();
+  const [devices, setDevices] = useState<string[]>(profile.workout_devices);
+
+  const toggle = (device: WorkoutDevice) =>
+    setDevices((items) => (items.includes(device) ? items.filter((d) => d !== device) : [...items, device]));
+
+  return (
+    <SettingsSection title={m.settings.devices.title} description={m.settings.devices.description}>
+      <div className="flex flex-wrap gap-2">
+        {DEVICES.map((key) => (
+          <button
+            key={key}
+            type="button"
+            onClick={() => toggle(key)}
+            aria-pressed={devices.includes(key)}
+            className="choice-chip"
+          >
+            {m.training.devices[key]}
+          </button>
+        ))}
+      </div>
+      <SaveButton onSave={() => save({ workout_devices: devices })} />
     </SettingsSection>
   );
 }

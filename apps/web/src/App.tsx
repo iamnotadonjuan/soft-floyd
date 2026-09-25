@@ -11,10 +11,11 @@ import Settings from "./pages/Settings";
 import RideDetail from "./pages/RideDetail";
 import Profile from "./pages/Profile";
 import SignIn from "./pages/SignIn";
+import Training from "./pages/Training";
 
 // These are local views; a ride detail keeps the dashboard mounted so
 // returning to history preserves loaded pages and keyboard focus.
-type View = "dashboard" | "settings" | "ride" | "coach" | "profile";
+type View = "dashboard" | "settings" | "ride" | "coach" | "profile" | "training";
 
 export default function App() {
   const { m } = useI18n();
@@ -85,6 +86,16 @@ export default function App() {
     return <Coach onBack={() => setView("dashboard")} />;
   }
 
+  if (view === "training") {
+    return (
+      <Training
+        profile={profile}
+        onProfileChange={setProfile}
+        onBack={() => setView("dashboard")}
+      />
+    );
+  }
+
   return <>
     <div hidden={view === "ride"}>
       <Dashboard
@@ -92,6 +103,7 @@ export default function App() {
         onOpenSettings={() => setView("settings")}
         onOpenProfile={() => setView("profile")}
         onOpenCoach={() => { setView("coach"); window.scrollTo(0, 0); }}
+        onOpenTraining={() => { setView("training"); window.scrollTo(0, 0); }}
         onOpenRide={(id) => {
           rideListScroll.current = window.scrollY;
           setSelectedRideId(id);

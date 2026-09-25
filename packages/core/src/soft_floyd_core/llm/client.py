@@ -160,6 +160,4 @@ class LLMClient:
         """The guardrail's tiny classification call — a fixed 50-token cap
         keeps it cheap. Anything bigger (training session generation) uses
         chat_structured directly with its own budget."""
-        return await self.chat_structured(
-            messages, schema_name, schema, max_completion_tokens=50
-        )
+        return await self.chat_structured(messages, schema_name, schema, max_completion_tokens=50)

@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
-import type { ActivitySummaryOut, ConnectionOut, ProfileOut } from "../api/types";
+import type { ActivitySummaryOut, ConnectionOut, ProfileOut, TrainingSessionOut } from "../api/types";
 import { rideDate, rideDistance, rideDuration, rideTitle } from "../components/activityFormat";
 import LanguageToggle from "../components/LanguageToggle";
 import { useI18n } from "../i18n/I18nProvider";
@@ -14,17 +14,19 @@ function connectionTone(status: ConnectionOut["status"]): string {
 }
 
 export default function Dashboard({
-  profile, onOpenSettings, onOpenProfile, onOpenCoach, onOpenRide,
+  profile, onOpenSettings, onOpenProfile, onOpenCoach, onOpenTraining, onOpenRide,
 }: {
   profile: ProfileOut;
   onOpenSettings: () => void;
   onOpenProfile: () => void;
   onOpenCoach: () => void;
+  onOpenTraining: () => void;
   onOpenRide: (id: number) => void;
 }) {
   const { m, intlLocale } = useI18n();
   const [rides, setRides] = useState<ActivitySummaryOut[] | null>(null);
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
+  const [nextSession, setNextSession] = useState<TrainingSessionOut | null>(null);
   const [rideError, setRideError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -38,6 +40,16 @@ export default function Dashboard({
     api.listConnections()
       .then((items) => { if (active) setConnections(items); })
       .catch((reason) => { if (active) setConnectionError(String(reason)); });
+    api.listTrainingSessions()
+      .then((items) => {
+        if (!active) return;
+        const today = new Date().toISOString().slice(0, 10);
+        const upcoming = items
+          .filter((s) => s.status === "planned" && s.planned_date >= today)
+          .sort((a, b) => a.planned_date.localeCompare(b.planned_date));
+        setNextSession(upcoming[0] ?? null);
+      })
+      .catch(() => { /* the training card is optional on the dashboard */ });
     return () => { active = false; };
   }, []);
 
@@ -72,6 +84,7 @@ export default function Dashboard({
           <div className="flex flex-wrap items-center gap-2">
             <button onClick={onOpenCoach} className="primary-button" disabled={!coachReady}
               aria-describedby={coachReady ? undefined : "coach-hint"}>{m.dashboard.askCoach}</button>
+            <button onClick={onOpenTraining} className="secondary-button">{m.dashboard.planSession}</button>
             <button onClick={onOpenSettings} className="secondary-button">{m.dashboard.settings}</button>
             <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
             <LanguageToggle />
@@ -108,6 +121,17 @@ export default function Dashboard({
           </div>
           <button onClick={onOpenSettings} className="text-button">{m.dashboard.manageConnections}</button>
         </section>
+
+        {nextSession && (
+          <button onClick={onOpenTraining} className="ride-tile surface mb-12 block w-full p-5 text-left">
+            <span className="eyebrow">
+              {m.dashboard.upcomingSessionEyebrow} ·{" "}
+              {new Date(nextSession.planned_date).toLocaleDateString(intlLocale, { weekday: "short", month: "short", day: "numeric" })}
+            </span>
+            <span className="mt-2 block text-xl font-semibold text-[#243e2c]">{nextSession.workout.name}</span>
+            <span className="mt-3 block text-sm font-semibold text-[#31563e]">{m.dashboard.viewSession}</span>
+          </button>
+        )}
 
         <section aria-labelledby="latest-heading">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">

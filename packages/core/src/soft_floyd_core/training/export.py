@@ -107,7 +107,9 @@ def to_garmin_payload(workout: Workout) -> dict[str, Any]:
         return ExecutableStep(
             stepOrder=order,
             stepType={
-                "stepTypeId": step_type_id, "stepTypeKey": step_key, "displayOrder": step_order,
+                "stepTypeId": step_type_id,
+                "stepTypeKey": step_key,
+                "displayOrder": step_order,
             },
             endCondition=end_cond,
             endConditionValue=end_value,
@@ -261,7 +263,7 @@ def to_zwo(workout: Workout, *, ftp_watts: int) -> str:
     concrete FTP-relative fraction gets computed for display, not stored.
     """
     lines = [
-        '<workout_file>',
+        "<workout_file>",
         "  <author>Soft Floyd</author>",
         f"  <name>{_xml_escape(workout.name)}</name>",
         "  <sportType>bike</sportType>",
@@ -313,8 +315,5 @@ def to_erg(workout: Workout, *, ftp_watts: int) -> str:
 
 def _xml_escape(text: str) -> str:
     return (
-        text.replace("&", "&amp;")
-        .replace("<", "&lt;")
-        .replace(">", "&gt;")
-        .replace('"', "&quot;")
+        text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace('"', "&quot;")
     )

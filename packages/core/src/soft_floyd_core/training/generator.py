@@ -87,8 +87,13 @@ def _bike_line(bike: BikeOut | None) -> str:
     return f"Bike: {bike.nickname or bike.kind} ({bike.kind}), {sensors}."
 
 
-def _prompt(request: SessionRequest, intent: SessionIntent, profile: ProfileOut,
-            bike: BikeOut | None, passages: list[PassageOut]) -> str:
+def _prompt(
+    request: SessionRequest,
+    intent: SessionIntent,
+    profile: ProfileOut,
+    bike: BikeOut | None,
+    passages: list[PassageOut],
+) -> str:
     book_lines = "\n".join(f"- {p.title} p.{p.page_start}: {p.text[:300]}" for p in passages)
     return "\n".join(
         [

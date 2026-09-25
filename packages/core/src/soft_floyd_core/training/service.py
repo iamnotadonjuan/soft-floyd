@@ -112,8 +112,11 @@ def _sources_json(passages: list[PassageOut]) -> list[dict]:
     return [
         json.loads(
             SessionSourceOut(
-                book_id=p.book_id, title=p.title, author=p.author,
-                page_start=p.page_start, page_end=p.page_end,
+                book_id=p.book_id,
+                title=p.title,
+                author=p.author,
+                page_start=p.page_start,
+                page_end=p.page_end,
             ).model_dump_json()
         )
         for p in passages
@@ -189,8 +192,14 @@ async def _build(
     recent_rides = list_activities(session, limit=_RECENT_RIDES)
     intent = recommend_intent(request, profile, summary, recent_rides, today=today)
     result = await _run_generator(
-        session, llm, embedder,
-        request=request, intent=intent, profile=profile, bike=bike, budget_usd=budget_usd,
+        session,
+        llm,
+        embedder,
+        request=request,
+        intent=intent,
+        profile=profile,
+        bike=bike,
+        budget_usd=budget_usd,
     )
     return intent, result
 

@@ -162,9 +162,7 @@ class GarminClient:
                 result = client.upload_workout(payload)
                 raw_id = result.get("workoutId") if isinstance(result, dict) else None
                 if raw_id is None:
-                    raise GarminApiError(
-                        "Garmin accepted the workout but returned no workoutId."
-                    )
+                    raise GarminApiError("Garmin accepted the workout but returned no workoutId.")
                 workout_id = str(raw_id)
             client.schedule_workout(workout_id, planned_date.isoformat())
         except GarminApiError:
