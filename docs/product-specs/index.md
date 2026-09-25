@@ -3,6 +3,9 @@
 User-facing behavior specs — *what* a feature must do. Pair with
 `docs/design-docs/` for *why*.
 
+- [google-accounts.md](google-accounts.md) — Google sign-in, account-owned
+  rider data, shared books, and the Profile identity card.
+
 - [new-user-onboarding.md](new-user-onboarding.md) — implemented
   (exec-plan 0004). Habits, goals, garage (per-bike sensors), about-you,
   anchors, connected apps; all editable later from Settings.

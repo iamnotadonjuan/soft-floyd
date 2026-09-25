@@ -63,8 +63,9 @@ A turn that can't start is rejected before streaming, with these status codes:
 
 Failures after streaming starts arrive as an `error` event.
 
-MCP has no chat tool, because an MCP client is already an agent. For
-parity it gets the same data and memory:
+MCP has no chat turn tool, because an MCP client is already an agent. The
+website coach calls protected MCP tools for its rider context and data tools
+using a short-lived account token. MCP also exposes these tools for parity:
 - `get_training_summary`
 - `list_coach_memory`
 - `add_coach_memory`

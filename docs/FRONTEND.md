@@ -22,11 +22,18 @@ apps/web/src/
                      thin "Next"-gated wrapper around the shared
                      components above plus its own fields.
   pages/            Onboarding, Dashboard, RideDetail, Settings, Coach.
-  App.tsx           The "has a profile?" onboarding gate, plus the
-                     dashboard/settings/ride/coach view toggle.
+  App.tsx           The auth and onboarding gates, plus the
+                   dashboard/settings/ride/coach/profile view toggle.
 ```
 
 ## Rules
+
+- `App.tsx` checks `/api/auth/me` before requesting rider data. Anonymous
+  visitors see `pages/SignIn.tsx`; session expiry returns them there. The
+  web JWT stays in an HttpOnly cookie and is never read by JavaScript.
+- `pages/Profile.tsx` is the account identity/sign-out screen. Training
+  fields remain in Settings. New sign-in/Profile copy lives in both language
+  dictionaries.
 
 - `api/types.ts` types must match the FastAPI response shape exactly —
   when `packages/core/.../profile/service.py`'s `ProfileOut` (or

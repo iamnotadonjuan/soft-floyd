@@ -21,7 +21,7 @@ from alembic.config import Config
 from sqlalchemy import Engine, create_engine, inspect
 from sqlalchemy.orm import Session, sessionmaker
 
-from soft_floyd_core.models import Base
+from soft_floyd_core import account_scope
 
 _MIGRATIONS_DIR = Path(__file__).parent / "migrations"
 
@@ -53,17 +53,10 @@ def run_migrations(db_path: Path) -> None:
         return
 
     if "rider_profile" in existing_tables:
-        # Legacy create_all()'d DB, predating this migration's baseline.
-        # Create only the tables that baseline adds beyond rider_profile,
-        # then stamp — re-running CREATE TABLE rider_profile would fail.
-        engine = create_engine(f"sqlite:///{db_path}")
-        try:
-            new_tables = [t for name, t in Base.metadata.tables.items() if name != "rider_profile"]
-            Base.metadata.create_all(engine, tables=new_tables)
-        finally:
-            engine.dispose()
-        command.stamp(alembic_cfg, "head")
-        return
+        raise RuntimeError(
+            "Legacy rider database cannot be upgraded in place to multiple accounts. "
+            "Create a fresh account database with prepare-account-db."
+        )
 
     command.upgrade(alembic_cfg, "head")
 
@@ -80,6 +73,10 @@ def make_session_factory(engine: Engine) -> sessionmaker[Session]:
 @contextmanager
 def session_scope(session_factory: sessionmaker[Session]) -> Iterator[Session]:
     session = session_factory()
+    try:
+        session.info["account_id"] = account_scope.account_id()
+    except RuntimeError:
+        pass
     try:
         yield session
         session.commit()

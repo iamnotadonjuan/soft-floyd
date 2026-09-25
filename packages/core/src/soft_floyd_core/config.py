@@ -37,10 +37,17 @@ class Settings(BaseSettings):
     )
 
     openai_api_key: str | None = None
+    google_client_id: str | None = None
+    google_client_secret: str | None = None
+    jwt_secret: str | None = None
+    web_origin: str = "http://localhost:5173"
+    google_redirect_uri: str = "http://localhost:5173/api/auth/google/callback"
+    cookie_secure: bool = False  # HTTPS deployment must set this true.
+    internal_mcp_url: str = "http://127.0.0.1:8000/mcp"
     # Hard stop for all paid LLM calls made by the coach (exec-plan 0007);
     # month-to-date spend is summed from the llm_usage table.
     llm_monthly_budget_usd: float = 10.0
-    db_path: Path = Path("data/soft-floyd.db")
+    db_path: Path = Path("data/soft-floyd-accounts.db")
     log_level: str = "INFO"
     lthr: int = 165  # default lactate threshold HR (bpm) when the rider hasn't set one
 

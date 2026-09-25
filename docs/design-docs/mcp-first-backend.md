@@ -9,11 +9,8 @@ The backend's capabilities are defined once, as MCP tools
 
 ## Why
 
-- The rider (or any agent working on their behalf) should be able to ask
-  Claude Desktop or Claude Code "what's my FTP and what can you tell from
-  my last ride" without a bespoke chat UI existing yet. MCP tools make
-  the coach's capabilities available to any MCP-speaking agent host
-  immediately.
+- The web coach uses MCP as its protected data-tool boundary. External
+  MCP clients may be supported later with their own account token flow.
 - Designing the tool surface first forces a clean, capability-oriented
   API (`get_rider_profile`, `set_rider_profile`, `get_available_metrics`,
   `list_activities`) rather than a REST API shaped by whatever the
@@ -23,6 +20,11 @@ The backend's capabilities are defined once, as MCP tools
   hide a rule the REST route doesn't also get.
 
 ## Mechanics
+
+Since exec-plan 0009, every MCP request needs a short-lived Bearer JWT
+issued for one authenticated account. The web coach calls `/mcp` for its
+initial rider context and tool results. The underlying domain functions
+are still shared with REST; the browser cookie is never accepted at `/mcp`.
 
 FastMCP's `http_app()` returns an ASGI app; mounting it inside FastAPI
 requires passing its `.lifespan` to the FastAPI constructor or the MCP

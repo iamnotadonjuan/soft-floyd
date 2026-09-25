@@ -19,8 +19,10 @@ import datetime as dt
 from pathlib import Path
 from typing import Protocol
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from soft_floyd_core.account_scope import account_id
 from soft_floyd_core.activities.classify import classify
 from soft_floyd_core.activities.fit_parser import ParsedFit, parse_fit
 from soft_floyd_core.activities.sensors import detect_sensor_streams
@@ -57,7 +59,7 @@ def _type_key(value: object) -> str:
 
 def _bare_activity(activity_id: int, summary: dict) -> Activity:
     return Activity(
-        id=activity_id,
+        garmin_id=activity_id,
         start_time=_parse_start_time(summary),
         sport=_type_key(summary.get("activityType")),
         sub_sport=_type_key(summary.get("subActivityType")),
@@ -100,16 +102,18 @@ def ingest_activity(
     unchanged if this activity was already ingested."""
     activity_id = int(summary["activityId"])
 
-    existing = session.get(Activity, activity_id)
+    owner = account_id(session)
+    existing = session.scalar(select(Activity).where(Activity.garmin_id == activity_id))
     if existing is not None:
         log.debug("pipeline.skip_existing", activity_id=activity_id)
         return existing
 
     activity = _bare_activity(activity_id, summary)
+    activity.account_id = owner
     session.add(activity)
     session.flush()
 
-    fit_path = settings.fit_dir / f"{activity_id}.fit"
+    fit_path = settings.fit_dir / str(owner) / f"{activity_id}.fit"
     try:
         source.download_fit(activity_id, fit_path)
         activity.fit_path = str(fit_path)
@@ -136,7 +140,7 @@ def ingest_activity(
     for lap in parsed.laps:
         session.add(
             Lap(
-                activity_id=activity_id,
+                activity_id=activity.id,
                 lap_index=lap.lap_index,
                 distance_m=lap.distance_m,
                 duration_s=lap.duration_s,
@@ -157,7 +161,7 @@ def ingest_activity(
         for rec in parsed.records:
             session.add(
                 Record(
-                    activity_id=activity_id,
+                    activity_id=activity.id,
                     t_offset_s=rec.t_offset_s,
                     hr=rec.hr,
                     speed_mps=rec.speed_mps,

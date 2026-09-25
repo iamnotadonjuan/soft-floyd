@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 
 from sqlalchemy.orm import Session, sessionmaker
 
+from soft_floyd_core.account_scope import enter_account, leave_account
 from soft_floyd_core.config import Settings
 from soft_floyd_core.db import session_scope
 from soft_floyd_core.garmin.client import GarminClient
@@ -135,6 +136,7 @@ def run_login_in_background(
     email: str,
     password: str,
     pending: PendingLogin,
+    account_id: int,
 ) -> threading.Thread:
     """Starts perform_login on a daemon thread with its own session
     (never share a Session across threads), wiring its mfa_callback to
@@ -147,6 +149,7 @@ def run_login_in_background(
     """
 
     def _run() -> None:
+        token = enter_account(account_id)
         try:
             with session_scope(session_factory) as session:
                 perform_login(
@@ -156,6 +159,7 @@ def run_login_in_background(
             pending.error = exc
         finally:
             pending.done.set()
+            leave_account(token)
 
     thread = threading.Thread(target=_run, daemon=True)
     thread.start()

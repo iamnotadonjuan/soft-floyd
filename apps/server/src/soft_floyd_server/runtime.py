@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
+from soft_floyd_core.account_scope import account_id
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.db import make_engine, make_session_factory
 from soft_floyd_core.garmin.sync import SyncRunner
@@ -22,5 +23,13 @@ def get_session_factory() -> sessionmaker[Session]:
 
 
 @lru_cache
-def get_sync_runner() -> SyncRunner:
-    return SyncRunner(get_session_factory(), get_settings())
+def get_sync_runner(owner: int) -> SyncRunner:
+    settings = get_settings()
+    per_account = settings.model_copy(
+        update={"garmin_token_dir": settings.garmin_token_dir / str(owner)}
+    )
+    return SyncRunner(get_session_factory(), per_account, account_id=owner)
+
+
+def current_sync_runner() -> SyncRunner:
+    return get_sync_runner(account_id())

@@ -3,6 +3,32 @@ import type { Messages } from "./en";
 // Neutral Latin American Spanish, informal "tú". Typed as Messages so a
 // missing or misshapen key fails `tsc` — keep keys in en.ts's order.
 const es: Messages = {
+  auth: {
+    brand: "Soft Floyd",
+    eyebrow: "Un coach que usa los datos que tienes",
+    headline: "Pedalea con propósito. Aprende de cada kilómetro.",
+    intro: "Conecta tus salidas, cuéntanos qué quieres lograr y recibe orientación ciclista basada en lo que tus sensores registraron.",
+    google: "Continuar con Google",
+    register: "¿Primera vez? Tu cuenta se crea al continuar.",
+    secure: "Tus salidas y conversaciones pertenecen solo a tu cuenta.",
+    benefit1Title: "Tus salidas, en contexto",
+    benefit1Text: "Un diario claro de tus salidas recientes en Garmin y sus patrones.",
+    benefit2Title: "Honesto con tus sensores",
+    benefit2Text: "¿Sin potenciómetro? Sin vatios inventados. El coach usa las señales registradas en cada salida.",
+    benefit3Title: "Coaching a tu medida",
+    benefit3Text: "Tus metas, días disponibles, bicicletas y notas guardadas guían la conversación.",
+    previewLabel: "Un diario de salidas más reflexivo",
+    previewHeadline: "¿Qué te contó realmente esta salida?",
+    previewBody: "Mira las señales registradas y pregúntale a tu coach qué significan para tu meta.",
+    loading: "Revisando tu sesión…",
+    profile: "Perfil",
+    profileTitle: "Tu perfil",
+    profileIntro: "Tu cuenta de Google es la forma de entrar a Soft Floyd.",
+    account: "Cuenta de Google",
+    accountId: (id) => `ID de cuenta ${id}`,
+    signOut: "Cerrar sesión",
+    signOutError: "No se pudo cerrar la sesión. Inténtalo de nuevo.",
+  },
   common: {
     language: "Idioma",
     back: "← Atrás",

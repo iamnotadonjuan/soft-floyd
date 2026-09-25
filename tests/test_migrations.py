@@ -6,6 +6,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
 from alembic import command
 from alembic.autogenerate import compare_metadata
 from alembic.config import Config
@@ -54,11 +55,7 @@ def test_running_twice_is_a_no_op(tmp_path):
     assert "activity" in tables
 
 
-def test_legacy_pre_alembic_db_is_stamped_and_upgraded(tmp_path):
-    """Simulates a DB created by the old create_all()-only scaffold
-    (rider_profile only, no alembic_version) — must gain the newer
-    tables and end up at head, not fail on a duplicate CREATE TABLE.
-    """
+def test_legacy_pre_alembic_db_requires_a_fresh_account_db(tmp_path):
     db_path = tmp_path / "db.sqlite"
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -66,12 +63,8 @@ def test_legacy_pre_alembic_db_is_stamped_and_upgraded(tmp_path):
     Base.metadata.create_all(engine, tables=[RiderProfile.__table__])
     engine.dispose()
 
-    make_engine(db_path)
-
-    engine = create_engine(f"sqlite:///{db_path}")
-    tables = set(inspect(engine).get_table_names())
-    engine.dispose()
-    assert {"activity", "alembic_version", "garmin_sync_state", "lap", "record"} <= tables
+    with pytest.raises(RuntimeError, match="prepare-account-db"):
+        make_engine(db_path)
 
 
 def test_0004_seeds_one_bike_from_the_pre_garage_profile_row(tmp_path):
@@ -102,7 +95,7 @@ def test_0004_seeds_one_bike_from_the_pre_garage_profile_row(tmp_path):
     finally:
         engine.dispose()
 
-    command.upgrade(cfg, "head")
+    command.upgrade(cfg, "c2dbf4b4e115")
 
     engine = create_engine(f"sqlite:///{db_path}")
     try:
@@ -123,6 +116,8 @@ def test_0004_seeds_one_bike_from_the_pre_garage_profile_row(tmp_path):
     assert "has_cadence_sensor" not in profile_columns
     assert "has_speed_sensor" not in profile_columns
     assert "primary_discipline" not in profile_columns
+    with pytest.raises(RuntimeError, match="fresh rider database"):
+        command.upgrade(cfg, "head")
 
 
 def test_0004_seeds_nothing_for_a_fresh_database(tmp_path):

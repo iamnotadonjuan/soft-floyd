@@ -88,11 +88,11 @@ def test_idempotent_ingest_is_a_no_op_second_time(tmp_path, road_fit_path):
 
     with session_scope(sf) as session:
         first = ingest_activity(session, settings, source, _summary(2))
-        assert first.id == 2
+        assert first.garmin_id == 2
 
     with session_scope(sf) as session:
         second = ingest_activity(session, settings, source, _summary(2))
-        assert second.id == 2
+        assert second.garmin_id == 2
         count = session.query(Activity).count()
         assert count == 1
 

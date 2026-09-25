@@ -152,8 +152,8 @@ async def test_mcp_and_rest_agree_on_sync_result(client, monkeypatch):
         async def sync_once(self):
             return fixed
 
-    monkeypatch.setattr(mcp_server, "get_sync_runner", lambda: _FakeRunner())
-    monkeypatch.setattr(http_api, "get_sync_runner", lambda: _FakeRunner())
+    monkeypatch.setattr(mcp_server, "current_sync_runner", lambda: _FakeRunner())
+    monkeypatch.setattr(http_api, "current_sync_runner", lambda: _FakeRunner())
 
     rest_result = client.post("/api/sync/garmin").json()
 

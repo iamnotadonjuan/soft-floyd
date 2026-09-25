@@ -36,8 +36,7 @@ from soft_floyd_core.models import (
 )
 from soft_floyd_server.mcp_server import mcp
 from sqlalchemy import create_engine, func, select
-from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.orm import Session
 
 NOW = dt.datetime(2026, 9, 23, 12, 0)  # a Wednesday
 CHAT_USAGE = Usage(CHAT_MODEL, 1000, 0, 100)
@@ -346,17 +345,12 @@ async def test_tool_errors_go_back_to_the_model(session):
 
 
 def _shared_factory(monkeypatch):
-    from soft_floyd_server import http_api, mcp_server
+    from soft_floyd_server.runtime import get_session_factory
 
-    engine = create_engine(
-        "sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool
-    )
-    Base.metadata.create_all(engine)
-    factory = sessionmaker(engine, expire_on_commit=False)
+    factory = get_session_factory()
+    engine = factory.kw["bind"]
     with factory() as db:
         _seed(db)
-    monkeypatch.setattr(http_api, "get_session_factory", lambda: factory)
-    monkeypatch.setattr(mcp_server, "get_session_factory", lambda: factory)
     return engine, factory
 
 
@@ -369,6 +363,19 @@ def _parse_sse(body: str) -> list[tuple[str, dict]]:
 
 
 def test_rest_streams_a_coach_turn_and_persists_it(client, monkeypatch):
+    import httpx2
+    from soft_floyd_server import http_api
+    from soft_floyd_server.main import app
+    from soft_floyd_server.mcp_bridge import CoachMCPBridge
+
+    def asgi_client(**kwargs):
+        return httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), **kwargs)
+
+    monkeypatch.setattr(
+        http_api,
+        "CoachMCPBridge",
+        lambda settings, token: CoachMCPBridge(settings, token, asgi_client),
+    )
     engine, _ = _shared_factory(monkeypatch)
     llm = FakeLLM(rounds=[_text_round("Ride ", "easy today.")])
     monkeypatch.setattr(coach, "make_coach_llm", lambda _key: llm)

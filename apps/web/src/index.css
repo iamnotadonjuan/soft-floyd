@@ -14,6 +14,17 @@ button { cursor: pointer; }
 button:disabled { cursor: not-allowed; }
 :focus-visible { outline: 3px solid #aa724e; outline-offset: 3px; }
 .app-shell { min-height: 100vh; background: radial-gradient(circle at 92% 2%, #e9eddf 0, transparent 28rem), #f6f4ed; }
+.signin-page { background: radial-gradient(circle at 84% 25%, #dfebdc 0, transparent 32rem), radial-gradient(circle at 12% 96%, #f0e7dc 0, transparent 24rem), #f6f4ed; }
+.google-button { display: flex; align-items: center; gap: 1rem; min-height: 3.7rem; padding: .7rem 1.1rem; border: 1px solid #23422d; border-radius: .85rem; background: #30553c; color: white; font-weight: 700; box-shadow: 0 14px 26px -21px #203f2a; transition: transform .15s ease, background .15s ease; }
+.google-button:hover { background: #203f2a; transform: translateY(-2px); }
+.google-mark { display: inline-flex; align-items: center; justify-content: center; width: 1.85rem; height: 1.85rem; border-radius: 50%; background: white; color: #4285f4; font-size: 1.15rem; font-weight: 800; }
+.signin-visual { position: relative; min-height: 33rem; display: flex; align-items: center; }
+.signin-orbit { position: absolute; border: 1px solid #b7cdb8; border-radius: 50%; }
+.orbit-one { inset: 0 2% 1% 0; transform: rotate(-17deg); }
+.orbit-two { inset: 8% -5% 8% 5%; transform: rotate(24deg); }
+.signin-ride-card { position: relative; width: min(100%, 31rem); margin: auto; padding: 2rem; background: #fffef9; border: 1px solid #d8e0d4; border-radius: 1.8rem; box-shadow: 0 30px 70px -48px #22392a; transform: rotate(2deg); }
+.signin-route { background: #f0f3eb; border-radius: 1rem; padding: 1.25rem; }
+.signin-route svg { width: 100%; height: auto; }
 .page-wrap { width: min(100% - 2rem, 1120px); margin-inline: auto; padding-block: 2rem 5rem; }
 .brand { color: #3d5744; font-size: .78rem; font-weight: 800; letter-spacing: .18em; text-transform: uppercase; }
 .eyebrow { color: #68766a; font-size: .75rem; font-weight: 800; letter-spacing: .13em; text-transform: uppercase; }
@@ -67,6 +78,8 @@ button:disabled { cursor: not-allowed; }
 .coach-thread-delete { flex-shrink: 0; width: 1.9rem; height: 1.9rem; border-radius: .5rem; color: #647167; font-size: 1.1rem; line-height: 1; }
 .coach-thread-delete:hover:not(:disabled) { background: #f8e9e4; color: #9a4332; }
 @media (max-width: 640px) {
+  .signin-visual { min-height: 24rem; }
+  .signin-ride-card { padding: 1.4rem; transform: rotate(0); }
   .coach-composer { flex-direction: column; align-items: stretch; }
   .coach-thread { max-height: 60vh; padding-inline: .9rem; }
   .page-wrap { width: min(100% - 1.25rem, 1120px); padding-block: 1rem 3rem; }
@@ -76,5 +89,5 @@ button:disabled { cursor: not-allowed; }
   .flow-panel .grid-cols-2, .settings-panel .grid-cols-2 { grid-template-columns: minmax(0, 1fr); }
 }
 @media (prefers-reduced-motion: reduce) {
-  .primary-button, .ride-tile { transition: none; }
+  .primary-button, .ride-tile, .google-button { transition: none; }
 }

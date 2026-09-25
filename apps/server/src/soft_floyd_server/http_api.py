@@ -7,10 +7,11 @@ from __future__ import annotations
 import datetime as dt
 from collections.abc import AsyncIterator
 
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from soft_floyd_core.activities import service as activities_service
+from soft_floyd_core.auth import service as auth_service
 from soft_floyd_core.bikes import service as bikes_service
 from soft_floyd_core.coach import memory as coach_memory
 from soft_floyd_core.coach import service as coach_service
@@ -29,7 +30,8 @@ from soft_floyd_core.log import get_logger
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 
-from soft_floyd_server.runtime import get_session_factory, get_sync_runner
+from soft_floyd_server.mcp_bridge import CoachMCPBridge
+from soft_floyd_server.runtime import current_sync_runner, get_session_factory
 
 router = APIRouter()
 _log = get_logger(__name__)
@@ -86,7 +88,7 @@ async def sync_garmin() -> SyncResult:
     the sync didn't; `status` says which. Keeps this identical to the MCP
     tool's return shape, which the cross-surface agreement test asserts.
     """
-    return await get_sync_runner().sync_once()
+    return await current_sync_runner().sync_once()
 
 
 @router.get("/sync/garmin/status", response_model=activities_service.SyncStatusOut)
@@ -180,7 +182,7 @@ async def garmin_login(data: GarminLoginIn) -> LoginStartResult:
     written to the DB, config, or a log line. See docs/SECURITY.md.
     """
     try:
-        return await get_sync_runner().login(data.email, data.password)
+        return await current_sync_runner().login(data.email, data.password)
     except LoginAlreadyInProgress as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except GarminApiError as exc:
@@ -190,7 +192,7 @@ async def garmin_login(data: GarminLoginIn) -> LoginStartResult:
 @router.post("/connections/garmin/mfa", response_model=LoginStartResult)
 async def garmin_submit_mfa(data: GarminMfaIn) -> LoginStartResult:
     try:
-        return await get_sync_runner().submit_mfa(data.code)
+        return await current_sync_runner().submit_mfa(data.code)
     except NoPendingLoginError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
     except GarminApiError as exc:
@@ -201,7 +203,7 @@ async def garmin_submit_mfa(data: GarminMfaIn) -> LoginStartResult:
 def garmin_disconnect() -> None:
     from soft_floyd_core.garmin.login import clear_login_block
 
-    get_sync_runner().logout()
+    current_sync_runner().logout()
     with session_scope(get_session_factory()) as session:
         clear_login_block(session)
 
@@ -248,7 +250,9 @@ def _sse(event: coach_service.CoachEvent) -> str:
 
 
 @router.post("/coach/conversations/{conversation_id}/messages")
-async def send_coach_message(conversation_id: int, data: CoachMessageIn) -> StreamingResponse:
+async def send_coach_message(
+    conversation_id: int, data: CoachMessageIn, request: Request
+) -> StreamingResponse:
     """Streams the coach's reply as Server-Sent Events: `delta` (text),
     `tool_status`, `sources`, then `done` with the saved message — or
     `error`. Anything that can reject the turn is checked first so it
@@ -271,14 +275,24 @@ async def send_coach_message(conversation_id: int, data: CoachMessageIn) -> Stre
             raise HTTPException(status_code=402, detail=str(exc)) from exc
         except ValueError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
+        mcp_token = auth_service.issue_mcp_token(
+            session, settings, request.cookies["soft_floyd_session"]
+        )
 
     async def stream() -> AsyncIterator[str]:
         try:
-            with session_scope(get_session_factory()) as session:
-                async for event in coach_service.run_turn(
-                    session, conversation_id, data.text, llm, settings.llm_monthly_budget_usd
-                ):
-                    yield _sse(event)
+            async with CoachMCPBridge(settings, mcp_token) as bridge:
+                with session_scope(get_session_factory()) as session:
+                    async for event in coach_service.run_turn(
+                        session,
+                        conversation_id,
+                        data.text,
+                        llm,
+                        settings.llm_monthly_budget_usd,
+                        tool_runner=bridge.run,
+                        context_provider=bridge.context,
+                    ):
+                        yield _sse(event)
         except (ValueError, LookupError) as exc:  # the stream is already 200; report in-band
             yield _sse(coach_service.CoachEvent(type="error", text=str(exc)))
         except Exception as exc:

@@ -14,10 +14,11 @@ function connectionTone(status: ConnectionOut["status"]): string {
 }
 
 export default function Dashboard({
-  profile, onOpenSettings, onOpenCoach, onOpenRide,
+  profile, onOpenSettings, onOpenProfile, onOpenCoach, onOpenRide,
 }: {
   profile: ProfileOut;
   onOpenSettings: () => void;
+  onOpenProfile: () => void;
   onOpenCoach: () => void;
   onOpenRide: (id: number) => void;
 }) {
@@ -72,6 +73,7 @@ export default function Dashboard({
             <button onClick={onOpenCoach} className="primary-button" disabled={!coachReady}
               aria-describedby={coachReady ? undefined : "coach-hint"}>{m.dashboard.askCoach}</button>
             <button onClick={onOpenSettings} className="secondary-button">{m.dashboard.settings}</button>
+            <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
             <LanguageToggle />
           </div>
           {connections !== null && !coachReady &&

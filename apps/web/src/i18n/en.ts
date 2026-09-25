@@ -13,6 +13,32 @@ import type {
 // Server-provided text (coach replies, API error details, goal text) is
 // not translated here.
 const en = {
+  auth: {
+    brand: "Soft Floyd",
+    eyebrow: "A coach that rides with the data you have",
+    headline: "Ride with purpose. Learn from every mile.",
+    intro: "Connect your rides, tell us what you’re working toward, and get cycling guidance grounded in what your sensors actually recorded.",
+    google: "Continue with Google",
+    register: "New here? Your account is created when you continue.",
+    secure: "Your rides and coaching stay in your own account.",
+    benefit1Title: "Your rides, in context",
+    benefit1Text: "A calm journal of your recent Garmin rides and the patterns across them.",
+    benefit2Title: "Honest about sensors",
+    benefit2Text: "No power meter? No made-up watts. The coach works with the signals each ride recorded.",
+    benefit3Title: "Coaching shaped by you",
+    benefit3Text: "Your goals, available days, bikes, and saved notes guide the conversation.",
+    previewLabel: "A more thoughtful ride journal",
+    previewHeadline: "What did this ride really tell you?",
+    previewBody: "See the signals that were recorded, then ask your coach what they mean for your goal.",
+    loading: "Checking your session…",
+    profile: "Profile",
+    profileTitle: "Your profile",
+    profileIntro: "Your Google account is how you sign in to Soft Floyd.",
+    account: "Google account",
+    accountId: (id: number) => `Account ID ${id}`,
+    signOut: "Sign out",
+    signOutError: "Could not sign out. Please try again.",
+  },
   common: {
     language: "Language",
     back: "← Back",

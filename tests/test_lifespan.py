@@ -46,7 +46,14 @@ def test_poller_task_starts_and_stops_with_the_app(monkeypatch, tmp_path):
             except asyncio.CancelledError:
                 raise
 
-    monkeypatch.setattr(lifespan, "get_sync_runner", lambda: FakeRunner())
+    from soft_floyd_core.db import session_scope
+    from soft_floyd_core.models import Account
+
+    with session_scope(runtime.get_session_factory()) as session:
+        session.add(Account(google_sub="poller-test", email="poller@example.com", name="Poller"))
+
+    runner = FakeRunner()
+    monkeypatch.setattr(lifespan, "get_sync_runner", lambda _owner: runner)
 
     from soft_floyd_server.main import app
 

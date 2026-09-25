@@ -1,59 +1,43 @@
 # Security
 
-## Threat model
+## Threat model and boundary
 
-Single-user, local-only application. The primary risks are: leaking the
-rider's Garmin credentials/tokens or OpenAI API key, and accidentally
-exposing the local server beyond the machine it runs on.
+Soft Floyd accepts multiple Google accounts but still binds to `127.0.0.1`
+by default. Every rider-data REST route requires a revocable web JWT; every
+`/mcp` request requires a separate, short-lived Bearer JWT. The web coach
+obtains its MCP token on the server after verifying the browser session.
+Books and passages are shared; profiles, rides, Garmin state, conversations,
+notes and usage attribution are account-owned.
 
-## Rules
+The web JWT is kept in an HttpOnly, SameSite=Lax cookie. State-changing
+cookie requests require the configured web Origin. The Google authorization
+code flow uses state, nonce and PKCE; the backend verifies the signed Google
+ID token and uses its stable `sub` as the account identity. Sign-out revokes
+the server-side session record, which also invalidates its MCP grants.
+Google client credentials and the JWT signing secret come from environment
+or local config; they must not be committed or logged. The signing secret
+must contain at least 32 characters. Local HTTP is only for localhost;
+future remote hosting requires HTTPS and secure cookies.
 
-- `soft-floyd serve` binds `127.0.0.1` by default. Do not change this
-  default or add a `0.0.0.0` option without an explicit request — this
-  app has no auth layer and is not meant to be reachable off-machine.
-- No authentication layer, no multi-tenancy. If a future request asks for
-  either, treat it as a significant scope change worth confirming, not a
-  routine addition.
-- Secrets (`SOFT_FLOYD_OPENAI_API_KEY`, Garmin credentials) come from
-  `~/.soft-floyd/config.toml` or environment/`.env`, never hardcoded,
-  never logged. `structlog` output must not include secret values —
-  review new log lines that touch config. The Garmin **password** is
-  never persisted at all — only the resulting token survives, whether
-  login happens via `soft-floyd garmin-login` (hidden TTY prompt) or the
-  browser (below).
-- **Garmin login from the browser** (`POST
-  /api/connections/garmin/login`, exec-plan 0004) is a deliberate,
-  considered change from the CLI-only original design: the password now
-  crosses a loopback HTTP boundary in a POST body instead of staying in
-  a TTY prompt inside one process. On this app's actual threat model —
-  bound to `127.0.0.1`, no TLS to strip on loopback, CORS still pinned to
-  the Vite dev origin, nothing persisted beyond the request — the added
-  exposure is small, but it is real, so the rule is: the password must
-  never be written to the DB, `~/.soft-floyd/config.toml`, a log line, or
-  browser storage (`localStorage`/`sessionStorage`/IndexedDB); it may
-  live only in the request body and the login worker thread's stack
-  (`soft_floyd_core.garmin.login.PendingLogin` / `run_login_in_background`),
-  discarded once the login finishes or times out. The CLI's
-  `soft-floyd garmin-login` stays available as the lower-exposure
-  fallback. Do not add a browser-login flow for any future secret
-  (an OpenAI key, a second provider's credentials) without this same
-  review — treat it as a deliberate tradeoff each time, not a precedent
-  that makes the next one automatic.
-- **Garmin tokens are deliberately NOT Keychain/Fernet-wrapped**, unlike
-  v0. `python-garminconnect` manages its own token cache at
-  `settings.garmin_token_dir` (default `~/.soft-floyd/garmin/`) —
-  `garmin_tokens.json`, written 0600 in a 0700 directory, auto-refreshed
-  in place before it expires. Wrapping that file in our own encryption
-  (v0's approach) would break the library's ability to silently
-  re-persist a refreshed token, forcing a full SSO login against a
-  Cloudflare-protected endpoint on every process restart — worse
-  reliability for no real security gain in this threat model (Fernet key
-  in the login Keychain vs. 0600 file both boil down to "readable by
-  this same logged-in user"). Do not reintroduce the Keychain wrapper;
-  if Garmin's token format changes such that this becomes riskier,
-  revisit deliberately rather than defaulting back to v0's approach.
-- `.env`, `data/` (the SQLite file and `data/fit/` FIT downloads), and the
-  Garmin token directory are gitignored and must stay that way — check
-  `.gitignore` before adding a new local secret/data path.
-- CORS in `apps/server/src/soft_floyd_server/main.py` is restricted to
-  the Vite dev origin; don't widen it to `*` for convenience.
+## Account data
+
+ORM reads and writes of rider-owned tables are scoped to the authenticated
+account in `packages/core/account_scope.py`; no request may choose an owner
+ID. Garmin token caches live in separate directories under
+`SOFT_FLOYD_GARMIN_TOKEN_DIR/<account-id>/`, and FIT files under
+`SOFT_FLOYD_FIT_DIR/<account-id>/`. The unofficial Garmin library owns token
+refresh and persistence. Tokens must remain in private local directories.
+Garmin passwords are used only for the login request or CLI prompt and are
+never stored. Login and rate-limit failures surface as actionable errors.
+
+The old single-rider database is preserved. The account-era database starts
+with fresh rider tables and a verified copy of complete books/passages. An
+attempt to migrate a populated legacy database in place is rejected.
+
+## Operational limits
+
+`/api/health` and Google login start/callback are public. Keep CORS restricted
+to the local web origin, never use wildcard origins, and do not bind the app
+publicly as a shortcut. External MCP client setup and production hardening
+are future work; no long-lived MCP token is issued in this release. The
+OpenAI cost cap is global across all accounts using the configured API key.

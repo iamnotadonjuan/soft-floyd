@@ -20,12 +20,13 @@ const STEP_ORDER: Step[] = ["habits", "goals", "garage", "about", "anchors", "co
 interface Props {
   initialProfile: ProfileOut;
   onComplete: (profile: ProfileOut) => void;
+  onOpenProfile: () => void;
 }
 
 // Order follows docs/DESIGN.md: volume and goals before sensors, and
 // never ask for a number the rider can't produce. See
 // docs/product-specs/new-user-onboarding.md for the full flow.
-export default function Onboarding({ initialProfile, onComplete }: Props) {
+export default function Onboarding({ initialProfile, onComplete, onOpenProfile }: Props) {
   const { m } = useI18n();
   const [step, setStep] = useState<Step>("habits");
   const [profile, setProfile] = useState<ProfileOut>(initialProfile);
@@ -63,6 +64,7 @@ export default function Onboarding({ initialProfile, onComplete }: Props) {
           <span className="brand">{m.onboarding.brand}</span>
           <div className="flex items-center gap-4">
             <span className="body-muted text-sm">{m.onboarding.tagline}</span>
+            <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
             <LanguageToggle />
           </div>
         </header>

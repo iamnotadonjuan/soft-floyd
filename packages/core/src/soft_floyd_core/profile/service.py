@@ -22,12 +22,10 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from soft_floyd_core.account_scope import account_id
 from soft_floyd_core.models import Bike, RiderProfile
 
 CapabilityTier = Literal["power", "hr", "cadence", "basic"]
-
-# Single-rider app: the profile is always row id 1.
-PROFILE_ROW_ID = 1
 
 # Metric name -> which tier(s) may show it. Order is display order, not priority.
 # HR-derived metrics stay available at the "power" tier because a power meter
@@ -221,9 +219,10 @@ def get_or_create_profile(session: Session) -> RiderProfile:
     its has_hr_monitor flag, to compute a per-bike tier) without going
     through the ProfileOut serialization here.
     """
-    profile = session.get(RiderProfile, PROFILE_ROW_ID)
+    owner = account_id(session)
+    profile = session.scalar(select(RiderProfile).where(RiderProfile.account_id == owner))
     if profile is None:
-        profile = RiderProfile(id=PROFILE_ROW_ID)
+        profile = RiderProfile(account_id=owner)
         session.add(profile)
         session.flush()
     return profile

@@ -17,6 +17,7 @@ from pydantic import BaseModel
 from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
+from soft_floyd_core.account_scope import account_id
 from soft_floyd_core.config import Settings
 from soft_floyd_core.models import Activity, GarminSyncState, Lap
 from soft_floyd_core.profile.service import get_profile
@@ -299,8 +300,9 @@ def get_training_summary(
 
 
 def get_sync_status(session: Session, settings: Settings) -> SyncStatusOut:
-    state = session.get(GarminSyncState, 1)
-    authenticated = (settings.garmin_token_dir / "garmin_tokens.json").exists()
+    owner = account_id(session)
+    state = session.scalar(select(GarminSyncState).where(GarminSyncState.account_id == owner))
+    authenticated = (settings.garmin_token_dir / str(owner) / "garmin_tokens.json").exists()
     if state is None:
         return SyncStatusOut(
             last_seen_activity_id=None,

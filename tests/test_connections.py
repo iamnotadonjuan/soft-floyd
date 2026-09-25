@@ -32,8 +32,9 @@ def _session_factory(settings: Settings):
 
 
 def _touch_token(settings: Settings) -> None:
-    settings.garmin_token_dir.mkdir(parents=True, exist_ok=True)
-    (settings.garmin_token_dir / "garmin_tokens.json").write_text("{}")
+    token_dir = settings.garmin_token_dir / "1"
+    token_dir.mkdir(parents=True, exist_ok=True)
+    (token_dir / "garmin_tokens.json").write_text("{}")
 
 
 # --- list_connections status mapping ------------------------------------
@@ -148,7 +149,7 @@ def _runner(tmp_path, **client_kwargs) -> SyncRunner:
     def factory(token_dir):
         return FakeGarminClient(token_dir, **client_kwargs)
 
-    return SyncRunner(sf, settings, client_factory=factory)
+    return SyncRunner(sf, settings, account_id=1, client_factory=factory)
 
 
 async def test_login_without_mfa_connects_immediately_and_releases_the_lock(tmp_path):

@@ -21,5 +21,5 @@ PR why it's deferred — don't silently ship a "no."
 6. **Scope discipline** — Did this stay inside the exec-plan's stated
    scope, or did it quietly grow? A larger scope is fine if the plan file
    was updated to say so.
-7. **Local-only, single-user** — Nothing here binds beyond `127.0.0.1` or
-   adds auth/multi-tenancy without an explicit prior ask.
+7. **Local-only, account-safe** — Nothing here binds beyond `127.0.0.1`;
+   every rider-data route and tool resolves a verified account.

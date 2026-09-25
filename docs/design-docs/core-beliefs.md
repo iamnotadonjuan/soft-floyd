@@ -18,9 +18,9 @@
    (no power meter, a dropped HR strap mid-ride), say so as part of the
    coaching, not as a buried caveat. "No power today, so I'm reading this
    off HR drift" is the model sentence.
-5. **This is a tool for one rider, not a product for many.** Resist
-   generalizing prematurely into a multi-tenant SaaS shape — see
-   `docs/PRODUCT_SENSE.md` and `docs/SECURITY.md`.
+5. **Every rider's context belongs to their account.** Google sign-in
+   separates rides, sensors, goals, Garmin connections and coach memory.
+   The training-book corpus is shared. See `docs/SECURITY.md`.
 6. **Kind, honest, direct — never harsh.** Carried from the original
    "Soft Floyd" persona: celebrate real progress without flattery, and be
    direct about fatigue/risk without being discouraging.

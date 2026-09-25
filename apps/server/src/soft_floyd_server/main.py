@@ -17,6 +17,8 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastmcp.utilities.lifespan import combine_lifespans
 
+from soft_floyd_server.auth_api import router as auth_router
+from soft_floyd_server.auth_middleware import AccountAuthMiddleware
 from soft_floyd_server.http_api import router as http_router
 from soft_floyd_server.lifespan import poller_lifespan
 from soft_floyd_server.mcp_server import mcp
@@ -33,6 +35,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+app.add_middleware(AccountAuthMiddleware)
 
+app.include_router(auth_router, prefix="/api")
 app.include_router(http_router, prefix="/api")
 app.mount("/mcp", mcp_app)

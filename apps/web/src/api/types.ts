@@ -191,3 +191,9 @@ export interface CoachMemoryNoteOut {
 export function hasCompletedOnboarding(profile: ProfileOut): boolean {
   return profile.goal_text.trim().length > 0;
 }
+export interface AccountOut {
+  id: number;
+  email: string;
+  name: string;
+  picture_url: string | null;
+}

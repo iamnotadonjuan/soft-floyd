@@ -4,6 +4,7 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from soft_floyd_core.account_scope import enter_account, leave_account
 
 FIXTURES_DIR = Path(__file__).parent / "fixtures"
 
@@ -27,6 +28,15 @@ def _no_real_garmin(monkeypatch):
     monkeypatch.setattr("garminconnect.Garmin.__init__", _refuse_to_connect)
 
 
+@pytest.fixture(autouse=True)
+def _default_account_context():
+    token = enter_account(1)
+    try:
+        yield
+    finally:
+        leave_account(token)
+
+
 @pytest.fixture
 def client(tmp_path, monkeypatch):
     """A TestClient against a fresh SQLite file per test, with the
@@ -36,15 +46,28 @@ def client(tmp_path, monkeypatch):
     monkeypatch.setenv("SOFT_FLOYD_GARMIN_TOKEN_DIR", str(tmp_path / "garmin"))
     monkeypatch.setenv("SOFT_FLOYD_FIT_DIR", str(tmp_path / "fit"))
     monkeypatch.setenv("SOFT_FLOYD_GARMIN_POLL_ENABLED", "0")
+    monkeypatch.setenv("SOFT_FLOYD_JWT_SECRET", "test-secret-with-at-least-thirty-two-characters")
 
     from soft_floyd_server import runtime
 
     runtime.get_session_factory.cache_clear()
     runtime.get_sync_runner.cache_clear()
 
+    from soft_floyd_core.auth.service import create_session
+    from soft_floyd_core.config import get_settings
+    from soft_floyd_core.db import session_scope
+    from soft_floyd_core.models import Account
     from soft_floyd_server.main import app
 
+    with session_scope(runtime.get_session_factory()) as session:
+        account = Account(google_sub="test-user", email="test@example.com", name="Test Rider")
+        session.add(account)
+        session.flush()
+        token = create_session(session, get_settings(), account)
+
     with TestClient(app) as test_client:
+        test_client.cookies.set("soft_floyd_session", token)
+        test_client.headers.update({"origin": "http://localhost:5173"})
         yield test_client
 
     runtime.get_session_factory.cache_clear()

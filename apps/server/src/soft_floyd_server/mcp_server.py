@@ -10,6 +10,8 @@ from fastmcp import FastMCP
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.bikes import service as bikes_service
 from soft_floyd_core.coach import memory as coach_memory
+from soft_floyd_core.coach import service as coach_service
+from soft_floyd_core.coach.tools import ToolResult, run_tool
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.connections import service as connections_service
 from soft_floyd_core.db import session_scope
@@ -17,9 +19,26 @@ from soft_floyd_core.garmin.sync import SyncResult
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 
-from soft_floyd_server.runtime import get_session_factory, get_sync_runner
+from soft_floyd_server.runtime import current_sync_runner, get_session_factory
 
 mcp = FastMCP("Soft Floyd")
+
+
+@mcp.tool
+def get_coach_context() -> str:
+    """Account-scoped goals, sensor tier, and saved notes for the web coach."""
+    with session_scope(get_session_factory()) as session:
+        return coach_service.rider_context(session, datetime.now())
+
+
+@mcp.tool
+async def run_coach_tool(name: str, arguments: str) -> ToolResult:
+    """Run one account-scoped coach data tool; used by the web coach."""
+    settings = get_settings()
+    with session_scope(get_session_factory()) as session:
+        return await run_tool(
+            session, name, arguments, rag_service.make_embedder(settings.openai_api_key)
+        )
 
 
 @mcp.tool
@@ -149,7 +168,7 @@ async def sync_garmin_now() -> SyncResult:
     — never silently retry or claim success in that case. "rate_limited"
     means try again later (respect retry_after_s if present).
     """
-    return await get_sync_runner().sync_once()
+    return await current_sync_runner().sync_once()
 
 
 @mcp.tool

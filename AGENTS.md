@@ -2,8 +2,8 @@
 
 Soft Floyd is a sensor-aware AI cycling coach. It ingests rides from a
 Garmin Edge device, reasons about training load using whatever sensors the
-rider actually has, and coaches through both an MCP surface (Claude
-Desktop/Code) and a small web UI. Single user, runs locally.
+rider actually has, and coaches through an authenticated MCP surface and
+a small web UI. Multiple account-owned riders, runs locally.
 
 This file is the entrypoint for any agent (human or AI) working in this
 repo. Read it before writing code.
@@ -37,9 +37,9 @@ repo. Read it before writing code.
   find yourself writing a rule inside either adapter, move it into core
   and call it from both. This is what keeps the MCP and REST surfaces
   from drifting apart.
-- **Single user, local-only.** The server binds to `127.0.0.1` by default;
-  do not add multi-tenancy or a public bind without an explicit ask. See
-  `docs/SECURITY.md`.
+- **Account isolation, local-only.** Every rider-data operation must run
+  under the authenticated account; books are the shared corpus. The server
+  binds to `127.0.0.1` by default. See `docs/SECURITY.md`.
 - **Garmin access is unofficial and will occasionally break.** Map
   auth/rate-limit failures to actionable errors, never silently retry
   forever. See `docs/RELIABILITY.md`.
@@ -67,6 +67,11 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 ```
 
 ## Current state
+
+- **0009-google-accounts** (done): Google registration/sign-in, revocable
+  JWT sessions, account-owned rider data, protected MCP tools for the web
+  coach, a shared book corpus, and simple Profile. See
+  `docs/product-specs/google-accounts.md`.
 
 - **0001-scaffold** (done): rider profile with sensor capability tiering,
   end-to-end across MCP, REST, and the web onboarding flow.

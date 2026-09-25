@@ -40,8 +40,28 @@ def _utcnow() -> dt.datetime:
     return dt.datetime.now(dt.UTC)
 
 
+class Account(Base):
+    __tablename__ = "account"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    google_sub: Mapped[str] = mapped_column(String(255), unique=True)
+    email: Mapped[str]
+    name: Mapped[str]
+    picture_url: Mapped[str | None] = mapped_column(default=None)
+    created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+
+
+class AuthSession(Base):
+    __tablename__ = "auth_session"
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id", ondelete="CASCADE"))
+    expires_at: Mapped[dt.datetime]
+    revoked_at: Mapped[dt.datetime | None] = mapped_column(default=None)
+
+
 class RiderProfile(Base):
-    """Single-row table: this app coaches one rider.
+    """One row per account for the rider's training profile.
 
     Bike-mounted sensors (power/cadence/speed) live on Bike, not here —
     exec-plan 0004. has_hr_monitor stays here because a strap is
@@ -54,7 +74,8 @@ class RiderProfile(Base):
 
     __tablename__ = "rider_profile"
 
-    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), unique=True)
 
     # Volume + goals
     weekly_rides: Mapped[int] = mapped_column(default=0)
@@ -109,6 +130,7 @@ class Bike(Base):
     __tablename__ = "bike"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     nickname: Mapped[str] = mapped_column(default="")
     kind: Mapped[str] = mapped_column(String(16), default="road")
     is_primary: Mapped[bool] = mapped_column(default=False)
@@ -130,7 +152,10 @@ class Activity(Base):
 
     __tablename__ = "activity"
 
-    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=False)  # Garmin activityId
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
+    garmin_id: Mapped[int] = mapped_column()
+    __table_args__ = (UniqueConstraint("account_id", "garmin_id"),)
     start_time: Mapped[dt.datetime]
     sport: Mapped[str] = mapped_column(String(64), default="")
     sub_sport: Mapped[str] = mapped_column(String(64), default="")
@@ -172,6 +197,7 @@ class Lap(Base):
     __table_args__ = (UniqueConstraint("activity_id", "lap_index"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     activity_id: Mapped[int] = mapped_column(ForeignKey("activity.id", ondelete="CASCADE"))
     lap_index: Mapped[int]
     distance_m: Mapped[float] = mapped_column(default=0.0)
@@ -190,6 +216,7 @@ class Record(Base):
     __table_args__ = (Index("ix_record_activity_t", "activity_id", "t_offset_s"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     activity_id: Mapped[int] = mapped_column(ForeignKey("activity.id", ondelete="CASCADE"))
     t_offset_s: Mapped[float]
     hr: Mapped[int | None] = mapped_column(default=None)
@@ -204,7 +231,7 @@ class Record(Base):
 
 
 class GarminSyncState(Base):
-    """Single-row (id=1) durable sync health — not just a cursor.
+    """One row per account for durable sync health — not just a cursor.
 
     Answers "is sync healthy, and why not" for GET /api/sync/garmin/status
     without conflating "Garmin is down" with "the rider has no rides" (see
@@ -214,7 +241,8 @@ class GarminSyncState(Base):
 
     __tablename__ = "garmin_sync_state"
 
-    id: Mapped[int] = mapped_column(primary_key=True, default=1)
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), unique=True)
     last_seen_activity_id: Mapped[int | None] = mapped_column(default=None)
     last_sync_at: Mapped[dt.datetime | None] = mapped_column(default=None)
     last_status: Mapped[str] = mapped_column(String(16), default="never")
@@ -264,6 +292,7 @@ class LLMUsageRecord(Base):
     __tablename__ = "llm_usage"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int | None] = mapped_column(ForeignKey("account.id"), default=None)
     occurred_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
     model: Mapped[str]
     prompt_tokens: Mapped[int]
@@ -279,6 +308,7 @@ class CoachConversation(Base):
     __tablename__ = "coach_conversation"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     title: Mapped[str] = mapped_column(String(120), default="New conversation")
     created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
     updated_at: Mapped[dt.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
@@ -298,6 +328,7 @@ class CoachMessage(Base):
     __table_args__ = (Index("ix_coach_message_conversation_id", "conversation_id"),)
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     conversation_id: Mapped[int] = mapped_column(
         ForeignKey("coach_conversation.id", ondelete="CASCADE")
     )
@@ -317,5 +348,6 @@ class CoachMemoryNote(Base):
     __tablename__ = "coach_memory_note"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
     text: Mapped[str] = mapped_column(String(300))
     created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)

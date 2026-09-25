@@ -1,77 +1,70 @@
 # Soft Floyd
 
-A sensor-aware AI cycling coach. It learns what training volume and goals
-you have, what hardware you actually ride with (power meter, HR monitor,
-cadence/speed sensors), and coaches you using only the signals that
-hardware can produce — never a fabricated one.
+Soft Floyd is a sensor-aware AI cycling coach. It reads recorded Garmin
+rides, keeps an honest account of the sensors available on each ride, and
+uses your goals to shape the advice. Multiple riders can sign in with Google;
+each rider's data is private to their account. The app currently runs locally.
 
-Single user, runs locally. Backend exposes both an MCP surface (usable
-from Claude Desktop/Code) and a small REST API for the bundled web UI.
-
-For how the system is put together, see [ARCHITECTURE.md](ARCHITECTURE.md).
-For agent/contributor working rules, see [AGENTS.md](AGENTS.md).
-For the product and design reasoning, see [docs/](docs/) — start with
-[docs/design-docs/index.md](docs/design-docs/index.md).
-
-## Quick start
+## Local setup
 
 ```bash
-make setup        # uv sync + pnpm install
-
-# terminal 1
-make dev-server    # http://127.0.0.1:8000  (REST at /api, MCP at /mcp)
-
-# terminal 2
-make dev-web       # http://localhost:5173  (proxies /api, /mcp to :8000)
+make setup
 ```
 
-Open `http://localhost:5173` and complete onboarding: how much you ride,
-what you want to improve, and what sensors you have. That last part
-determines what the coach is allowed to talk about — see
-[docs/design-docs/sensor-capability-model.md](docs/design-docs/sensor-capability-model.md).
+Create Google OAuth credentials for a **Web application** and register
+`http://localhost:5173/api/auth/google/callback` as an authorized redirect
+URI. Add `SOFT_FLOYD_GOOGLE_CLIENT_ID`,
+`SOFT_FLOYD_GOOGLE_CLIENT_SECRET`, and a random
+`SOFT_FLOYD_JWT_SECRET` of at least 32 characters to your local `.env` or
+`~/.soft-floyd/config.toml`. See `.env.example`. Google sign-in requires
+internet access even though the app server runs locally.
 
-## Connecting Garmin
-
-One-time interactive login, then sync runs automatically every 10
-minutes (or trigger it manually):
+To keep previously imported training books while starting rider accounts
+from empty tables, run once:
 
 ```bash
-uv run soft-floyd garmin-login   # prompts email/password/MFA; nothing is persisted but the resulting token
-uv run soft-floyd garmin-sync    # one-shot sync, without starting the server
+uv run soft-floyd prepare-account-db \
+  --source data/soft-floyd.db \
+  --target data/soft-floyd-accounts.db
 ```
 
-See [docs/product-specs/garmin-sync.md](docs/product-specs/garmin-sync.md)
-for how the free/unofficial `python-garminconnect` integration works and
-why the official Garmin/Strava APIs aren't options here.
+The command accepts an already-created **empty** account-era target and
+refuses to change one containing data. It never modifies the old database.
 
-## Talking to it from Claude Desktop / Claude Code
-
-Point an MCP client at `http://127.0.0.1:8000/mcp` (streamable-http
-transport) while `make dev-server` is running. Available tools today:
-`get_rider_profile`, `set_rider_profile`, `get_available_metrics`,
-`list_activities`, `get_activity`, `sync_garmin_now`,
-`get_garmin_sync_status`.
-
-## Commands
+Start the backend and web app in separate terminals:
 
 ```bash
-make check          # lint + test, Python and web
-make docs-schema     # regenerate docs/generated/db-schema.md
-uv run pytest        # Python tests only
-uv run ruff check .   # Python lint only
-cd apps/web && pnpm run typecheck
+make dev-server  # 127.0.0.1:8000
+make dev-web     # http://localhost:5173
 ```
 
-## Status
+Open `http://localhost:5173`, continue with Google, then complete rider
+onboarding. Profile shows your account identity and sign-out; Settings holds
+training details and the Garmin connection.
 
-Rider profile (sensor capability tiering) and Garmin activity sync
-(automatic + manual, bike classification, per-ride sensor-presence
-detection) both work end-to-end across MCP, REST, and the CLI. Metrics
-computation (HR zones, TRIMP, FTP/NP/TSS), RAG over training books, and
-the coach agent are not built yet — see `docs/exec-plans/active/` for
-what's planned next and `docs/exec-plans/tech-debt-tracker.md` for what's
-deferred (including: historical backfill, manual FIT upload, wellness
-sync, and a web UI for the activities that now sync in the background).
+## Garmin and coach
 
-The previous single-rider, HR-only implementation is preserved at git tag
-`v0-legacy`.
+Garmin can connect from onboarding or Settings. The CLI is also available
+with your local account ID shown in Profile:
+
+```bash
+uv run soft-floyd garmin-login --account-id 1
+uv run soft-floyd garmin-sync --account-id 1
+```
+
+The web coach calls Soft Floyd's protected `/mcp` endpoint for context and
+data tools. `/mcp` rejects requests without a short-lived account token.
+External MCP client token setup is deferred, so Claude Desktop/Code cannot
+connect directly in this release. OpenAI calls use the configured API key
+and the existing server-wide monthly spending cap.
+
+## Checks and project docs
+
+```bash
+make check
+make docs-schema
+```
+
+See [ARCHITECTURE.md](ARCHITECTURE.md), [AGENTS.md](AGENTS.md),
+[docs/SECURITY.md](docs/SECURITY.md), and the
+[Google accounts spec](docs/product-specs/google-accounts.md).

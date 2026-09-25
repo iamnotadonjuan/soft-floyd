@@ -2,6 +2,7 @@
 // docs/FRONTEND.md.
 
 import type {
+  AccountOut,
   ActivityDetailOut,
   ActivitySummaryOut,
   BikeIn,
@@ -31,6 +32,9 @@ async function send(path: string, init?: RequestInit): Promise<Response> {
     ...init,
   });
   if (!response.ok) {
+    if (response.status === 401 && path !== "/auth/me") {
+      window.dispatchEvent(new Event("soft-floyd-unauthorized"));
+    }
     const body = await response.text();
     // FastAPI's default error shape is {"detail": "..."} — surface that
     // message directly rather than the raw JSON envelope when possible.
@@ -86,6 +90,8 @@ async function streamCoachMessage(
 }
 
 export const api = {
+  getMe: () => request<AccountOut>("/auth/me"),
+  logout: () => request<void>("/auth/logout", { method: "POST" }),
   getProfile: () => request<ProfileOut>("/profile"),
   updateProfile: (data: ProfileIn) =>
     request<ProfileOut>("/profile", { method: "PUT", body: JSON.stringify(data) }),

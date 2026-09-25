@@ -20,6 +20,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 import anyio
+from sqlalchemy import select
 from sqlalchemy.orm import Session, sessionmaker
 
 if TYPE_CHECKING:
@@ -28,6 +29,7 @@ if TYPE_CHECKING:
     # below import garmin.login locally, at call time, instead.
     from soft_floyd_core.garmin.login import PendingLogin
 
+from soft_floyd_core.account_scope import account_id, enter_account, leave_account
 from soft_floyd_core.activities.pipeline import ingest_activity
 from soft_floyd_core.config import Settings
 from soft_floyd_core.db import session_scope
@@ -102,9 +104,10 @@ def _wait_for_first_event(
 def get_or_create_sync_state(session: Session) -> GarminSyncState:
     """The single-row (id=1) durable sync state. Shared with garmin.login,
     which needs the same row for the login cooldown."""
-    state = session.get(GarminSyncState, 1)
+    owner = account_id(session)
+    state = session.scalar(select(GarminSyncState).where(GarminSyncState.account_id == owner))
     if state is None:
-        state = GarminSyncState(id=1)
+        state = GarminSyncState(account_id=owner)
         session.add(state)
         session.flush()
     return state
@@ -183,7 +186,7 @@ def run_sync_cycle(
         try:
             activity = ingest_activity(session, settings, client, summary)
             if activity is not None:
-                new_ids.append(activity.id)
+                new_ids.append(activity.garmin_id)
             max_seen = activity_id if max_seen is None else max(max_seen, activity_id)
         except GarminNotFound:
             log.warning("sync.activity_not_found", activity_id=activity_id)
@@ -267,10 +270,12 @@ class SyncRunner:
         session_factory: sessionmaker[Session],
         settings: Settings,
         *,
+        account_id: int,
         client_factory: Callable[..., GarminClient] = GarminClient,
     ) -> None:
         self._session_factory = session_factory
         self._settings = settings
+        self._account_id = account_id
         self._client_factory = client_factory
         self._client: GarminClient | None = None
         self._lock = asyncio.Lock()
@@ -334,7 +339,13 @@ class SyncRunner:
         pending = PendingLogin()
         self._pending_login = pending
         run_login_in_background(
-            self._session_factory, self._settings, self._get_client(), email, password, pending
+            self._session_factory,
+            self._settings,
+            self._get_client(),
+            email,
+            password,
+            pending,
+            self._account_id,
         )
 
         await anyio.to_thread.run_sync(
@@ -394,6 +405,14 @@ class SyncRunner:
     async def run_forever(self) -> None:
         if not self._settings.garmin_poll_enabled:
             return
+
+        token = enter_account(self._account_id)
+        try:
+            await self._run_forever_scoped()
+        finally:
+            leave_account(token)
+
+    async def _run_forever_scoped(self) -> None:
 
         consecutive_errors = 0
         while not self._stop_event.is_set():

@@ -11,7 +11,7 @@ from __future__ import annotations
 
 import datetime as dt
 import json
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from typing import Any, Literal, Protocol
 
 from pydantic import BaseModel
@@ -21,7 +21,7 @@ from sqlalchemy.orm import Session
 from soft_floyd_core.coach import memory
 from soft_floyd_core.coach.guardrail import REFUSAL, ScopeClassifier, classify_scope
 from soft_floyd_core.coach.prompts import SYSTEM_PROMPT
-from soft_floyd_core.coach.tools import TOOLS, SourceOut, run_tool
+from soft_floyd_core.coach.tools import TOOLS, SourceOut, ToolResult, run_tool
 from soft_floyd_core.llm.client import ChatDone, LLMClient, TextDelta
 from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
 from soft_floyd_core.models import CoachConversation, CoachMessage
@@ -139,7 +139,7 @@ def check_turn(session: Session, conversation_id: int, text: str, budget_usd: fl
     return text
 
 
-def _rider_context(session: Session, now: dt.datetime) -> str:
+def rider_context(session: Session, now: dt.datetime) -> str:
     profile = get_profile(session)
     notes = memory.list_notes(session)
     lines = [
@@ -167,6 +167,8 @@ async def run_turn(
     llm: CoachLLM,
     budget_usd: float,
     now: dt.datetime | None = None,
+    tool_runner: Callable[[str, str], Awaitable[ToolResult]] | None = None,
+    context_provider: Callable[[], Awaitable[str]] | None = None,
 ) -> AsyncIterator[CoachEvent]:
     text = check_turn(session, conversation_id, text, budget_usd)
     conv = _get(session, conversation_id)
@@ -191,7 +193,14 @@ async def run_turn(
     else:
         messages: list[dict[str, Any]] = [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "system", "content": _rider_context(session, now or dt.datetime.now())},
+            {
+                "role": "system",
+                "content": (
+                    await context_provider()
+                    if context_provider is not None
+                    else rider_context(session, now or dt.datetime.now())
+                ),
+            },
             *({"role": m.role, "content": m.content} for m in history),
             {"role": "user", "content": text},
         ]
@@ -228,7 +237,11 @@ async def run_turn(
                 }
             )
             for call in done.tool_calls:
-                result = await run_tool(session, call.name, call.arguments, llm)
+                result = (
+                    await tool_runner(call.name, call.arguments)
+                    if tool_runner is not None
+                    else await run_tool(session, call.name, call.arguments, llm)
+                )
                 session.commit()
                 yield CoachEvent(type="tool_status", text=result.status)
                 for source in result.sources:

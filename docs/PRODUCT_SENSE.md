@@ -2,8 +2,8 @@
 
 ## Who this is for
 
-One rider (initially the repo owner), riding road and/or MTB on a Garmin
-Edge device, who wants a coach that notices patterns across rides rather
+Riders on separate Google accounts, riding road and/or MTB on a Garmin
+Edge device, who want a coach that notices patterns across rides rather
 than a dashboard that just shows numbers back. Hardware varies rider to
 rider and even ride to ride — some have a power meter, most don't, all
 have *something* on the Edge.
@@ -29,8 +29,8 @@ have *something* on the Edge.
 ## What we refuse to build
 
 - Anything that fabricates a sensor reading and presents it as measured.
-- A public/multi-tenant product — this is a personal tool, not a SaaS.
-  Don't add auth, billing, or a second user without an explicit ask.
+- Billing and public hosting are future decisions. This release keeps the
+  server local while isolating multiple signed-in accounts.
 - A dashboard that outgrows the rider's actual sensors — no power-focused
   UI chrome (power curves, W′ balance) shown to a rider without a power
   meter, even as a grayed-out teaser. If they don't have it, it doesn't

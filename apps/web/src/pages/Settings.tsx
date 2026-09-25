@@ -13,6 +13,7 @@ interface Props {
   profile: ProfileOut;
   onProfileChange: (profile: ProfileOut) => void;
   onBack: () => void;
+  onOpenProfile: () => void;
 }
 
 const LEVELS: SelfRatedLevel[] = ["beginner", "recreational", "enthusiast", "competitive"];
@@ -25,7 +26,7 @@ function numberField(raw: string): number | null {
 // PUT /api/profile partial update — the same components (pickers,
 // BikeEditor, ConnectionsPanel) onboarding walks as steps, here stacked
 // as always-visible sections instead. See docs/FRONTEND.md.
-export default function Settings({ profile, onProfileChange, onBack }: Props) {
+export default function Settings({ profile, onProfileChange, onBack, onOpenProfile }: Props) {
   const { m } = useI18n();
   async function save(patch: Record<string, unknown>) {
     const updated = await api.updateProfile(patch);
@@ -40,6 +41,7 @@ export default function Settings({ profile, onProfileChange, onBack }: Props) {
           <span className="brand">{m.settings.brand}</span>
           <div className="flex items-center gap-4">
             <button onClick={onBack} className="text-button">{m.common.backToRides}</button>
+            <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
             <LanguageToggle />
           </div>
         </header>
