@@ -110,9 +110,10 @@ TOOLS: list[dict[str, Any]] = [
         "as a training session the rider can review, export to a file, or send to Garmin. Use "
         'this when the rider asks what to do for a specific ride ("what should I do tomorrow", '
         '"plan hard intervals for Saturday"), not for general training advice. Only call it once '
-        "you know the date, available minutes, setting and discipline from the rider — ask for "
-        "whatever is missing first. Never invent a watt/HR/bpm number yourself — the tool "
-        "resolves targets against the rider's own sensors.",
+        "you know the date, available minutes, setting and discipline: infer what the rider's "
+        "words imply (a named climb or route means outdoor) and ask only for what's still "
+        "missing. Never invent a watt/HR/bpm number yourself — the tool resolves targets "
+        "against the rider's own sensors.",
         {
             "planned_date": {
                 "type": "string",

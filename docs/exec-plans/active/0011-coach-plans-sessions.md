@@ -33,6 +33,13 @@ No new LLM calls or endpoints: cost and budget behavior are unchanged.
 
 ## Result
 
+The prompt tells the coach to infer what it can from the rider's words
+(a named climb or route means outdoor, "trainer"/"Zwift" means indoor,
+relative dates resolve against today) and to ask only for what is still
+missing, saying which fields it assumed. Live testing showed the first
+version asked "indoor or outdoor?" even after the rider named Alto de
+Patios.
+
 Implemented; `make check` green. The live model's habit of asking for
 missing inputs before calling the tool is prompt-driven and has not been
 observed against the real OpenAI API.
