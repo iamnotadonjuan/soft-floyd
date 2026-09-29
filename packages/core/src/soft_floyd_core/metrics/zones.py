@@ -53,6 +53,13 @@ def lthr_from_max_hr(max_hr: int) -> int:
     return round(max_hr * _LTHR_FRACTION_OF_MAX_HR)
 
 
+def resolve_lthr(lthr: int | None, max_hr: int | None) -> int | None:
+    """The declared LTHR, else a guess from the declared max HR, else None."""
+    if lthr:
+        return lthr
+    return lthr_from_max_hr(max_hr) if max_hr else None
+
+
 def time_in_zones(
     t_offset_s: Sequence[float], hr: Sequence[int | None], zones: HRZones
 ) -> dict[int, float]:

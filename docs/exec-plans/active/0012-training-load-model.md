@@ -120,6 +120,16 @@ per-bike or per-discipline load splits.
 2. `metrics/load.py`: per-ride load and basis selection, pure functions
    over plain inputs (duration, avg power/HR, optional record arrays,
    FTP, LTHR) so they test without a database.
+   *Done.* `ride_load(RideLoadInput, ftp_watts=, lthr=) -> RideLoad` picks
+   the basis; the caller passes `power_verified` / `hr_verified` from the
+   per-ride gate (step 3), so `load.py` never reads an unverified stream.
+   Choices worth knowing: HR-zone load falls back to `hr_avg` when HR
+   samples cover under half the ride (strap dropout); zone weights are
+   Coggan's hrTSS per hour (20/40/60/80/100, his Z5a-c collapsed);
+   duration-only rides score 40 per hour; NP holds the last power value
+   across recording gaps, so a long paused stretch inside a ride counts
+   at its last power (worth revisiting if auto-pause rides look inflated).
+   `resolve_lthr` (declared LTHR, else from max HR) lives in `zones.py`.
 3. `metrics/service.py`: daily series, CTL/ATL/TSB, confidence, basis
    counts, notes, and the `TrainingLoadOut` model. Reads `activity` and
    `record` through the same per-ride gate as `get_training_summary`.
