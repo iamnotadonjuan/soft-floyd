@@ -153,3 +153,91 @@ def test_rest_reports_budget_exhaustion(client, monkeypatch):
         assert response.status_code == 402
     finally:
         engine.dispose()
+
+
+def test_patch_edits_a_planned_session(client, monkeypatch):
+    engine, _ = _shared_factory(monkeypatch)
+    llm = FakeStructuredLLM(_response())
+    monkeypatch.setattr(training_service, "make_training_llm", lambda _key: llm)
+    try:
+        created = client.post(
+            "/api/training/sessions",
+            json={
+                "planned_date": "2026-09-25",
+                "available_minutes": 60,
+                "setting": "outdoor",
+                "discipline": "road",
+            },
+        ).json()
+        url = f"/api/training/sessions/{created['id']}"
+
+        moved = client.patch(url, json={"planned_date": "2026-09-27"})
+        assert moved.status_code == 200, moved.text
+        assert moved.json()["planned_date"] == "2026-09-27"
+        assert moved.json()["workout"] == created["workout"]
+
+        rebuilt = client.patch(url, json={"available_minutes": 30, "setting": "indoor"})
+        assert rebuilt.status_code == 200, rebuilt.text
+        request = rebuilt.json()["request"]
+        assert (request["available_minutes"], request["setting"]) == (30, "indoor")
+        assert request["planned_date"] == "2026-09-27"  # earlier edit kept
+
+        # Status-only PATCH still works the way it always did.
+        assert client.patch(url, json={"status": "skipped"}).json()["status"] == "skipped"
+    finally:
+        engine.dispose()
+
+
+def test_patch_rejects_bad_edits(client, monkeypatch):
+    engine, _ = _shared_factory(monkeypatch)
+    monkeypatch.setattr(
+        training_service, "make_training_llm", lambda _key: FakeStructuredLLM(_response())
+    )
+    try:
+        created = client.post(
+            "/api/training/sessions",
+            json={
+                "planned_date": "2026-09-25",
+                "available_minutes": 60,
+                "setting": "outdoor",
+                "discipline": "road",
+            },
+        ).json()
+        url = f"/api/training/sessions/{created['id']}"
+
+        both = client.patch(url, json={"status": "done", "available_minutes": 30})
+        assert both.status_code == 400
+        assert client.patch(url, json={}).status_code == 400
+        assert client.patch(url, json={"available_minutes": 0}).status_code == 422
+        assert client.patch("/api/training/sessions/999", json={"feel": "tired"}).status_code == 404
+
+        client.patch(url, json={"status": "done"})
+        assert client.patch(url, json={"available_minutes": 30}).status_code == 409
+    finally:
+        engine.dispose()
+
+
+def test_patch_rebuild_needs_a_key_but_a_move_does_not(client, monkeypatch):
+    engine, _ = _shared_factory(monkeypatch)
+    monkeypatch.setattr(
+        training_service, "make_training_llm", lambda _key: FakeStructuredLLM(_response())
+    )
+    try:
+        created = client.post(
+            "/api/training/sessions",
+            json={
+                "planned_date": "2026-09-25",
+                "available_minutes": 60,
+                "setting": "outdoor",
+                "discipline": "road",
+            },
+        ).json()
+        url = f"/api/training/sessions/{created['id']}"
+        monkeypatch.setattr(training_service, "make_training_llm", lambda _key: None)  # no key
+
+        assert client.patch(url, json={"planned_date": "2026-09-28"}).status_code == 200
+        rebuild = client.patch(url, json={"available_minutes": 30})
+        assert rebuild.status_code == 400
+        assert "OPENAI_API_KEY" in rebuild.json()["detail"]
+    finally:
+        engine.dispose()

@@ -28,7 +28,7 @@ from soft_floyd_core.models import Activity, Lap
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 from soft_floyd_core.training import service as training_service
-from soft_floyd_core.training.schemas import SessionRequest
+from soft_floyd_core.training.schemas import SessionChanges, SessionRequest
 
 
 class SourceOut(BaseModel):
@@ -155,6 +155,28 @@ TOOLS: list[dict[str, Any]] = [
         ["setting", "discipline"],
     ),
     _fn(
+        "update_training_session",
+        "Edit a session that is still planned (find its id with list_training_sessions). Send "
+        "ONLY the fields that change. A date-only change just moves the session and keeps its "
+        "workout; changing minutes, setting, discipline, bike, route idea or feel rebuilds the "
+        "workout. Done or skipped sessions can't be edited. Never invent a watt/HR/bpm number — "
+        "the tool re-resolves targets against the rider's own sensors.",
+        {
+            "session_id": {"type": "integer"},
+            "planned_date": {"type": ["string", "null"], "description": "New ISO date."},
+            "available_minutes": {"type": ["integer", "null"]},
+            "setting": {"type": ["string", "null"], "enum": ["indoor", "outdoor", None]},
+            "discipline": {"type": ["string", "null"], "enum": ["road", "mtb", "gravel", None]},
+            "bike_id": {
+                "type": ["integer", "null"],
+                "description": "A bike id from get_rider_profile.",
+            },
+            "route_idea": {"type": ["string", "null"]},
+            "feel": {"type": ["string", "null"], "enum": ["fresh", "normal", "tired", None]},
+        },
+        ["session_id"],
+    ),
+    _fn(
         "list_training_sessions",
         "List the rider's planned/done/skipped training sessions, most recent planned_date first.",
         {},
@@ -264,6 +286,32 @@ async def _plan_training_session(session: Session, args: dict[str, Any], llm: An
     return ToolResult(_json(result), status, training_session_ids=[result.id])
 
 
+async def _update_training_session(session: Session, args: dict[str, Any], llm: Any) -> ToolResult:
+    status = "Updating your training session"
+    settings = get_settings()
+    session_id = int(args["session_id"])
+    # Only the fields the model sent; `sent()` ignores nulls except bike_id.
+    changes = SessionChanges.model_validate(
+        {k: v for k, v in args.items() if k != "session_id" and (k == "bike_id" or v is not None)}
+    )
+    try:
+        result = await training_service.update_session(
+            session,
+            llm,
+            llm,
+            session_id,
+            changes,
+            budget_usd=settings.llm_monthly_budget_usd,
+        )
+    except (
+        training_service.SessionNotFoundError,
+        training_service.SessionNotEditableError,
+        BudgetExceededError,
+    ) as exc:
+        return ToolResult(_json({"error": str(exc)}), status)
+    return ToolResult(_json(result), status, training_session_ids=[result.id])
+
+
 def _list_training_sessions(session: Session) -> ToolResult:
     sessions = training_service.list_sessions(session)
     payload = {"sessions": [s.model_dump(mode="json") for s in sessions]}
@@ -319,6 +367,8 @@ async def run_tool(session: Session, name: str, raw_args: str, embedder: Any) ->
             return await _search_books(session, str(args.get("query", "")), embedder)
         if name == "plan_training_session":
             return await _plan_training_session(session, args, embedder)
+        if name == "update_training_session":
+            return await _update_training_session(session, args, embedder)
         if name == "list_training_sessions":
             return _list_training_sessions(session)
         if name == "remember":

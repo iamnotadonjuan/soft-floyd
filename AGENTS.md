@@ -68,6 +68,13 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0013-edit-planned-sessions** (built; manual checks pending, so the plan
+  is still in `docs/exec-plans/active/`): a planned session can be edited
+  from its card (Training page and coach chat) or by asking the coach —
+  date, minutes, setting, discipline, bike, idea, feel. A date-only edit
+  just moves it; anything else rebuilds the workout with one LLM call. REST
+  `PATCH /api/training/sessions/{id}`, MCP `update_training_session`. See
+  `docs/product-specs/training-sessions.md`.
 - **0012-training-load-model** (done; live checks still pending, see the
   tech-debt tracker): fitness/fatigue/form (CTL/ATL/TSB)
   from the rider's own rides, each scored from the best stream that ride

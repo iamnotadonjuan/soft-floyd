@@ -35,6 +35,29 @@ class SessionRequest(BaseModel):
     feel: Feel = "normal"
 
 
+class SessionChanges(BaseModel):
+    """A partial edit of a planned session's request. Which fields the caller
+    actually sent is read from `model_fields_set`, so an explicit
+    `bike_id: null` ("pick one for me") differs from leaving it out."""
+
+    planned_date: dt.date | None = None
+    available_minutes: int | None = Field(default=None, gt=0, le=600)
+    setting: SessionSetting | None = None
+    discipline: Discipline | None = None
+    bike_id: int | None = None
+    route_idea: str | None = None
+    feel: Feel | None = None
+
+    def sent(self) -> dict[str, object]:
+        """Only the fields the caller sent. A field other than `bike_id`
+        sent as null is treated as not sent: null isn't a valid value for them."""
+        return {
+            name: getattr(self, name)
+            for name in self.model_fields_set
+            if name == "bike_id" or getattr(self, name) is not None
+        }
+
+
 class SessionIntent(BaseModel):
     """The deterministic (non-LLM) read on what this session should do —
     training/intent.py's output. Persisted on TrainingSession.intent so a

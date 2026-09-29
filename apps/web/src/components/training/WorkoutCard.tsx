@@ -4,6 +4,7 @@ import { api, ApiError } from "../../api/client";
 import type { RepeatBlock, StepEnd, StepTarget, TrainingSessionOut, WorkoutStep } from "../../api/types";
 import { useI18n } from "../../i18n/I18nProvider";
 import { rideDuration } from "../activityFormat";
+import EditSessionForm from "./EditSessionForm";
 
 function errorText(e: unknown): string {
   return e instanceof ApiError ? e.message : String(e);
@@ -69,6 +70,7 @@ export default function WorkoutCard({ session, garminConnected, onChange, onDele
   const { m, intlLocale } = useI18n();
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [editing, setEditing] = useState(false);
 
   async function run(key: string, action: () => Promise<void>) {
     setBusy(key);
@@ -90,7 +92,7 @@ export default function WorkoutCard({ session, garminConnected, onChange, onDele
           <h3 className="text-xl font-semibold">{session.workout.name}</h3>
           <p className="body-muted mt-1 text-sm">
             {m.training.estMinutes(session.workout.est_minutes)} ·{" "}
-            {new Date(session.planned_date).toLocaleDateString(intlLocale, {
+            {new Date(`${session.planned_date}T00:00:00`).toLocaleDateString(intlLocale, {
               weekday: "long", month: "short", day: "numeric",
             })}
           </p>
@@ -130,6 +132,14 @@ export default function WorkoutCard({ session, garminConnected, onChange, onDele
         )}
       </ol>
 
+      {editing && (
+        <EditSessionForm
+          session={session}
+          onSaved={(updated) => { onChange(updated); setEditing(false); }}
+          onCancel={() => setEditing(false)}
+        />
+      )}
+
       {error && <p className="notice-error" role="alert">{error}</p>}
 
       <div className="flex flex-wrap items-center gap-2 pt-2">
@@ -154,6 +164,15 @@ export default function WorkoutCard({ session, garminConnected, onChange, onDele
         >
           {busy === "regenerate" ? m.training.actions.regenerating : m.training.actions.regenerate}
         </button>
+        {session.status === "planned" && !editing && (
+          <button
+            className="secondary-button"
+            disabled={busy !== null}
+            onClick={() => setEditing(true)}
+          >
+            {m.training.actions.edit}
+          </button>
+        )}
         {session.status !== "done" && (
           <button
             className="text-button"

@@ -472,6 +472,92 @@ async def test_get_training_load_tool_reports_load_and_its_basis(session):
     assert result.status == "Checking your training load"
 
 
+_EASY_SPIN = {
+    "workout": {
+        "name": "Easy spin",
+        "est_minutes": 30,
+        "steps": [
+            {
+                "kind": "warmup",
+                "name": "Warm up",
+                "cue": "Easy",
+                "end": {"kind": "time", "seconds": 1800, "meters": None},
+                "target": {"kind": "none", "low": None, "high": None, "hr_zone": None},
+            },
+        ],
+    },
+    "rationale": "A gentle spin.",
+    "adjustments": None,
+}
+
+
+async def test_update_training_session_tool_edits_and_reports_the_session(session):
+    _seed(session)
+    llm = FakeLLM(structured_result=_EASY_SPIN)
+    plan = await run_tool(
+        session,
+        "plan_training_session",
+        json.dumps({"setting": "outdoor", "discipline": "road", "planned_date": "2026-09-25"}),
+        llm,
+    )
+    session_id = json.loads(plan.content)["id"]
+
+    moved = await run_tool(
+        session,
+        "update_training_session",
+        json.dumps({"session_id": session_id, "planned_date": "2026-09-27", "feel": None}),
+        llm,
+    )
+    payload = json.loads(moved.content)
+    assert payload["planned_date"] == "2026-09-27"
+    assert moved.training_session_ids == [session_id]
+    assert len(llm.structured_calls) == 1  # a date-only edit makes no AI call
+
+    rebuilt = await run_tool(
+        session,
+        "update_training_session",
+        json.dumps({"session_id": session_id, "available_minutes": 45}),
+        llm,
+    )
+    assert json.loads(rebuilt.content)["request"]["available_minutes"] == 45
+    assert len(llm.structured_calls) == 2
+
+
+async def test_update_training_session_tool_errors_go_back_to_the_model(session):
+    _seed(session)
+    llm = FakeLLM(structured_result=_EASY_SPIN)
+
+    unknown = await run_tool(
+        session, "update_training_session", json.dumps({"session_id": 99, "feel": "tired"}), llm
+    )
+    assert "error" in json.loads(unknown.content)
+    assert unknown.training_session_ids == []
+
+    plan = await run_tool(
+        session,
+        "plan_training_session",
+        json.dumps({"setting": "outdoor", "discipline": "road", "planned_date": "2026-09-25"}),
+        llm,
+    )
+    session_id = json.loads(plan.content)["id"]
+    training_service.update_status(session, session_id, "done")
+    done = await run_tool(
+        session,
+        "update_training_session",
+        json.dumps({"session_id": session_id, "available_minutes": 30}),
+        llm,
+    )
+    assert "Only planned sessions" in json.loads(done.content)["error"]
+
+    bad = await run_tool(
+        session,
+        "update_training_session",
+        json.dumps({"session_id": session_id, "planned_date": "not a date"}),
+        llm,
+    )
+    assert "error" in json.loads(bad.content)
+
+
 async def test_tool_errors_go_back_to_the_model(session):
     _seed(session)
     bad_json = await run_tool(session, "get_ride", "{not json", None)

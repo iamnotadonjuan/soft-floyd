@@ -29,7 +29,28 @@ why — recent load, the goal, how they said they feel), and the step list
 intensity target and an end condition each.
 
 Sessions are listed (upcoming and past) below the flow; each can be
-regenerated, marked done/skipped, or deleted.
+regenerated, edited, marked done/skipped, or deleted.
+
+## Editing a session
+
+A session that is still planned has an Edit button. It reopens the same
+inputs as the flow above (date, minutes, indoor/outdoor, discipline, bike,
+idea, how they feel), prefilled:
+
+- Changing **only the date** just moves the session: the workout stays as
+  it is and no AI call is made.
+- Changing **anything else** rebuilds the workout from the edited request,
+  one LLM call under the same monthly cap (see Cost). If the setting or
+  discipline changed and no bike was picked, the bike is chosen again.
+- Done and skipped sessions can't be edited. Plan a new one instead.
+- If the session had already been sent to Garmin, the form warns that the
+  old copy stays in Garmin Connect until the rider deletes it there, and the
+  rebuilt or moved session has to be sent again.
+
+The coach can make the same edits in chat ("make tomorrow's session 45
+minutes", "move it to Saturday"); the updated card appears in the
+conversation. Over REST it is `PATCH /api/training/sessions/{id}` with the
+changed fields; over MCP, `update_training_session`.
 
 ## What it blends
 
@@ -80,7 +101,7 @@ Wahoo's own cloud push (needs partner API approval) is deferred — see
 
 ## Cost
 
-Planning a session is one LLM call, subject to the same
+Planning a session, or rebuilding one after an edit, is one LLM call, subject to the same
 `SOFT_FLOYD_LLM_MONTHLY_BUDGET_USD` cap as the coach
 (`docs/product-specs/coach-chat.md`); over budget returns a 402 with a
 clear message instead of a silent failure.

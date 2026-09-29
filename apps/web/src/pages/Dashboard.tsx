@@ -133,7 +133,7 @@ export default function Dashboard({
           <button onClick={onOpenTraining} className="ride-tile surface mb-12 block w-full p-5 text-left">
             <span className="eyebrow">
               {m.dashboard.upcomingSessionEyebrow} ·{" "}
-              {new Date(nextSession.planned_date).toLocaleDateString(intlLocale, { weekday: "short", month: "short", day: "numeric" })}
+              {new Date(`${nextSession.planned_date}T00:00:00`).toLocaleDateString(intlLocale, { weekday: "short", month: "short", day: "numeric" })}
             </span>
             <span className="mt-2 block text-xl font-semibold text-[#243e2c]">{nextSession.workout.name}</span>
             <span className="mt-3 block text-sm font-semibold text-[#31563e]">{m.dashboard.viewSession}</span>

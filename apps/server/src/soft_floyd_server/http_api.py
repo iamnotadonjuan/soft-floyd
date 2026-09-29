@@ -32,7 +32,7 @@ from soft_floyd_core.metrics import service as metrics_service
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 from soft_floyd_core.training import service as training_service
-from soft_floyd_core.training.schemas import SessionRequest, SessionStatus
+from soft_floyd_core.training.schemas import SessionChanges, SessionRequest, SessionStatus
 
 from soft_floyd_server.mcp_bridge import CoachMCPBridge
 from soft_floyd_server.runtime import current_sync_runner, get_session_factory
@@ -190,21 +190,49 @@ async def regenerate_training_session(
             raise HTTPException(status_code=402, detail=str(exc)) from exc
 
 
-class TrainingStatusIn(BaseModel):
-    status: SessionStatus
+class TrainingSessionPatchIn(SessionChanges):
+    """Either a status change or an edit of the request (see
+    training.service.update_session), never both."""
+
+    status: SessionStatus | None = None
 
 
 @router.patch(
     "/training/sessions/{training_session_id}", response_model=training_service.TrainingSessionOut
 )
-def update_training_session(
-    training_session_id: int, data: TrainingStatusIn
+async def update_training_session(
+    training_session_id: int, data: TrainingSessionPatchIn
 ) -> training_service.TrainingSessionOut:
+    edits = data.model_fields_set - {"status"}
+    if data.status is not None and edits:
+        raise HTTPException(
+            status_code=400, detail="Change the status or edit the session, not both"
+        )
+    if data.status is None and not edits:
+        raise HTTPException(status_code=400, detail="Nothing to change")
+    settings = get_settings()
     with session_scope(get_session_factory()) as session:
         try:
-            return training_service.update_status(session, training_session_id, data.status)
+            if data.status is not None:
+                return training_service.update_status(session, training_session_id, data.status)
+            changes = SessionChanges.model_validate({name: getattr(data, name) for name in edits})
+            llm = training_service.make_training_llm(settings.openai_api_key)
+            return await training_service.update_session(
+                session,
+                llm,
+                llm,
+                training_session_id,
+                changes,
+                budget_usd=settings.llm_monthly_budget_usd,
+            )
         except training_service.SessionNotFoundError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
+        except training_service.SessionNotEditableError as exc:
+            raise HTTPException(status_code=409, detail=str(exc)) from exc
+        except BudgetExceededError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.delete("/training/sessions/{training_session_id}", status_code=204)

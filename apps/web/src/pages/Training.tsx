@@ -12,6 +12,7 @@ import type {
   WorkoutDevice,
 } from "../api/types";
 import LanguageToggle from "../components/LanguageToggle";
+import SessionFields from "../components/training/SessionFields";
 import WorkoutCard from "../components/training/WorkoutCard";
 import { useI18n } from "../i18n/I18nProvider";
 
@@ -20,8 +21,6 @@ function errorText(e: unknown): string {
 }
 
 const DEVICE_OPTIONS: WorkoutDevice[] = ["garmin", "wahoo", "zwift", "other"];
-const DISCIPLINES: Discipline[] = ["road", "mtb", "gravel"];
-const FEELS: Feel[] = ["fresh", "normal", "tired"];
 
 function tomorrow(): string {
   const d = new Date();
@@ -109,7 +108,7 @@ export default function Training({ profile, onProfileChange, onBack }: Props) {
                 <WorkoutCard
                   session={active}
                   garminConnected={garminConnected}
-                  onChange={setActive}
+                  onChange={(updated) => { setActive(updated); refreshSessions(); }}
                   onDeleted={() => { setActive(null); refreshSessions(); }}
                 />
               </div>
@@ -214,8 +213,6 @@ function PlanForm({
   const [minutesOverride, setMinutesOverride] = useState<number | null>(null);
   const availableMinutes = minutesOverride ?? defaultMinutes;
 
-  const matchingBikes = bikes.filter((b) => (setting === "indoor" ? b.kind === "indoor" : b.kind === discipline));
-
   async function submit() {
     setBuilding(true);
     setError(null);
@@ -240,106 +237,19 @@ function PlanForm({
 
   return (
     <div className="surface space-y-5 p-5 sm:p-7">
-      <div className="grid gap-4 sm:grid-cols-2">
-        <label className="block space-y-1">
-          <span className="text-sm font-medium">{m.training.form.dateLabel}</span>
-          <input
-            type="date"
-            value={plannedDate}
-            onChange={(e) => setPlannedDate(e.target.value)}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2"
-          />
-        </label>
-        <label className="block space-y-1">
-          <span className="text-sm font-medium">{m.training.form.minutesLabel}</span>
-          <input
-            type="number"
-            min={10}
-            max={600}
-            value={availableMinutes}
-            onChange={(e) => setMinutesOverride(Number(e.target.value))}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2"
-          />
-        </label>
-      </div>
-
-      <div>
-        <span className="text-sm font-medium">{m.training.form.settingLabel}</span>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {(["outdoor", "indoor"] as SessionSetting[]).map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setSetting(key)}
-              aria-pressed={setting === key}
-              className="choice-chip"
-            >
-              {m.training.form[key]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        <span className="text-sm font-medium">{m.training.form.disciplineLabel}</span>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {DISCIPLINES.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setDiscipline(key)}
-              aria-pressed={discipline === key}
-              className="choice-chip"
-            >
-              {m.bikes.kinds[key]}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {matchingBikes.length > 1 && (
-        <label className="block space-y-1">
-          <span className="text-sm font-medium">{m.training.form.bikeLabel}</span>
-          <select
-            value={bikeId}
-            onChange={(e) => setBikeId(e.target.value === "" ? "" : Number(e.target.value))}
-            className="w-full rounded-md border border-neutral-300 px-3 py-2"
-          >
-            <option value="" />
-            {matchingBikes.map((b) => (
-              <option key={b.id} value={b.id}>{b.nickname || m.bikes.kinds[b.kind as Discipline]}</option>
-            ))}
-          </select>
-        </label>
-      )}
-
-      <label className="block space-y-1">
-        <span className="text-sm font-medium">{m.training.form.ideaLabel}</span>
-        <textarea
-          value={routeIdea}
-          onChange={(e) => setRouteIdea(e.target.value)}
-          rows={2}
-          placeholder={m.training.form.ideaPlaceholder}
-          className="w-full rounded-md border border-neutral-300 px-3 py-2"
-        />
-      </label>
-
-      <div>
-        <span className="text-sm font-medium">{m.training.form.feelLabel}</span>
-        <div className="mt-2 flex flex-wrap gap-2">
-          {FEELS.map((key) => (
-            <button
-              key={key}
-              type="button"
-              onClick={() => setFeel(key)}
-              aria-pressed={feel === key}
-              className="choice-chip"
-            >
-              {m.training.form[key]}
-            </button>
-          ))}
-        </div>
-      </div>
+      <SessionFields
+        value={{ plannedDate, minutes: availableMinutes, setting, discipline, bikeId, routeIdea, feel }}
+        bikes={bikes}
+        onChange={(patch) => {
+          if (patch.plannedDate !== undefined) setPlannedDate(patch.plannedDate);
+          if (patch.minutes !== undefined) setMinutesOverride(patch.minutes);
+          if (patch.setting !== undefined) setSetting(patch.setting);
+          if (patch.discipline !== undefined) setDiscipline(patch.discipline);
+          if (patch.bikeId !== undefined) setBikeId(patch.bikeId);
+          if (patch.routeIdea !== undefined) setRouteIdea(patch.routeIdea);
+          if (patch.feel !== undefined) setFeel(patch.feel);
+        }}
+      />
 
       {error && <p className="notice-error" role="alert">{m.training.planError(error)}</p>}
 
@@ -371,7 +281,7 @@ function SessionList({
             className={`ride-tile surface p-4 text-left ${activeId === s.id ? "ring-2 ring-[#31563e]" : ""}`}
           >
             <span className="eyebrow">
-              {new Date(s.planned_date).toLocaleDateString(intlLocale, { month: "short", day: "numeric" })}
+              {new Date(`${s.planned_date}T00:00:00`).toLocaleDateString(intlLocale, { month: "short", day: "numeric" })}
             </span>
             <span className="mt-1 block font-semibold">{s.workout.name}</span>
             <span className="status-pill mt-2" data-tone={s.status === "done" ? "good" : s.status === "skipped" ? "neutral" : "warning"}>

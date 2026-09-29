@@ -26,8 +26,9 @@ from soft_floyd_core.rag.service import Embedder, PassageOut
 from soft_floyd_core.training import export as export_mod
 from soft_floyd_core.training.generator import GeneratorResult
 from soft_floyd_core.training.generator import generate_session as _run_generator
-from soft_floyd_core.training.intent import recommend_intent
+from soft_floyd_core.training.intent import is_off_schedule, recommend_intent
 from soft_floyd_core.training.schemas import (
+    SessionChanges,
     SessionIntent,
     SessionRequest,
     SessionSourceOut,
@@ -51,6 +52,10 @@ class SessionNotFoundError(Exception):
 
 
 class ExportNotAvailableError(Exception):
+    pass
+
+
+class SessionNotEditableError(Exception):
     pass
 
 
@@ -267,6 +272,79 @@ async def regenerate_session(
     row.sources = _sources_json(result.passages)
     # A regenerated workout is a different document — don't leave a stale
     # Garmin workout silently out of sync with what the rider now sees.
+    row.garmin_workout_id = None
+    row.sent_to_garmin_at = None
+    session.flush()
+    return _out_for_row(session, row)
+
+
+async def update_session(
+    session: Session,
+    llm: LLMClient | None,
+    embedder: Embedder | None,
+    training_session_id: int,
+    changes: SessionChanges,
+    *,
+    budget_usd: float,
+    now: dt.datetime | None = None,
+) -> TrainingSessionOut:
+    """Edit a planned session's request (exec-plan 0013). A date-only change
+    just moves it, keeping the workout the rider already liked and making no
+    AI call; anything else rebuilds the workout from the edited request."""
+    row = _get(session, training_session_id)
+    if row.status != "planned":
+        raise SessionNotEditableError(
+            f"Only planned sessions can be edited; this one is {row.status}"
+        )
+
+    old = SessionRequest.model_validate(row.request)
+    sent = changes.sent()
+    merged = SessionRequest.model_validate({**old.model_dump(), **sent})
+    if merged == old:
+        return _out_for_row(session, row)
+
+    if merged.model_copy(update={"planned_date": old.planned_date}) == old:
+        # Date only: move it, refreshing just the off-schedule notice.
+        row.planned_date = merged.planned_date
+        row.request = json.loads(merged.model_dump_json())
+        intent = SessionIntent.model_validate(row.intent)
+        row.intent = json.loads(
+            intent.model_copy(
+                update={"off_schedule": is_off_schedule(get_profile(session), merged.planned_date)}
+            ).model_dump_json()
+        )
+        # The Garmin calendar entry is still on the old date.
+        row.sent_to_garmin_at = None
+        session.flush()
+        return _out_for_row(session, row)
+
+    if llm is None:
+        raise ValueError("SOFT_FLOYD_OPENAI_API_KEY is required to rebuild a training session")
+    if "bike_id" not in sent and (
+        merged.setting != old.setting or merged.discipline != old.discipline
+    ):
+        # The old bike may no longer fit (a road bike on a gravel session).
+        merged = merged.model_copy(update={"bike_id": None})
+    bikes = list_bikes(session)
+    bike = _pick_bike(merged, bikes)
+    if merged.bike_id is None and bike is not None:
+        merged = merged.model_copy(update={"bike_id": bike.id})
+
+    intent, result = await _build(
+        session, llm, embedder, merged, bike, budget_usd=budget_usd, now=now
+    )
+
+    row.planned_date = merged.planned_date
+    row.setting = merged.setting
+    row.discipline = merged.discipline
+    row.bike_id = bike.id if bike is not None else None
+    row.request = json.loads(merged.model_dump_json())
+    row.intent = json.loads(intent.model_dump_json())
+    row.workout = json.loads(result.workout.model_dump_json())
+    row.rationale = result.rationale
+    row.adjustments = result.adjustments
+    row.sources = _sources_json(result.passages)
+    # A rebuilt workout is a different document; see regenerate_session.
     row.garmin_workout_id = None
     row.sent_to_garmin_at = None
     session.flush()

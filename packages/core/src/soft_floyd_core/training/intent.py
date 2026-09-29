@@ -42,6 +42,11 @@ def _weekday_code(day: dt.date) -> str:
     return _WEEKDAY_CODES[day.weekday()]
 
 
+def is_off_schedule(profile: ProfileOut, day: dt.date) -> bool:
+    """True when the rider has usual riding days and `day` isn't one."""
+    return bool(profile.available_days) and _weekday_code(day) not in profile.available_days
+
+
 def recommend_intent(
     request: SessionRequest,
     profile: ProfileOut,
@@ -52,9 +57,7 @@ def recommend_intent(
     load: TrainingLoadOut | None = None,
 ) -> SessionIntent:
     reasons: list[str] = []
-    off_schedule = bool(profile.available_days) and (
-        _weekday_code(request.planned_date) not in profile.available_days
-    )
+    off_schedule = is_off_schedule(profile, request.planned_date)
     if off_schedule:
         reasons.append("This day isn't one of your usual riding days — keeping it flexible.")
 

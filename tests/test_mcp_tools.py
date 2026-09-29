@@ -225,3 +225,72 @@ async def test_mcp_and_rest_agree_on_a_planned_training_session(client, monkeypa
         rest_session.pop(key)
         created.pop(key)
     assert rest_session == created
+
+
+async def test_mcp_edit_of_a_planned_session_is_visible_over_rest(client, monkeypatch):
+    from soft_floyd_core.llm.client import CHAT_MODEL, EMBEDDING_MODEL, Usage
+    from soft_floyd_core.training import service as training_service
+
+    class FakeLLM:
+        async def chat_structured(
+            self, messages, schema_name, schema, *, max_completion_tokens, temperature=0
+        ):
+            response = {
+                "workout": {
+                    "name": "Easy spin",
+                    "est_minutes": 30,
+                    "steps": [
+                        {
+                            "kind": "warmup",
+                            "name": "Warm up",
+                            "cue": "Easy",
+                            "end": {"kind": "time", "seconds": 1800, "meters": None},
+                            "target": {"kind": "none", "low": None, "high": None, "hr_zone": None},
+                        },
+                    ],
+                },
+                "rationale": "A gentle spin.",
+                "adjustments": None,
+            }
+            return response, Usage(CHAT_MODEL, 500, 0, 200)
+
+        async def embed(self, text):
+            return [1.0, 0.0], Usage(EMBEDDING_MODEL, 10, 0, 0)
+
+    monkeypatch.setattr(training_service, "make_training_llm", lambda _key: FakeLLM())
+
+    async with Client(mcp) as mcp_client:
+        created = _as_json(
+            (
+                await mcp_client.call_tool(
+                    "plan_training_session",
+                    {
+                        "request": {
+                            "planned_date": "2026-09-25",
+                            "available_minutes": 60,
+                            "setting": "outdoor",
+                            "discipline": "road",
+                        }
+                    },
+                )
+            ).data
+        )
+        edited = _as_json(
+            (
+                await mcp_client.call_tool(
+                    "update_training_session",
+                    {
+                        "training_session_id": created["id"],
+                        "changes": {"available_minutes": 30, "feel": "tired"},
+                    },
+                )
+            ).data
+        )
+
+    rest_session = client.get(f"/api/training/sessions/{created['id']}").json()
+    assert rest_session["request"]["available_minutes"] == 30
+    assert rest_session["request"]["feel"] == "tired"
+    for key in ("created_at", "updated_at"):
+        rest_session.pop(key)
+        edited.pop(key)
+    assert rest_session == edited

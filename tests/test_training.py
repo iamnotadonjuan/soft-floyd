@@ -29,6 +29,7 @@ from soft_floyd_core.training.schemas import (
     DraftStep,
     DraftTarget,
     DraftWorkout,
+    SessionChanges,
     SessionRequest,
     StepEnd,
 )
@@ -787,3 +788,232 @@ def test_prompt_includes_load_only_when_it_can_be_trusted():
 
     assert "<training_load>" not in _prompt(*args, load=_load(-13.0, confidence="partial"))
     assert "<training_load>" not in _prompt(*args)
+
+
+# --- editing a planned session (exec-plan 0013) ---
+
+_NO_TARGET = {"kind": "none", "low": None, "high": None, "hr_zone": None}
+SATURDAY = dt.date(2026, 9, 26)  # in the seeded available_days
+TUESDAY = dt.date(2026, 9, 29)  # not in them
+
+
+async def _planned(db_session, llm=None, **request_overrides):
+    _seed(db_session)
+    llm = llm or FakeStructuredLLM(_generated_response(_NO_TARGET))
+    fields = {
+        "planned_date": SATURDAY,
+        "available_minutes": 60,
+        "setting": "outdoor",
+        "discipline": "road",
+    }
+    request = SessionRequest(**{**fields, **request_overrides})
+    created = await training_service.plan_session(
+        db_session, llm, None, request, budget_usd=10.0, now=NOW
+    )
+    return created, llm
+
+
+def test_session_changes_tells_a_null_bike_from_an_unsent_one():
+    assert SessionChanges().sent() == {}
+    assert SessionChanges(bike_id=None).sent() == {"bike_id": None}
+    assert SessionChanges.model_validate({"available_minutes": None, "feel": "tired"}).sent() == {
+        "feel": "tired"
+    }
+
+
+async def test_moving_only_the_date_keeps_the_workout_and_makes_no_ai_call(db_session):
+    created, llm = await _planned(db_session)
+    await training_service.send_to_garmin(db_session, created.id, FakeSyncRunner())
+    assert len(llm.calls) == 1
+
+    moved = await training_service.update_session(
+        db_session,
+        llm,
+        None,
+        created.id,
+        SessionChanges(planned_date=TUESDAY),
+        budget_usd=10.0,
+        now=NOW,
+    )
+
+    assert len(llm.calls) == 1
+    assert moved.planned_date == TUESDAY
+    assert moved.request.planned_date == TUESDAY
+    assert moved.workout == created.workout
+    assert moved.rationale == created.rationale
+    assert moved.intent.off_schedule is True  # Tuesday isn't a usual riding day
+    assert moved.garmin_workout_id == "12345"  # same Garmin workout, re-sent later
+    assert moved.sent_to_garmin_at is None  # the Garmin calendar still has the old date
+
+    back = await training_service.update_session(
+        db_session,
+        llm,
+        None,
+        created.id,
+        SessionChanges(planned_date=SATURDAY),
+        budget_usd=10.0,
+        now=NOW,
+    )
+    assert back.intent.off_schedule is False
+
+
+async def test_changing_the_minutes_rebuilds_the_workout(db_session):
+    created, llm = await _planned(db_session)
+    await training_service.send_to_garmin(db_session, created.id, FakeSyncRunner())
+    llm.response = {**llm.response, "rationale": "Shorter, as asked."}
+
+    out = await training_service.update_session(
+        db_session,
+        llm,
+        None,
+        created.id,
+        SessionChanges(available_minutes=30),
+        budget_usd=10.0,
+        now=NOW,
+    )
+
+    assert len(llm.calls) == 2
+    assert out.request.available_minutes == 30
+    assert out.rationale == "Shorter, as asked."
+    assert out.garmin_workout_id is None and out.sent_to_garmin_at is None
+    assert "30" in llm.calls[1][1]["content"]  # the edited minutes reached the prompt
+
+
+async def test_changing_the_discipline_repicks_the_bike(db_session):
+    created, llm = await _planned(db_session)
+    db_session.add(Bike(nickname="Gravel", kind="gravel"))
+    db_session.commit()
+    gravel_id = db_session.query(Bike).filter_by(kind="gravel").one().id
+    assert created.bike_id != gravel_id
+
+    out = await training_service.update_session(
+        db_session,
+        llm,
+        None,
+        created.id,
+        SessionChanges(discipline="gravel"),
+        budget_usd=10.0,
+        now=NOW,
+    )
+
+    assert out.discipline == "gravel"
+    assert out.bike_id == gravel_id
+    assert out.request.bike_id == gravel_id
+
+
+async def test_an_explicit_bike_is_honoured(db_session):
+    created, llm = await _planned(db_session)
+    db_session.add(Bike(nickname="Gravel", kind="gravel"))
+    db_session.commit()
+    gravel_id = db_session.query(Bike).filter_by(kind="gravel").one().id
+
+    out = await training_service.update_session(
+        db_session,
+        llm,
+        None,
+        created.id,
+        SessionChanges(bike_id=gravel_id),
+        budget_usd=10.0,
+        now=NOW,
+    )
+
+    assert out.bike_id == gravel_id
+    assert out.discipline == "road"  # only the bike changed
+
+
+async def test_an_edit_that_changes_nothing_makes_no_ai_call(db_session):
+    created, llm = await _planned(db_session)
+
+    same = await training_service.update_session(
+        db_session,
+        llm,
+        None,
+        created.id,
+        SessionChanges(available_minutes=60, setting="outdoor"),
+        budget_usd=10.0,
+        now=NOW,
+    )
+
+    assert len(llm.calls) == 1
+    assert same.request == created.request
+    assert same.workout == created.workout
+
+
+@pytest.mark.parametrize("status", ["done", "skipped"])
+async def test_only_planned_sessions_can_be_edited(db_session, status):
+    created, llm = await _planned(db_session)
+    training_service.update_status(db_session, created.id, status)
+
+    with pytest.raises(training_service.SessionNotEditableError):
+        await training_service.update_session(
+            db_session,
+            llm,
+            None,
+            created.id,
+            SessionChanges(available_minutes=30),
+            budget_usd=10.0,
+            now=NOW,
+        )
+    assert len(llm.calls) == 1
+
+
+async def test_a_rebuild_over_budget_leaves_the_session_untouched(db_session):
+    from soft_floyd_core.llm.usage import BudgetExceededError
+
+    created, llm = await _planned(db_session)
+
+    with pytest.raises(BudgetExceededError):
+        await training_service.update_session(
+            db_session,
+            llm,
+            None,
+            created.id,
+            SessionChanges(available_minutes=30),
+            budget_usd=0.0,
+            now=NOW,
+        )
+
+    unchanged = training_service.get_session(db_session, created.id)
+    assert unchanged.request.available_minutes == 60
+    assert unchanged.workout == created.workout
+    assert len(llm.calls) == 1
+
+
+async def test_a_rebuild_needs_an_llm_but_a_move_does_not(db_session):
+    created, llm = await _planned(db_session)
+
+    moved = await training_service.update_session(
+        db_session,
+        None,
+        None,
+        created.id,
+        SessionChanges(planned_date=TUESDAY),
+        budget_usd=10.0,
+        now=NOW,
+    )
+    assert moved.planned_date == TUESDAY
+
+    with pytest.raises(ValueError, match="OPENAI_API_KEY"):
+        await training_service.update_session(
+            db_session,
+            None,
+            None,
+            created.id,
+            SessionChanges(available_minutes=30),
+            budget_usd=10.0,
+            now=NOW,
+        )
+
+
+async def test_editing_an_unknown_session_raises(db_session):
+    _seed(db_session)
+    with pytest.raises(training_service.SessionNotFoundError):
+        await training_service.update_session(
+            db_session,
+            None,
+            None,
+            999,
+            SessionChanges(planned_date=TUESDAY),
+            budget_usd=10.0,
+            now=NOW,
+        )

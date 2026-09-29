@@ -16,6 +16,7 @@ import type {
   LoginStartResult,
   ProfileIn,
   ProfileOut,
+  SessionChangesIn,
   SessionRequestIn,
   SessionStatus,
   TrainingLoadOut,
@@ -147,6 +148,11 @@ export const api = {
   getTrainingSession: (id: number) => request<TrainingSessionOut>(`/training/sessions/${id}`),
   regenerateTrainingSession: (id: number) =>
     request<TrainingSessionOut>(`/training/sessions/${id}/regenerate`, { method: "POST" }),
+  updateTrainingSession: (id: number, changes: SessionChangesIn) =>
+    request<TrainingSessionOut>(`/training/sessions/${id}`, {
+      method: "PATCH",
+      body: JSON.stringify(changes),
+    }),
   updateTrainingSessionStatus: (id: number, status: SessionStatus) =>
     request<TrainingSessionOut>(`/training/sessions/${id}`, {
       method: "PATCH",

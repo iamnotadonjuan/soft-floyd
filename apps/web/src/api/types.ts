@@ -234,6 +234,9 @@ export type SessionRequestIn = Pick<
 > &
   Partial<Pick<SessionRequest, "bike_id" | "route_idea" | "feel">>;
 
+// A partial edit of a planned session (PATCH). Send only what changed.
+export type SessionChangesIn = Partial<SessionRequest>;
+
 export interface SessionIntent {
   emphasis: Emphasis;
   reasons: string[];

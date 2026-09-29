@@ -20,7 +20,7 @@ from soft_floyd_core.metrics import service as metrics_service
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 from soft_floyd_core.training import service as training_service
-from soft_floyd_core.training.schemas import SessionRequest
+from soft_floyd_core.training.schemas import SessionChanges, SessionRequest
 
 from soft_floyd_server.runtime import current_sync_runner, get_session_factory
 
@@ -262,6 +262,29 @@ async def plan_training_session(request: SessionRequest) -> training_service.Tra
     with session_scope(get_session_factory()) as session:
         return await training_service.plan_session(
             session, llm, llm, request, budget_usd=settings.llm_monthly_budget_usd
+        )
+
+
+@mcp.tool
+async def update_training_session(
+    training_session_id: int, changes: SessionChanges
+) -> training_service.TrainingSessionOut:
+    """Edit a planned training session (exec-plan 0013): date, available
+    minutes, setting, discipline, bike, route idea or how the rider feels.
+    Send only the fields that change. A date-only change just moves the
+    session and keeps its workout; anything else rebuilds the workout with
+    one LLM call, under the same monthly budget. Only sessions still
+    `planned` can be edited."""
+    settings = get_settings()
+    llm = training_service.make_training_llm(settings.openai_api_key)
+    with session_scope(get_session_factory()) as session:
+        return await training_service.update_session(
+            session,
+            llm,
+            llm,
+            training_session_id,
+            changes,
+            budget_usd=settings.llm_monthly_budget_usd,
         )
 
 

@@ -72,6 +72,7 @@ website coach calls protected MCP tools for its rider context and data tools
 using a short-lived account token. MCP also exposes these tools for parity:
 - `get_training_summary`
 - `get_training_load`
+- `update_training_session`
 - `list_coach_memory`
 - `add_coach_memory`
 - `delete_coach_memory`
@@ -85,3 +86,9 @@ idea optional. It then saves the session and the chat shows it as a
 workout card, with the same file downloads and Send to Garmin as the
 Training page. The card is stored with the reply and returns when the
 conversation is reopened; deleting the session removes the card.
+
+The coach can also edit a session that is still planned, with
+`update_training_session`: "make tomorrow's session 45 minutes" rebuilds the
+workout, "move it to Saturday" only moves it. It finds the session with
+`list_training_sessions`, asks which one if it's ambiguous, and can't edit a
+done or skipped session. See `training-sessions.md`.

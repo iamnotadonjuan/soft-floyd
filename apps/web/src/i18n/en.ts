@@ -412,6 +412,19 @@ const en = {
       markDone: "Mark done",
       markSkipped: "Mark skipped",
       delete: "Delete",
+      edit: "Edit",
+    },
+    edit: {
+      title: "Change this session",
+      moveSubmit: "Move session",
+      rebuildSubmit: "Rebuild session",
+      saving: "Saving…",
+      cancel: "Cancel",
+      moveNote: "Only the date changed, so the workout stays exactly as it is.",
+      rebuildNote: "Changing anything but the date builds a new workout with the coach.",
+      garminWarning:
+        "You already sent this to Garmin. Send it again after saving. The old copy stays in Garmin Connect until you delete it there.",
+      error: (error: string) => `Could not update this session: ${error}`,
     },
     status: {
       planned: "Planned", done: "Done", skipped: "Skipped",

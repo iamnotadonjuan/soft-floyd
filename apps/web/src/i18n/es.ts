@@ -394,8 +394,21 @@ const es: Messages = {
       regenerate: "Regenerar",
       regenerating: "Regenerando…",
       markDone: "Marcar como hecha",
+      edit: "Editar",
       markSkipped: "Marcar como omitida",
       delete: "Eliminar",
+    },
+    edit: {
+      title: "Cambiar esta sesión",
+      moveSubmit: "Mover sesión",
+      rebuildSubmit: "Reconstruir sesión",
+      saving: "Guardando…",
+      cancel: "Cancelar",
+      moveNote: "Solo cambió la fecha, así que el entrenamiento se queda igual.",
+      rebuildNote: "Cambiar cualquier cosa que no sea la fecha crea un entrenamiento nuevo con el coach.",
+      garminWarning:
+        "Ya enviaste esta sesión a Garmin. Envíala de nuevo después de guardar. La copia anterior sigue en Garmin Connect hasta que la borres allí.",
+      error: (error) => `No se pudo actualizar esta sesión: ${error}`,
     },
     status: {
       planned: "Planeada", done: "Hecha", skipped: "Omitida",
