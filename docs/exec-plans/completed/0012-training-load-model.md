@@ -204,6 +204,20 @@ per-bike or per-discipline load splits.
    `docs/design-docs/training-signal-model.md`, add a `training-load`
    product spec, and record deferred items in the tech-debt tracker.
 
+   *Done.* New `docs/product-specs/training-load.md` (indexed in
+   `product-specs/index.md`); the training-signal doc now marks what is
+   built (NP/IF/TSS, HR zones, hrTSS load, CTL/ATL/TSB) and what isn't;
+   `coach-chat.md` and `training-sessions.md` mention the route, tool and
+   load-driven emphasis; the tech-debt tracker updates the two metrics
+   rows and adds rows for on-demand recompute, untuned thresholds,
+   declared-only FTP/LTHR, NP across gaps, English-only notes, no dark-mode
+   chart colors, and the untried live checks.
+
+**Status:** all seven steps are built and `make check` passes. Moved to
+`completed/` with the manual checks under Verification (the real dashboard,
+a live coach question, and a long real history for timing) still to do;
+the last row of `docs/exec-plans/tech-debt-tracker.md` records them.
+
 ## Verification
 
 - Unit tests (`tests/test_metrics.py`) with hand-computed expectations: a

@@ -30,7 +30,10 @@ Data honesty follows `design-docs/sensor-capability-model.md`. The coach
 only sees ride data through `rag.service.ride_context`, the per-ride
 sensor gate. It also sees `get_training_summary`, which averages HR and
 power only over rides whose own FIT data verified the stream. It must say
-when a metric is unavailable rather than estimate it. When it recommends
+when a metric is unavailable rather than estimate it. Before advising on
+rest or intensity it calls `get_training_load` (see `training-load.md`),
+says how the figures were measured, and does not lean on them until there
+are about 6 weeks of history. When it recommends
 training, it searches the books first and names the book and page. Cited
 passages appear as source chips under the reply.
 
@@ -54,6 +57,7 @@ REST (all under `/api`):
   - `error` `{text}`
 - `GET /coach/memory` and `DELETE /coach/memory/{id}`
 - `GET /training-summary?weeks=`
+- `GET /training/load?days=`
 
 A turn that can't start is rejected before streaming, with these status codes:
 - unknown conversation → 404
@@ -67,6 +71,7 @@ MCP has no chat turn tool, because an MCP client is already an agent. The
 website coach calls protected MCP tools for its rider context and data tools
 using a short-lived account token. MCP also exposes these tools for parity:
 - `get_training_summary`
+- `get_training_load`
 - `list_coach_memory`
 - `add_coach_memory`
 - `delete_coach_memory`

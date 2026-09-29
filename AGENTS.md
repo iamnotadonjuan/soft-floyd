@@ -68,6 +68,19 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0012-training-load-model** (done; live checks still pending, see the
+  tech-debt tracker): fitness/fatigue/form (CTL/ATL/TSB)
+  from the rider's own rides, each scored from the best stream that ride
+  verified (NP power, average power, HR zones, average HR, else a labelled
+  duration estimate). Over REST (`/api/training/load`), MCP, a coach tool
+  and a Dashboard card; once there are about 6 weeks of history it also
+  steers session emphasis in `training/intent.py`. See
+  `docs/product-specs/training-load.md`.
+- **0011-coach-plans-sessions** (done): the coach asks for what the Plan a
+  session form would (inferring what it can from the rider's words), plans
+  the session, and the chat shows it as a workout card with downloads and
+  Send to Garmin; the card survives a reload. See
+  `docs/product-specs/coach-chat.md`.
 - **0010-training-sessions** (done): an optional Training section — the
   rider says their device(s), and what they have in mind for their next
   ride (day, minutes, indoor/outdoor, discipline, a free-text idea, how
@@ -111,8 +124,10 @@ make docs-schema     # regenerate docs/generated/db-schema.md
   cited book passages, rider memory notes, persisted conversations
   streamed over SSE, and a monthly LLM budget. See
   `docs/product-specs/coach-chat.md`.
-- **Not yet implemented**: HR/power metrics computation (HR zones, TRIMP,
-  decoupling, FTP/NP/TSS — see `docs/design-docs/training-signal-model.md`),
+- **Not yet implemented**: HR drift, decoupling, GAP, VAM, the power curve
+  and FTP auto-detection (NP/TSS, HR zones and training load are built — see
+  `docs/design-docs/training-signal-model.md`), multi-week plans, matching
+  planned sessions to recorded rides, proactive coach check-ins,
   historical backfill,
   manual FIT upload, wellness/HRV/sleep sync. Each gets its own exec-plan
   before work starts. `docs/exec-plans/tech-debt-tracker.md` lists what

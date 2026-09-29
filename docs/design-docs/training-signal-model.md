@@ -1,14 +1,17 @@
 # Training Signal Model
 
-Not yet implemented (metrics computation is out of scope for the
-scaffold — see `docs/exec-plans/tech-debt-tracker.md`). This records the
-formulas so the next exec-plan that builds `packages/core`'s metrics
-module doesn't have to re-derive them. Gated by
+Partly implemented (exec-plan 0012, `packages/core/src/soft_floyd_core/metrics/`):
+NP, IF, TSS, HR zones, time in zone, and the CTL/ATL/TSB load model built
+on them. Each section below says what is built and what is not. This
+records the formulas so later work doesn't have to re-derive them. Gated by
 [sensor-capability-model.md](sensor-capability-model.md) — only compute
 the family the rider's hardware (and that activity's recorded streams)
 support.
 
 ## Power-based (`power` tier)
+
+Built in `metrics/load.py`: NP, IF and TSS. FTP stays rider-declared and
+the power curve is not built.
 
 - **FTP (Functional Threshold Power)** — rider-declared anchor,
   `ftp_watts` on the profile, until auto-detection is built.
@@ -21,7 +24,11 @@ support.
 
 ## HR-based (`hr` tier)
 
-Carried forward from v0, correct and worth reusing as-is:
+Carried forward from v0, correct and worth reusing as-is. **Built:** HR
+zones and time-in-zone (`metrics/zones.py`, with `lthr_from_max_hr` for
+riders who only declared a max HR). **Not built:** HR drift, decoupling,
+GAP, VAM, and v0's Banister-Morton TRIMP (0012 uses the hrTSS scheme
+below instead, so HR-based load sits on the same scale as power TSS):
 
 - **HR zones**, off configured LTHR (default 165 bpm):
   - Z1: below 80% LTHR
@@ -42,6 +49,33 @@ Carried forward from v0, correct and worth reusing as-is:
 - **VAM (Velocità Ascensionale Media)** — vertical meters climbed per
   hour, a climbing-specific effort proxy.
 
+## Training load (built, exec-plan 0012)
+
+Per-ride load, on a TSS-like scale, from the best stream the ride's own
+data verified (`metrics/load.py`):
+
+- `power_np`: TSS from NP as above (30 s rolling mean on a 1 Hz grid that
+  holds the last valid value across gaps; under 30 s of data falls back).
+- `power_avg`: the same formula with average power standing in for NP.
+- `hr_zones`: hours in each zone times a per-hour weight (Coggan's hrTSS:
+  Z1 20, Z2 40, Z3 60, Z4 80, Z5 100 — his Z5a/b/c collapsed, so the very
+  hardest efforts are undercounted a little). Needs HR samples covering at
+  least half the ride.
+- `hr_avg`: hours · (avg HR / LTHR)² · 100.
+- `duration`: hours · 40, an estimate, always labelled as one.
+
+Daily load is the sum of the day's rides. Then, with alpha = 1 − exp(−1/τ):
+
+- **CTL** (fitness): exponentially-weighted average, τ = 42 days
+- **ATL** (fatigue): the same, τ = 7 days
+- **TSB** (form): CTL − ATL; **ramp rate**: CTL now minus CTL 7 days ago
+
+Form labels (`metrics/service.py`): TSB ≥ 5 fresh, ≥ −10 neutral, ≥ −30
+tired, below that very tired. `training/intent.py` treats a ramp above 8
+points a week as too steep. All of these cut-offs are starting points, not
+validated against riders' data yet. See
+`docs/product-specs/training-load.md`.
+
 ## Cadence/basic tiers
 
 No dedicated formulas yet beyond raw cadence distribution and standard
@@ -53,6 +87,7 @@ nothing, not to approximate the tiers above.
 
 v0's `src/coach/metrics/compute.py` and `zones.py` (preserved at git tag
 `v0-legacy`) implement the HR-based formulas above with tests using
-hand-computed expected values. When the metrics module is built, start by
-reviewing those files rather than re-deriving from scratch — see
+hand-computed expected values. Exec-plan 0012 ported the zones and the
+time-in-zone loop. Drift, decoupling, GAP and VAM are still only in the
+tag: review them there rather than re-deriving from scratch — see
 `docs/exec-plans/tech-debt-tracker.md`.

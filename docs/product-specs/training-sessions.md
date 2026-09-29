@@ -41,6 +41,11 @@ Two inputs, not one:
   target), recent ride recency and intensity, `focus_areas`, and how
   close `target_event_date` is. This is deterministic, not an LLM guess
   — see `training/intent.py`.
+- **How loaded the rider is** — once there is enough ride history
+  (confidence `ok`), form and the 7-day fitness ramp from
+  `metrics.service.get_training_load` steer the emphasis: very tired or a
+  steep ramp means recovery, tired means keep it aerobic, fresh with
+  fitness slipping means tempo or threshold. See `training-load.md`.
 
 The LLM's job is narrow: turn that intent plus the rider's own words into
 one concrete, well-formed workout and explain the trade-off in plain
