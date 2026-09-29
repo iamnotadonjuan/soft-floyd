@@ -28,6 +28,7 @@ from soft_floyd_core.garmin.sync import (
 from soft_floyd_core.llm.client import LLMClient
 from soft_floyd_core.llm.usage import BudgetExceededError
 from soft_floyd_core.log import get_logger
+from soft_floyd_core.metrics import service as metrics_service
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 from soft_floyd_core.training import service as training_service
@@ -121,6 +122,12 @@ async def get_training_context(
 def get_training_summary(weeks: int = 8) -> activities_service.TrainingSummaryOut:
     with session_scope(get_session_factory()) as session:
         return activities_service.get_training_summary(session, weeks)
+
+
+@router.get("/training/load", response_model=metrics_service.TrainingLoadOut)
+def get_training_load(days: int = 56) -> metrics_service.TrainingLoadOut:
+    with session_scope(get_session_factory()) as session:
+        return metrics_service.get_training_load(session, days)
 
 
 def _training_llm() -> LLMClient:

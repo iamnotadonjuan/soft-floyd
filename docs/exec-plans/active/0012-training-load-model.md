@@ -150,6 +150,17 @@ per-bike or per-discipline load splits.
    rides with stored records) is still untested.
 4. Coach tool, MCP tool and REST route; register the tool in `TOOLS`,
    `run_tool` and `mcp_server.py`; update the coach system prompt.
+
+   *Done.* `GET /api/training/load?days=`, MCP `get_training_load(days)`
+   and the coach tool `get_training_load` all call
+   `metrics_service.get_training_load`. The coach tool defaults to a
+   14-day series (the REST/MCP default is 56) to keep the tool result
+   small. The system prompt tells the coach to call it before advising on
+   rest or intensity, to say how the figures were measured, and to not
+   lean on them unless `confidence` is "ok". The web coach reaches it
+   through the existing `run_coach_tool` MCP bridge, so nothing else
+   needed wiring. Step 7 should add the route and tool to the lists in
+   `docs/product-specs/coach-chat.md`.
 5. `intent.py` load rules and the generator prompt snapshot.
 6. Dashboard `LoadCard`, `api/client.ts` + `api/types.ts`, i18n.
 7. Docs: mark the implemented formulas in

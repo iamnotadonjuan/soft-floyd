@@ -16,6 +16,7 @@ from soft_floyd_core.config import get_settings
 from soft_floyd_core.connections import service as connections_service
 from soft_floyd_core.db import session_scope
 from soft_floyd_core.garmin.sync import SyncResult
+from soft_floyd_core.metrics import service as metrics_service
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
 from soft_floyd_core.training import service as training_service
@@ -207,6 +208,18 @@ def get_training_summary(weeks: int = 8) -> activities_service.TrainingSummaryOu
     """
     with session_scope(get_session_factory()) as session:
         return activities_service.get_training_summary(session, weeks)
+
+
+@mcp.tool
+def get_training_load(days: int = 56) -> metrics_service.TrainingLoadOut:
+    """The rider's training load: fitness (CTL), fatigue (ATL) and form
+    (TSB = CTL - ATL) with a 7-day ramp rate and a daily series for the last
+    `days` days (7-180). Each ride is scored from the best stream its own
+    data verified; `basis_counts` and `notes` say how much is estimated.
+    Ignore the numbers unless `confidence` is "ok".
+    """
+    with session_scope(get_session_factory()) as session:
+        return metrics_service.get_training_load(session, days)
 
 
 @mcp.tool

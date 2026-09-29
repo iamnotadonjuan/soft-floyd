@@ -23,6 +23,7 @@ from soft_floyd_core.bikes import service as bikes_service
 from soft_floyd_core.coach import memory
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.llm.usage import BudgetExceededError
+from soft_floyd_core.metrics import service as metrics_service
 from soft_floyd_core.models import Activity, Lap
 from soft_floyd_core.profile import service as profile_service
 from soft_floyd_core.rag import service as rag_service
@@ -76,6 +77,16 @@ TOOLS: list[dict[str, Any]] = [
         "Weekly ride count, distance, time and elevation for recent weeks, with HR/power "
         "averages only where the rides' own data verified them.",
         {"weeks": {"type": "integer", "description": "Weeks to cover, 1-26. Default 8."}},
+        [],
+    ),
+    _fn(
+        "get_training_load",
+        "The rider's training load: fitness (CTL), fatigue (ATL) and form (TSB), a plain-language "
+        "form label, a 7-day ramp rate and a daily series. Each ride is scored from the best "
+        "stream its own data verified, so `basis_counts` and `notes` say how much is estimated. "
+        'Only trust the numbers when `confidence` is "ok"; when it is "low" or "partial", '
+        "say the history is too short.",
+        {"days": {"type": "integer", "description": "Days of daily series, 7-56. Default 14."}},
         [],
     ),
     _fn(
@@ -297,6 +308,9 @@ async def run_tool(session: Session, name: str, raw_args: str, embedder: Any) ->
         if name == "get_training_summary":
             summary = activities_service.get_training_summary(session, int(args.get("weeks") or 8))
             return ToolResult(_json(summary), f"Summarizing your last {len(summary.weeks)} weeks")
+        if name == "get_training_load":
+            load = metrics_service.get_training_load(session, int(args.get("days") or 14))
+            return ToolResult(_json(load), "Checking your training load")
         if name == "list_recent_rides":
             return _recent_rides(session, int(args.get("limit") or 10), args.get("bike_type"))
         if name == "get_ride":

@@ -449,6 +449,29 @@ async def test_plan_tool_passes_bike_id_and_reports_the_session(session):
     assert result.training_session_ids == [payload["id"]]
 
 
+async def test_get_training_load_tool_reports_load_and_its_basis(session):
+    _seed(session)
+    session.add(
+        Activity(
+            id=11,
+            start_time=NOW - dt.timedelta(days=1),
+            duration_s=3600,
+            fit_status="ok",
+            has_hr_data=False,
+        )
+    )
+    session.commit()
+
+    result = await run_tool(session, "get_training_load", '{"days": 10}', None)
+    payload = json.loads(result.content)
+
+    assert len(payload["series"]) == 10
+    assert payload["basis_counts"] == {"duration": 1}
+    assert payload["confidence"] == "low"
+    assert payload["form"] in {"fresh", "neutral", "tired", "very tired"}
+    assert result.status == "Checking your training load"
+
+
 async def test_tool_errors_go_back_to_the_model(session):
     _seed(session)
     bad_json = await run_tool(session, "get_ride", "{not json", None)
@@ -568,6 +591,7 @@ async def test_mcp_and_rest_agree_on_memory_and_training_summary(client, monkeyp
             added = await mcp_client.call_tool("add_coach_memory", {"note": "Rides a gravel bike."})
             listed = await mcp_client.call_tool("list_coach_memory", {})
             summary = await mcp_client.call_tool("get_training_summary", {"weeks": 3})
+            load = await mcp_client.call_tool("get_training_load", {"days": 14})
 
         def dump(result):
             return TypeAdapter(type(result.data)).dump_python(result.data, mode="json")
@@ -576,6 +600,9 @@ async def test_mcp_and_rest_agree_on_memory_and_training_summary(client, monkeyp
         assert rest_memory == dump(listed)
         assert rest_memory[0]["text"] == dump(added)["text"] == "Rides a gravel bike."
         assert client.get("/api/training-summary", params={"weeks": 3}).json() == dump(summary)
+        rest_load = client.get("/api/training/load", params={"days": 14}).json()
+        assert rest_load == dump(load)
+        assert len(rest_load["series"]) == 14
 
         assert client.delete(f"/api/coach/memory/{rest_memory[0]['id']}").status_code == 204
         async with Client(mcp) as mcp_client:
