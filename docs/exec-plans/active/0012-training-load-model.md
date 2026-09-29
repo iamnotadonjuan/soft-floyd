@@ -107,6 +107,16 @@ per-bike or per-discipline load splits.
 1. Review `v0-legacy`'s `src/coach/metrics/compute.py` and `zones.py`
    (git tag `v0-legacy`) per the signal doc's salvage note; port what
    fits, with their hand-computed test values.
+   *Done.* Ported to `metrics/zones.py`: `make_zones`, `zone_for_hr` and
+   the time-in-zone loop (as `time_in_zones`), plus a `lthr_from_max_hr`
+   helper (v0's 0.87 ratio, inverted), with v0's zone tests in
+   `tests/test_metrics.py`. Left behind because load doesn't use them:
+   HR drift, decoupling, GAP and VAM. v0's Banister-Morton TRIMP
+   (`tss_proxy`) is *not* ported; `hr_avg` uses hours·(avg_hr/LTHR)²·100
+   instead, so HR-based load lands on the same scale as power TSS.
+   `training/sanitize.py` keeps its own %LTHR table (it needs a floor and
+   ceiling per zone for device targets); unifying the two is not worth it
+   now.
 2. `metrics/load.py`: per-ride load and basis selection, pure functions
    over plain inputs (duration, avg power/HR, optional record arrays,
    FTP, LTHR) so they test without a database.
