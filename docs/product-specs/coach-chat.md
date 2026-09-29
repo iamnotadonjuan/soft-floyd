@@ -70,3 +70,13 @@ using a short-lived account token. MCP also exposes these tools for parity:
 - `list_coach_memory`
 - `add_coach_memory`
 - `delete_coach_memory`
+
+## Planning a session from chat
+
+The coach can also plan a training session, like the Training page's Plan
+a session form. It asks for the date, minutes available, indoor/outdoor
+and discipline (and which bike when several match), with feel and a route
+idea optional. It then saves the session and the chat shows it as a
+workout card, with the same file downloads and Send to Garmin as the
+Training page. The card is stored with the reply and returns when the
+conversation is reopened; deleting the session removes the card.

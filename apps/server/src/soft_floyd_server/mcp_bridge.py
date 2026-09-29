@@ -43,6 +43,7 @@ class CoachMCPBridge:
             content=str(data["content"]),
             status=str(data["status"]),
             sources=[SourceOut(**item) for item in data.get("sources", [])],
+            training_session_ids=[int(i) for i in data.get("training_session_ids", [])],
         )
 
     async def context(self) -> str:

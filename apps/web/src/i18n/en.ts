@@ -140,6 +140,7 @@ const en = {
       "How did my last month of riding go?",
       "What should I work on to climb better?",
       "Plan my next week of training around my schedule.",
+      "Create a workout file for my next ride.",
     ],
     sourcesAria: "Book sources",
     sourcePages: (title: string, pages: string) => `${title}, p. ${pages}`,

@@ -79,3 +79,10 @@ Planning a session is one LLM call, subject to the same
 `SOFT_FLOYD_LLM_MONTHLY_BUDGET_USD` cap as the coach
 (`docs/product-specs/coach-chat.md`); over budget returns a 402 with a
 clear message instead of a silent failure.
+
+## From the coach chat
+
+The coach chat is a second way in: asking it for a workout collects the
+same inputs, then shows the resulting session as a card in the
+conversation. The session is the same record, so it also appears on the
+Training page.

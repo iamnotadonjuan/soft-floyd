@@ -34,6 +34,7 @@ from soft_floyd_core.models import (
     LLMUsageRecord,
     RiderProfile,
 )
+from soft_floyd_core.training import service as training_service
 from soft_floyd_server.mcp_server import mcp
 from sqlalchemy import create_engine, func, select
 from sqlalchemy.orm import Session
@@ -378,6 +379,74 @@ async def test_plan_training_session_tool_generates_and_lists(session):
     listed = json.loads(list_result.content)
     assert len(listed["sessions"]) == 1
     assert listed["sessions"][0]["id"] == payload["id"]
+
+
+async def test_coach_planned_session_reaches_the_chat_and_survives_reload(session):
+    _seed(session, power_bike=False)
+    structured = {
+        "workout": {
+            "name": "Easy spin",
+            "est_minutes": 30,
+            "steps": [
+                {
+                    "kind": "warmup",
+                    "name": "Warm up",
+                    "cue": "Easy",
+                    "end": {"kind": "time", "seconds": 1800, "meters": None},
+                    "target": {"kind": "none", "low": None, "high": None, "hr_zone": None},
+                },
+            ],
+        },
+        "rationale": "A gentle spin.",
+        "adjustments": None,
+    }
+    conv = coach.create_conversation(session)
+    args = {"setting": "indoor", "discipline": "road", "planned_date": "2026-09-25"}
+    llm = FakeLLM(
+        structured_result=structured,
+        rounds=[
+            [
+                ChatDone(
+                    usage=CHAT_USAGE,
+                    tool_calls=[ToolCall("c1", "plan_training_session", json.dumps(args))],
+                )
+            ],
+            _text_round("Your session is ready."),
+        ],
+    )
+
+    events = await _run(session, conv.id, "Plan me an easy indoor spin for Friday", llm)
+
+    planned = [e for e in events if e.type == "training_session"]
+    assert len(planned) == 1
+    assert planned[0].training_session.workout.name == "Easy spin"
+    done = events[-1]
+    assert [t.id for t in done.message.training_sessions] == [planned[0].training_session.id]
+
+    detail = coach.get_conversation(session, conv.id)
+    assert [t.id for t in detail.messages[-1].training_sessions] == [planned[0].training_session.id]
+
+    training_service.delete_session(session, planned[0].training_session.id)
+    session.commit()
+    detail = coach.get_conversation(session, conv.id)
+    assert detail.messages[-1].training_sessions == []
+
+
+async def test_plan_tool_passes_bike_id_and_reports_the_session(session):
+    _seed(session)
+    bike_id = session.scalar(select(Bike.id))
+    llm = FakeLLM(
+        structured_result={
+            "workout": {"name": "Spin", "est_minutes": 30, "steps": []},
+            "rationale": "Easy.",
+            "adjustments": None,
+        }
+    )
+    args = {"setting": "outdoor", "discipline": "road", "bike_id": bike_id}
+    result = await run_tool(session, "plan_training_session", json.dumps(args), llm)
+    payload = json.loads(result.content)
+    assert payload["request"]["bike_id"] == bike_id
+    assert result.training_session_ids == [payload["id"]]
 
 
 async def test_tool_errors_go_back_to_the_model(session):

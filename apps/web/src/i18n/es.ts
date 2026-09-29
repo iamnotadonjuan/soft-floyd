@@ -127,6 +127,7 @@ const es: Messages = {
       "¿Cómo me fue en el último mes de salidas?",
       "¿Qué debería trabajar para subir mejor?",
       "Planea mi próxima semana de entrenamiento según mi horario.",
+      "Crea un archivo de entrenamiento para mi próxima salida.",
     ],
     sourcesAria: "Fuentes de libros",
     sourcePages: (title, pages) => `${title}, pág. ${pages}`,

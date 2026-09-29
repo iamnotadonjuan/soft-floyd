@@ -341,6 +341,10 @@ class CoachMessage(Base):
     content: Mapped[str] = mapped_column(Text)
     # Book citations shown under an assistant reply: [{title, page_start, ...}]
     sources: Mapped[list[dict]] = mapped_column(JSON, default=list)
+    # TrainingSession ids the coach planned during this turn (exec-plan 0011);
+    # shown as workout cards under the reply. Not a FK: deleting a session
+    # just makes the card disappear.
+    training_session_ids: Mapped[list[int]] = mapped_column(JSON, default=list)
     created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
 
     conversation: Mapped[CoachConversation] = relationship(back_populates="messages")

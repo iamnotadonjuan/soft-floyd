@@ -43,6 +43,8 @@ class ToolResult:
     content: str  # JSON handed back to the model
     status: str  # short progress label shown to the rider
     sources: list[SourceOut] = field(default_factory=list)
+    # Training sessions this call saved, so the chat can show them as cards.
+    training_session_ids: list[int] = field(default_factory=list)
 
 
 def _fn(name: str, description: str, properties: dict[str, Any], required: list[str]) -> dict:
@@ -107,19 +109,28 @@ TOOLS: list[dict[str, Any]] = [
         "Generate one structured, sensor-honest workout for a specific upcoming ride and save it "
         "as a training session the rider can review, export to a file, or send to Garmin. Use "
         'this when the rider asks what to do for a specific ride ("what should I do tomorrow", '
-        '"plan hard intervals for Saturday"), not for general training advice. Never invent a '
-        "watt/HR/bpm number yourself — the tool resolves targets against the rider's own sensors.",
+        '"plan hard intervals for Saturday"), not for general training advice. Only call it once '
+        "you know the date, available minutes, setting and discipline from the rider — ask for "
+        "whatever is missing first. Never invent a watt/HR/bpm number yourself — the tool "
+        "resolves targets against the rider's own sensors.",
         {
             "planned_date": {
                 "type": "string",
-                "description": "ISO date, e.g. 2026-09-25. Defaults to tomorrow if omitted.",
+                "description": "ISO date, e.g. 2026-09-25. Defaults to tomorrow if omitted, "
+                "but ask the rider rather than relying on that.",
             },
             "available_minutes": {
                 "type": ["integer", "null"],
-                "description": "Minutes available. Defaults from the rider's usual availability.",
+                "description": "Minutes available. Defaults from the rider's usual availability, "
+                "but ask the rider rather than relying on that.",
             },
             "setting": {"type": "string", "enum": ["indoor", "outdoor"]},
             "discipline": {"type": "string", "enum": ["road", "mtb", "gravel"]},
+            "bike_id": {
+                "type": ["integer", "null"],
+                "description": "A bike id from get_rider_profile. Only when the rider has "
+                "several bikes matching the discipline; otherwise leave null.",
+            },
             "route_idea": {
                 "type": ["string", "null"],
                 "description": "The rider's own idea, in their words, e.g. 'hill repeats'.",
@@ -228,6 +239,7 @@ async def _plan_training_session(session: Session, args: dict[str, Any], llm: An
         available_minutes=int(available_minutes),
         setting=args["setting"],
         discipline=args["discipline"],
+        bike_id=args.get("bike_id"),
         route_idea=str(args.get("route_idea") or ""),
         feel=args.get("feel") or "normal",
     )
@@ -237,7 +249,7 @@ async def _plan_training_session(session: Session, args: dict[str, Any], llm: An
         )
     except BudgetExceededError as exc:
         return ToolResult(_json({"error": str(exc)}), status)
-    return ToolResult(_json(result), status)
+    return ToolResult(_json(result), status, training_session_ids=[result.id])
 
 
 def _list_training_sessions(session: Session) -> ToolResult:

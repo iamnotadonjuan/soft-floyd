@@ -6,15 +6,18 @@ import type {
   CoachMemoryNoteOut,
   CoachMessageOut,
   CoachSourceOut,
+  TrainingSessionOut,
 } from "../api/types";
 import CoachText from "../components/CoachText";
 import LanguageToggle from "../components/LanguageToggle";
+import WorkoutCard from "../components/training/WorkoutCard";
 import { useI18n } from "../i18n/I18nProvider";
 
 interface Draft {
   text: string;
   status: string | null;
   sources: CoachSourceOut[];
+  sessions: TrainingSessionOut[];
 }
 
 function errorText(e: unknown): string {
@@ -46,6 +49,7 @@ export default function Coach({ onBack }: { onBack: () => void }) {
   const [input, setInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<CoachMemoryNoteOut[]>([]);
+  const [garminConnected, setGarminConnected] = useState(false);
   const abort = useRef<AbortController | null>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
   const busy = draft !== null;
@@ -60,6 +64,11 @@ export default function Coach({ onBack }: { onBack: () => void }) {
       })
       .catch((e) => { if (active) setError(errorText(e)); });
     refreshNotes();
+    api.listConnections()
+      .then((items) => {
+        if (active) setGarminConnected(items.some((c) => c.provider === "garmin" && c.status === "connected"));
+      })
+      .catch(() => { /* Garmin button just stays hidden */ });
     return () => { active = false; abort.current?.abort(); };
   }, []);
 
@@ -80,6 +89,21 @@ export default function Coach({ onBack }: { onBack: () => void }) {
     } catch (e) {
       setError(errorText(e));
     }
+  }
+
+  // Keeps a card in sync with what the rider did on it (status, Garmin push).
+  function updateSession(messageId: number, updated: TrainingSessionOut) {
+    setMessages((items) => items.map((msg) => msg.id !== messageId ? msg : {
+      ...msg,
+      training_sessions: msg.training_sessions.map((s) => (s.id === updated.id ? updated : s)),
+    }));
+  }
+
+  function removeSession(messageId: number, sessionId: number) {
+    setMessages((items) => items.map((msg) => msg.id !== messageId ? msg : {
+      ...msg,
+      training_sessions: msg.training_sessions.filter((s) => s.id !== sessionId),
+    }));
   }
 
   function startNew() {
@@ -113,9 +137,9 @@ export default function Coach({ onBack }: { onBack: () => void }) {
     if (!text || busy) return;
     setError(null);
     setInput("");
-    setDraft({ text: "", status: null, sources: [] });
+    setDraft({ text: "", status: null, sources: [], sessions: [] });
     const optimistic: CoachMessageOut = {
-      id: -Date.now(), role: "user", content: text, sources: [], created_at: new Date().toISOString(),
+      id: -Date.now(), role: "user", content: text, sources: [], training_sessions: [], created_at: new Date().toISOString(),
     };
     setMessages((items) => [...items, optimistic]);
     const controller = new AbortController();
@@ -134,6 +158,8 @@ export default function Coach({ onBack }: { onBack: () => void }) {
           setDraft((d) => d && { ...d, status: event.text ?? null });
         } else if (event.type === "sources" && event.sources) {
           setDraft((d) => d && { ...d, sources: event.sources ?? [] });
+        } else if (event.type === "training_session" && event.training_session) {
+          setDraft((d) => d && { ...d, sessions: [...d.sessions, event.training_session!] });
         } else if (event.type === "done" && event.message) {
           setMessages((items) => [...items, event.message!]);
         } else if (event.type === "error") {
@@ -228,6 +254,13 @@ export default function Coach({ onBack }: { onBack: () => void }) {
                 <article key={msg.id} className="coach-message" data-role={msg.role}>
                   {msg.role === "assistant" ? <CoachText text={msg.content} /> : <p className="whitespace-pre-wrap">{msg.content}</p>}
                   <SourceList sources={msg.sources} />
+                  {msg.training_sessions.map((s) => (
+                    <div key={s.id} className="mt-4">
+                      <WorkoutCard session={s} garminConnected={garminConnected}
+                        onChange={(updated) => updateSession(msg.id, updated)}
+                        onDeleted={() => removeSession(msg.id, s.id)} />
+                    </div>
+                  ))}
                 </article>
               ))}
               {draft && (
@@ -235,6 +268,12 @@ export default function Coach({ onBack }: { onBack: () => void }) {
                   {draft.text ? <CoachText text={draft.text} /> : null}
                   <p className="body-muted text-sm">{draft.status ? `${draft.status}…` : draft.text ? "" : m.coach.thinking}</p>
                   <SourceList sources={draft.sources} />
+                  {draft.sessions.map((s) => (
+                    <div key={s.id} className="mt-4">
+                      <WorkoutCard session={s} garminConnected={garminConnected}
+                        onChange={() => undefined} onDeleted={() => undefined} />
+                    </div>
+                  ))}
                 </article>
               )}
               <div ref={threadEnd} />

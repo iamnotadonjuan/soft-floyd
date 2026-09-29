@@ -26,6 +26,8 @@ from soft_floyd_core.llm.client import ChatDone, LLMClient, TextDelta
 from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
 from soft_floyd_core.models import CoachConversation, CoachMessage
 from soft_floyd_core.profile.service import get_profile
+from soft_floyd_core.training import service as training_service
+from soft_floyd_core.training.service import TrainingSessionOut
 
 MAX_MESSAGE_CHARS = 4000
 _HISTORY_MESSAGES = 12
@@ -57,6 +59,7 @@ class MessageOut(BaseModel):
     role: Literal["user", "assistant"]
     content: str
     sources: list[SourceOut]
+    training_sessions: list[TrainingSessionOut] = []
     created_at: dt.datetime
 
 
@@ -67,9 +70,10 @@ class ConversationDetailOut(ConversationOut):
 class CoachEvent(BaseModel):
     """One SSE event. `type` decides which other field is set."""
 
-    type: Literal["delta", "tool_status", "sources", "done", "error"]
+    type: Literal["delta", "tool_status", "sources", "training_session", "done", "error"]
     text: str | None = None
     sources: list[SourceOut] | None = None
+    training_session: TrainingSessionOut | None = None
     message: MessageOut | None = None
 
 
@@ -79,12 +83,19 @@ def _conversation_out(conv: CoachConversation) -> ConversationOut:
     )
 
 
-def _message_out(msg: CoachMessage) -> MessageOut:
+def _message_out(msg: CoachMessage, session: Session) -> MessageOut:
+    training_sessions: list[TrainingSessionOut] = []
+    for training_session_id in msg.training_session_ids or []:
+        try:
+            training_sessions.append(training_service.get_session(session, training_session_id))
+        except training_service.SessionNotFoundError:
+            continue  # deleted since the coach planned it
     return MessageOut(
         id=msg.id,
         role=msg.role,  # type: ignore[arg-type]
         content=msg.content,
         sources=[SourceOut(**s) for s in msg.sources or []],
+        training_sessions=training_sessions,
         created_at=msg.created_at,
     )
 
@@ -116,7 +127,7 @@ def get_conversation(session: Session, conversation_id: int) -> ConversationDeta
     conv = _get(session, conversation_id)
     return ConversationDetailOut(
         **_conversation_out(conv).model_dump(),
-        messages=[_message_out(m) for m in conv.messages],
+        messages=[_message_out(m, session) for m in conv.messages],
     )
 
 
@@ -187,6 +198,7 @@ async def run_turn(
 
     reply = ""
     sources: dict[tuple[int, int], SourceOut] = {}
+    training_session_ids: list[int] = []
     if not in_scope:
         reply = REFUSAL
         yield CoachEvent(type="delta", text=reply)
@@ -246,6 +258,12 @@ async def run_turn(
                 yield CoachEvent(type="tool_status", text=result.status)
                 for source in result.sources:
                     sources.setdefault((source.book_id, source.page_start), source)
+                for training_session_id in result.training_session_ids:
+                    training_session_ids.append(training_session_id)
+                    yield CoachEvent(
+                        type="training_session",
+                        training_session=training_service.get_session(session, training_session_id),
+                    )
                 messages.append(
                     {"role": "tool", "tool_call_id": call.id, "content": result.content}
                 )
@@ -261,8 +279,9 @@ async def run_turn(
         role="assistant",
         content=reply,
         sources=[json.loads(s.model_dump_json()) for s in cited],
+        training_session_ids=training_session_ids,
     )
     session.add(assistant)
     conv.updated_at = dt.datetime.now(dt.UTC)
     session.commit()
-    yield CoachEvent(type="done", message=_message_out(assistant))
+    yield CoachEvent(type="done", message=_message_out(assistant, session))

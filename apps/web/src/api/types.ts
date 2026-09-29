@@ -170,6 +170,8 @@ export interface CoachMessageOut {
   role: "user" | "assistant";
   content: string;
   sources: CoachSourceOut[];
+  // Sessions the coach planned in this reply, shown as workout cards.
+  training_sessions: TrainingSessionOut[];
   created_at: string;
 }
 
@@ -180,9 +182,10 @@ export interface CoachConversationDetailOut extends CoachConversationOut {
 // One Server-Sent Event from POST /api/coach/conversations/{id}/messages.
 // Fields left unset by the server (exclude_none) are simply absent.
 export interface CoachEvent {
-  type: "delta" | "tool_status" | "sources" | "done" | "error";
+  type: "delta" | "tool_status" | "sources" | "training_session" | "done" | "error";
   text?: string;
   sources?: CoachSourceOut[];
+  training_session?: TrainingSessionOut;
   message?: CoachMessageOut;
 }
 
