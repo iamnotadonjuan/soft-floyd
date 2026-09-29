@@ -332,7 +332,8 @@ class GarminMfaIn(BaseModel):
 
 def _map_garmin_login_error(exc: GarminApiError) -> HTTPException:
     status_code = 429 if isinstance(exc, GarminRateLimited) else 502
-    return HTTPException(status_code=status_code, detail=str(exc))
+    # The technical text was already logged where the error was mapped.
+    return HTTPException(status_code=status_code, detail=exc.user_message)
 
 
 @router.post("/connections/garmin/login", response_model=LoginStartResult)

@@ -25,6 +25,7 @@ network I/O) or imports `garminconnect` at all.
 from __future__ import annotations
 
 import datetime as dt
+import time
 from collections.abc import Callable
 from io import BytesIO
 from pathlib import Path
@@ -33,7 +34,18 @@ from zipfile import ZipFile, is_zipfile
 
 from garminconnect import Garmin
 
-from soft_floyd_core.garmin.errors import GarminApiError, ReauthRequired, map_garmin_exception
+from soft_floyd_core.garmin.errors import (
+    CLOUDFLARE_ORIGIN_UNREACHABLE,
+    USER_GENERIC,
+    GarminApiError,
+    ReauthRequired,
+    WorkoutNotScheduled,
+    garmin_status,
+    map_garmin_exception,
+)
+from soft_floyd_core.log import get_logger
+
+_log = get_logger(__name__)
 
 
 def _fit_payload(payload: bytes) -> bytes:
@@ -58,9 +70,11 @@ class GarminClient:
         token_dir: Path,
         *,
         client_factory: Callable[..., Any] = Garmin,
+        retry_delay_s: float = 2.0,
     ) -> None:
         self._token_dir = token_dir
         self._client_factory = client_factory
+        self._retry_delay_s = retry_delay_s
         self._client: Any | None = None
 
     def has_token(self) -> bool:
@@ -141,6 +155,25 @@ class GarminClient:
         dest_path.write_bytes(_fit_payload(bytes(payload)))
         return dest_path
 
+    def _call(self, action: str, call: Callable[[], Any]) -> Any:
+        """One garminconnect call with its errors mapped into ours. A
+        Cloudflare "origin unreachable" answer (521-523) means the request
+        never reached Garmin's servers, so it is retried once after a short
+        pause, which is safe even for a POST; any other failure is not."""
+        for attempt in (1, 2):
+            try:
+                return call()
+            except GarminApiError:
+                raise
+            except Exception as exc:
+                status = garmin_status(exc)
+                if attempt == 1 and status in CLOUDFLARE_ORIGIN_UNREACHABLE:
+                    _log.info("garmin_request_retry", action=action, status=status)
+                    time.sleep(self._retry_delay_s)
+                    continue
+                map_garmin_exception(exc, action=action)
+        raise AssertionError("unreachable")  # pragma: no cover
+
     def upload_and_schedule_workout(
         self,
         payload: dict[str, Any],
@@ -152,21 +185,33 @@ class GarminClient:
         planned_date so it syncs to the Edge / paired trainer on its own.
         Passing existing_workout_id updates that workout in place instead
         of creating a duplicate — training/service.py's re-send path.
+
+        Each step reports under its own action name, so a failure says
+        whether the upload or the scheduling broke. If the workout was
+        saved but scheduling failed, `WorkoutNotScheduled` carries its id so
+        the caller can keep it and a retry updates it rather than
+        uploading a second copy.
         """
         client = self._ensure_client()
+        if existing_workout_id is not None:
+            self._call(
+                "Garmin workout update", lambda: client.update_workout(existing_workout_id, payload)
+            )
+            workout_id = str(existing_workout_id)
+        else:
+            result = self._call("Garmin workout upload", lambda: client.upload_workout(payload))
+            raw_id = result.get("workoutId") if isinstance(result, dict) else None
+            if raw_id is None:
+                raise GarminApiError(
+                    "Garmin accepted the workout but returned no workoutId.",
+                    user_message=USER_GENERIC,
+                )
+            workout_id = str(raw_id)
         try:
-            if existing_workout_id is not None:
-                client.update_workout(existing_workout_id, payload)
-                workout_id = str(existing_workout_id)
-            else:
-                result = client.upload_workout(payload)
-                raw_id = result.get("workoutId") if isinstance(result, dict) else None
-                if raw_id is None:
-                    raise GarminApiError("Garmin accepted the workout but returned no workoutId.")
-                workout_id = str(raw_id)
-            client.schedule_workout(workout_id, planned_date.isoformat())
-        except GarminApiError:
-            raise
-        except Exception as exc:
-            map_garmin_exception(exc, action="Garmin workout upload")
+            self._call(
+                "Garmin workout scheduling",
+                lambda: client.schedule_workout(workout_id, planned_date.isoformat()),
+            )
+        except GarminApiError as exc:
+            raise WorkoutNotScheduled(str(exc), workout_id=workout_id, status=exc.status) from exc
         return workout_id

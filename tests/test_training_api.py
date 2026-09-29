@@ -241,3 +241,46 @@ def test_patch_rebuild_needs_a_key_but_a_move_does_not(client, monkeypatch):
         assert "OPENAI_API_KEY" in rebuild.json()["detail"]
     finally:
         engine.dispose()
+
+
+def test_send_to_garmin_shows_the_rider_a_plain_message_and_logs_the_real_one(client, monkeypatch):
+    from soft_floyd_core.garmin.errors import USER_UNAVAILABLE, GarminUnavailable
+    from soft_floyd_server import http_api
+    from structlog.testing import capture_logs
+
+    engine, _ = _shared_factory(monkeypatch)
+    monkeypatch.setattr(
+        training_service, "make_training_llm", lambda _key: FakeStructuredLLM(_response())
+    )
+
+    class Down:
+        async def send_workout(self, payload, planned_date, existing_workout_id=None):
+            raise GarminUnavailable(
+                "Garmin workout upload: Garmin API returned HTTP 521: API Error 521",
+                user_message=USER_UNAVAILABLE,
+                status=521,
+            )
+
+    monkeypatch.setattr(http_api, "current_sync_runner", lambda: Down())
+    try:
+        created = client.post(
+            "/api/training/sessions",
+            json={
+                "planned_date": "2026-09-25",
+                "available_minutes": 60,
+                "setting": "outdoor",
+                "discipline": "road",
+            },
+        ).json()
+        with capture_logs() as logs:
+            response = client.post(f"/api/training/sessions/{created['id']}/garmin")
+
+        assert response.status_code == 502
+        assert response.json()["detail"] == USER_UNAVAILABLE
+        assert "521" not in response.text
+        event = next(e for e in logs if e["event"] == "send_to_garmin_failed")
+        assert event["status"] == 521
+        assert event["training_session_id"] == created["id"]
+        assert "HTTP 521" in event["error"]
+    finally:
+        engine.dispose()

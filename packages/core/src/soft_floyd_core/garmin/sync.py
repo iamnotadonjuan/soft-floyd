@@ -155,19 +155,19 @@ def run_sync_cycle(
         activities = client.list_recent_activities(limit=settings.garmin_page_size)
     except ReauthRequired as exc:
         return _finish(
-            session, state, status="reauth_required", message=str(exc), bump_errors=False
+            session, state, status="reauth_required", message=exc.user_message, bump_errors=False
         )
     except GarminRateLimited as exc:
         return _finish(
             session,
             state,
             status="rate_limited",
-            message=str(exc),
+            message=exc.user_message,
             bump_errors=True,
             retry_after_s=exc.retry_after_s,
         )
     except GarminApiError as exc:
-        return _finish(session, state, status="error", message=str(exc), bump_errors=True)
+        return _finish(session, state, status="error", message=exc.user_message, bump_errors=True)
 
     candidates = [a for a in activities if last_id is None or int(a.get("activityId", 0)) > last_id]
     candidates.sort(key=lambda a: int(a.get("activityId", 0)))
@@ -199,7 +199,7 @@ def run_sync_cycle(
                 session,
                 state,
                 status="reauth_required",
-                message=str(exc),
+                message=exc.user_message,
                 bump_errors=False,
                 new_ids=new_ids,
                 skipped=skipped,
@@ -210,7 +210,7 @@ def run_sync_cycle(
                 session,
                 state,
                 status="rate_limited",
-                message=str(exc),
+                message=exc.user_message,
                 bump_errors=True,
                 new_ids=new_ids,
                 skipped=skipped,
@@ -222,7 +222,7 @@ def run_sync_cycle(
                 session,
                 state,
                 status="error",
-                message=str(exc),
+                message=exc.user_message,
                 bump_errors=True,
                 new_ids=new_ids,
                 skipped=skipped,

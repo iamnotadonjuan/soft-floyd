@@ -17,8 +17,10 @@ from sqlalchemy.orm import Session
 
 from soft_floyd_core.activities.service import get_training_summary, list_activities
 from soft_floyd_core.bikes.service import BikeOut, list_bikes
+from soft_floyd_core.garmin.errors import GarminApiError, WorkoutNotScheduled
 from soft_floyd_core.garmin.sync import SyncRunner
 from soft_floyd_core.llm.client import LLMClient
+from soft_floyd_core.log import get_logger
 from soft_floyd_core.metrics.service import get_training_load
 from soft_floyd_core.models import TrainingSession
 from soft_floyd_core.profile.service import ProfileOut, get_profile
@@ -36,6 +38,7 @@ from soft_floyd_core.training.schemas import (
     Workout,
 )
 
+_log = get_logger(__name__)
 _SUMMARY_WEEKS = 8
 _RECENT_RIDES = 5
 
@@ -400,7 +403,35 @@ async def send_to_garmin(
     row = _get(session, training_session_id)
     workout = Workout.model_validate(row.workout)
     payload = export_mod.to_garmin_payload(workout)
-    workout_id = await sync_runner.send_workout(payload, row.planned_date, row.garmin_workout_id)
+    try:
+        workout_id = await sync_runner.send_workout(
+            payload, row.planned_date, row.garmin_workout_id
+        )
+    except WorkoutNotScheduled as exc:
+        # Garmin has the workout but not the calendar entry. Keep its id (and
+        # commit it, since the request is about to fail) so the next send
+        # updates this workout instead of uploading a duplicate.
+        row.garmin_workout_id = exc.workout_id
+        session.commit()
+        _log.warning(
+            "send_to_garmin_failed",
+            training_session_id=training_session_id,
+            garmin_workout_id=exc.workout_id,
+            stage="scheduling",
+            status=exc.status,
+            error=str(exc),
+        )
+        raise
+    except GarminApiError as exc:
+        _log.warning(
+            "send_to_garmin_failed",
+            training_session_id=training_session_id,
+            garmin_workout_id=row.garmin_workout_id,
+            stage="upload",
+            status=exc.status,
+            error=str(exc),
+        )
+        raise
     row.garmin_workout_id = workout_id
     row.sent_to_garmin_at = dt.datetime.now(dt.UTC)
     session.flush()

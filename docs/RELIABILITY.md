@@ -31,6 +31,21 @@ an unofficial client library. That means:
   a sync failure from an empty result. `GarminSyncState`
   (`last_status`/`last_error`/`consecutive_errors`) is the durable answer;
   `GET /api/sync/garmin/status` / MCP `get_garmin_sync_status` expose it.
+- Riders never see raw Garmin errors. `GarminApiError.user_message` is the
+  plain-language text the web app shows (REST `detail`, the connection
+  card's `last_error`); `str(exc)` keeps the technical text (HTTP status,
+  upstream message) for the CLI and MCP, and `map_garmin_exception` logs it
+  as a `garmin_request_failed` warning with the action, status and error.
+  A `5xx` from `connectapi.garmin.com` is `GarminUnavailable`. Cloudflare
+  `521`-`523` (its edge couldn't reach Garmin's servers, so the request never
+  arrived) is retried once for workout uploads; nothing else is retried. This
+  happened for real on 2026-09-28: `connectapi.garmin.com` answered `521`
+  from Cloudflare even with no credentials while `connect.garmin.com` was
+  fine, so both workout upload and ride sync failed until Garmin recovered.
+- Sending a workout is two calls (create or update, then schedule). If the
+  second fails, `WorkoutNotScheduled` carries the workout id and
+  `training.service.send_to_garmin` keeps it, so a retry updates that
+  workout instead of uploading a duplicate.
 - Garmin/FIT calls are synchronous (`garminconnect`, `fitdecode`) — never
   call them directly from an async context (event loop, app lifespan).
   `SyncRunner` runs each sync cycle via `anyio.to_thread.run_sync` so a

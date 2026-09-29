@@ -122,3 +122,46 @@ def test_isinstance_by_name_wins_even_with_a_response_attribute():
     exc.response = SimpleNamespace(status_code=500, headers={})  # would map to generic if reached
     result = _raises(exc)
     assert isinstance(result, ReauthRequired)
+
+
+# ---- what a rider sees vs what we log --------------------------------------
+
+
+def test_cloudflare_521_is_unavailable_and_friendly_to_the_rider():
+    from soft_floyd_core.garmin.errors import USER_UNAVAILABLE, GarminUnavailable
+
+    result = _raises(GarminConnectConnectionError("API Error 521"))
+
+    assert isinstance(result, GarminUnavailable)
+    assert result.status == 521
+    assert "HTTP 521" in str(result)  # the technical text stays for logs and the CLI
+    assert result.user_message == USER_UNAVAILABLE
+    assert "521" not in result.user_message
+
+
+def test_other_statuses_get_a_plain_message_too():
+    from soft_floyd_core.garmin.errors import USER_GENERIC, USER_REAUTH, USER_REFUSED
+
+    forbidden = _raises(GarminConnectConnectionError("API Error 403 - blocked"))
+    assert (forbidden.status, forbidden.user_message) == (403, USER_REFUSED)
+    assert "403" not in forbidden.user_message
+
+    assert _raises(GarminConnectAuthenticationError("bad")).user_message == USER_REAUTH
+    assert _raises(ValueError("boom")).user_message == USER_GENERIC
+
+
+def test_an_error_we_wrote_ourselves_is_its_own_user_message():
+    assert GarminApiError("Try again in 5 minutes.").user_message == "Try again in 5 minutes."
+
+
+def test_the_real_error_is_logged_when_it_is_mapped():
+    from structlog.testing import capture_logs
+
+    with capture_logs() as logs:
+        _raises(GarminConnectConnectionError("API Error 521"))
+
+    event = next(e for e in logs if e["event"] == "garmin_request_failed")
+    assert event["status"] == 521
+    assert event["action"] == "test action"
+    assert event["error"] == "API Error 521"
+    assert event["log_level"] == "warning"

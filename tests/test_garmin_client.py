@@ -147,3 +147,131 @@ def test_client_factory_default_is_the_real_garminconnect_class():
 
     default = inspect.signature(GarminClient.__init__).parameters["client_factory"].default
     assert default is Garmin
+
+
+# ---- workout upload: steps, retry, partial success ---------------------------
+
+
+class WorkoutGarmin(FakeGarmin):
+    """Records workout calls; `failures` maps a method name to the exceptions
+    it raises, in order, before it starts succeeding."""
+
+    def __init__(self, *args, failures=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.failures = {k: list(v) for k, v in (failures or {}).items()}
+        self.calls: list[tuple] = []
+
+    def _maybe_fail(self, name):
+        queue = self.failures.get(name)
+        if queue:
+            raise queue.pop(0)
+
+    def upload_workout(self, payload):
+        self.calls.append(("upload", payload))
+        self._maybe_fail("upload_workout")
+        return {"workoutId": 777}
+
+    def update_workout(self, workout_id, payload):
+        self.calls.append(("update", workout_id))
+        self._maybe_fail("update_workout")
+        return {}
+
+    def schedule_workout(self, workout_id, date_str):
+        self.calls.append(("schedule", workout_id, date_str))
+        self._maybe_fail("schedule_workout")
+        return {}
+
+
+def _workout_client(tmp_path, **failures):
+    holder = {}
+
+    def factory(*args, **kwargs):
+        holder["fake"] = WorkoutGarmin(*args, failures=failures, **kwargs)
+        return holder["fake"]
+
+    client = GarminClient(tmp_path, client_factory=factory, retry_delay_s=0)
+    client._client = factory()  # what load()/login() would have set
+    return client, holder["fake"]
+
+
+def test_upload_creates_then_schedules(tmp_path):
+    import datetime as dt
+
+    client, fake = _workout_client(tmp_path)
+    workout_id = client.upload_and_schedule_workout({"w": 1}, dt.date(2026, 9, 30))
+
+    assert workout_id == "777"
+    assert [c[0] for c in fake.calls] == ["upload", "schedule"]
+    assert fake.calls[1] == ("schedule", "777", "2026-09-30")
+
+
+def test_resend_updates_the_same_workout(tmp_path):
+    import datetime as dt
+
+    client, fake = _workout_client(tmp_path)
+    workout_id = client.upload_and_schedule_workout({"w": 1}, dt.date(2026, 9, 30), "555")
+
+    assert workout_id == "555"
+    assert [c[0] for c in fake.calls] == ["update", "schedule"]
+
+
+def test_a_cloudflare_origin_error_is_retried_once(tmp_path):
+    import datetime as dt
+
+    from garminconnect import GarminConnectConnectionError
+
+    client, fake = _workout_client(
+        tmp_path, upload_workout=[GarminConnectConnectionError("API Error 521")]
+    )
+    assert client.upload_and_schedule_workout({"w": 1}, dt.date(2026, 9, 30)) == "777"
+    assert [c[0] for c in fake.calls] == ["upload", "upload", "schedule"]
+
+
+def test_a_persistent_521_gives_up_after_one_retry_with_the_upload_step_named(tmp_path):
+    import datetime as dt
+
+    from garminconnect import GarminConnectConnectionError
+    from soft_floyd_core.garmin.errors import USER_UNAVAILABLE, GarminUnavailable
+
+    errors = [GarminConnectConnectionError("API Error 521")] * 2
+    client, fake = _workout_client(tmp_path, upload_workout=errors)
+
+    with pytest.raises(GarminUnavailable) as caught:
+        client.upload_and_schedule_workout({"w": 1}, dt.date(2026, 9, 30))
+
+    assert [c[0] for c in fake.calls] == ["upload", "upload"]
+    assert "Garmin workout upload" in str(caught.value)
+    assert "HTTP 521" in str(caught.value)
+    assert caught.value.user_message == USER_UNAVAILABLE
+
+
+@pytest.mark.parametrize("message", ["API Error 500", "API Error 503", "API Error 400"])
+def test_other_failures_are_not_retried(tmp_path, message):
+    import datetime as dt
+
+    from garminconnect import GarminConnectConnectionError
+
+    client, fake = _workout_client(
+        tmp_path, upload_workout=[GarminConnectConnectionError(message)] * 2
+    )
+    with pytest.raises(GarminApiError):
+        client.upload_and_schedule_workout({"w": 1}, dt.date(2026, 9, 30))
+    assert [c[0] for c in fake.calls] == ["upload"]
+
+
+def test_a_scheduling_failure_keeps_the_saved_workouts_id(tmp_path):
+    import datetime as dt
+
+    from garminconnect import GarminConnectConnectionError
+    from soft_floyd_core.garmin.errors import USER_NOT_SCHEDULED, WorkoutNotScheduled
+
+    client, fake = _workout_client(
+        tmp_path, schedule_workout=[GarminConnectConnectionError("API Error 503")]
+    )
+    with pytest.raises(WorkoutNotScheduled) as caught:
+        client.upload_and_schedule_workout({"w": 1}, dt.date(2026, 9, 30))
+
+    assert caught.value.workout_id == "777"
+    assert caught.value.status == 503
+    assert caught.value.user_message == USER_NOT_SCHEDULED
+    assert "Garmin workout scheduling" in str(caught.value)

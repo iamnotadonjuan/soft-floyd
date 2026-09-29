@@ -1017,3 +1017,43 @@ async def test_editing_an_unknown_session_raises(db_session):
             budget_usd=10.0,
             now=NOW,
         )
+
+
+async def test_a_failed_calendar_step_keeps_the_garmin_workout_id_for_the_retry(db_session):
+    from soft_floyd_core.garmin.errors import GarminUnavailable, WorkoutNotScheduled
+
+    created, _ = await _planned(db_session)
+
+    class SchedulingFails(FakeSyncRunner):
+        async def send_workout(self, payload, planned_date, existing_workout_id=None):
+            self.calls.append((payload, planned_date, existing_workout_id))
+            raise WorkoutNotScheduled("scheduling failed", workout_id="999", status=503)
+
+    with pytest.raises(WorkoutNotScheduled):
+        await training_service.send_to_garmin(db_session, created.id, SchedulingFails())
+
+    kept = training_service.get_session(db_session, created.id)
+    assert kept.garmin_workout_id == "999"
+    assert kept.sent_to_garmin_at is None  # not on the calendar yet
+
+    runner = FakeSyncRunner()
+    await training_service.send_to_garmin(db_session, created.id, runner)
+    assert runner.calls[0][2] == "999"  # the retry updates that workout, no duplicate
+
+    class UploadFails(FakeSyncRunner):
+        async def send_workout(self, payload, planned_date, existing_workout_id=None):
+            raise GarminUnavailable("upload failed", status=521)
+
+    other = await training_service.plan_session(
+        db_session,
+        FakeStructuredLLM(_generated_response(_NO_TARGET)),
+        None,
+        SessionRequest(
+            planned_date=SATURDAY, available_minutes=60, setting="outdoor", discipline="road"
+        ),
+        budget_usd=10.0,
+        now=NOW,
+    )
+    with pytest.raises(GarminUnavailable):
+        await training_service.send_to_garmin(db_session, other.id, UploadFails())
+    assert training_service.get_session(db_session, other.id).garmin_workout_id is None

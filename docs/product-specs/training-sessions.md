@@ -89,7 +89,11 @@ enforced in `training/sanitize.py`, independent of what the LLM returns.
   schedules it on the planned date, so it syncs to the Edge (or a paired
   smart trainer) on its own. Only shown when Garmin is a connected app.
   Sending again updates the same Garmin workout rather than duplicating
-  it.
+  it. If Garmin is down or refuses the request, the rider sees a plain
+  message ("Garmin Connect isn't responding right now…") instead of the raw
+  error, which goes to the server log. If the workout reached Garmin but
+  couldn't be put on the calendar, sending again fixes that without a
+  second copy.
 - **Download**: a `.fit` workout file (any head unit, including Wahoo
   ELEMNT) always available; `.zwo` (Zwift, Wahoo SYSTM) and `.erg`
   (absolute watts, common ERG-mode trainer software) only when the rider
