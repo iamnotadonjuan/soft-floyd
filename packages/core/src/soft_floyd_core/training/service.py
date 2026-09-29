@@ -19,6 +19,7 @@ from soft_floyd_core.activities.service import get_training_summary, list_activi
 from soft_floyd_core.bikes.service import BikeOut, list_bikes
 from soft_floyd_core.garmin.sync import SyncRunner
 from soft_floyd_core.llm.client import LLMClient
+from soft_floyd_core.metrics.service import get_training_load
 from soft_floyd_core.models import TrainingSession
 from soft_floyd_core.profile.service import ProfileOut, get_profile
 from soft_floyd_core.rag.service import Embedder, PassageOut
@@ -190,7 +191,8 @@ async def _build(
     today = (now or dt.datetime.now(dt.UTC)).date()
     summary = get_training_summary(session, weeks=_SUMMARY_WEEKS, now=now)
     recent_rides = list_activities(session, limit=_RECENT_RIDES)
-    intent = recommend_intent(request, profile, summary, recent_rides, today=today)
+    load = get_training_load(session, now=now)
+    intent = recommend_intent(request, profile, summary, recent_rides, today=today, load=load)
     result = await _run_generator(
         session,
         llm,
@@ -199,6 +201,7 @@ async def _build(
         intent=intent,
         profile=profile,
         bike=bike,
+        load=load,
         budget_usd=budget_usd,
     )
     return intent, result

@@ -15,6 +15,7 @@ from soft_floyd_core.bikes.service import BikeOut
 from soft_floyd_core.llm.client import LLMClient
 from soft_floyd_core.llm.schema import to_strict_schema
 from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
+from soft_floyd_core.metrics.service import TrainingLoadOut
 from soft_floyd_core.profile.service import ProfileOut
 from soft_floyd_core.rag.service import Embedder, PassageOut, get_training_context
 from soft_floyd_core.training.sanitize import sanitize_workout
@@ -33,6 +34,10 @@ You are a cycling coach's session planner. You are given:
 - a deterministic read on what this session should emphasize, with the
   reasons the rider will see (<plan_intent>)
 - the rider's profile and equipment
+- optionally, their current training load (<training_load>): fitness,
+  fatigue and form. It is context for your rationale, already reflected in
+  <plan_intent>; you may mention it in plain words but never invent load
+  figures of your own
 - optionally, cited training-book passages to ground your choices
 
 Build ONE structured workout that blends the two: respect the rider's
@@ -87,12 +92,26 @@ def _bike_line(bike: BikeOut | None) -> str:
     return f"Bike: {bike.nickname or bike.kind} ({bike.kind}), {sensors}."
 
 
+def _load_lines(load: TrainingLoadOut | None) -> list[str]:
+    # Below "ok" confidence the numbers are too shaky to hand the model.
+    if load is None or load.confidence != "ok":
+        return []
+    return [
+        "<training_load>",
+        f"Fitness {load.ctl:.0f}, fatigue {load.atl:.0f}, form {load.tsb:+.0f} ({load.form}); "
+        f"fitness changed {load.ramp_rate_7d:+.1f} over the last 7 days.",
+        *[f"- {n}" for n in load.notes],
+        "</training_load>",
+    ]
+
+
 def _prompt(
     request: SessionRequest,
     intent: SessionIntent,
     profile: ProfileOut,
     bike: BikeOut | None,
     passages: list[PassageOut],
+    load: TrainingLoadOut | None = None,
 ) -> str:
     book_lines = "\n".join(f"- {p.title} p.{p.page_start}: {p.text[:300]}" for p in passages)
     return "\n".join(
@@ -109,6 +128,7 @@ def _prompt(
             f"Emphasis: {intent.emphasis}",
             *[f"- {r}" for r in intent.reasons],
             "</plan_intent>",
+            *_load_lines(load),
             f"Goal: {profile.goal_text or 'not set'}.",
             f"Capability tier: {profile.capability_tier}.",
             _bike_line(bike),
@@ -127,6 +147,7 @@ async def generate_session(
     profile: ProfileOut,
     bike: BikeOut | None,
     budget_usd: float,
+    load: TrainingLoadOut | None = None,
 ) -> GeneratorResult:
     ensure_within_budget(session, budget_usd)
 
@@ -142,7 +163,7 @@ async def generate_session(
     raw, usage = await llm.chat_structured(
         [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _prompt(request, intent, profile, bike, passages)},
+            {"role": "user", "content": _prompt(request, intent, profile, bike, passages, load)},
         ],
         "training_session",
         schema,

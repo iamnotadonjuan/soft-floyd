@@ -9,6 +9,10 @@ success) plus `get_training_summary`'s week aggregates, which already
 apply the per-ride sensor gate to avg_hr/avg_power_w — this module never
 reads a raw Activity's HR/power fields directly. See
 docs/design-docs/sensor-capability-model.md.
+
+Once there is enough ride history for `metrics.service.get_training_load`
+to be trusted (confidence "ok"), form and ramp rate also steer the
+emphasis (exec-plan 0012); before that they are ignored entirely.
 """
 
 from __future__ import annotations
@@ -16,6 +20,12 @@ from __future__ import annotations
 import datetime as dt
 
 from soft_floyd_core.activities.service import ActivitySummaryOut, TrainingSummaryOut
+from soft_floyd_core.metrics.service import (
+    FRESH_TSB,
+    TIRED_TSB,
+    VERY_TIRED_TSB,
+    TrainingLoadOut,
+)
 from soft_floyd_core.profile.service import ProfileOut
 from soft_floyd_core.training.schemas import Emphasis, SessionIntent, SessionRequest
 
@@ -23,6 +33,9 @@ _WEEKDAY_CODES = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
 # A ride this long or longer, within the last day, calls for recovery
 # regardless of what the summary says about the week as a whole.
 _LONG_RIDE_SECONDS = 90 * 60
+# CTL gained in a week beyond which fatigue tends to outrun adaptation; the
+# usual coaching rule of thumb is 5-8 points a week for a sustainable build.
+_RAMP_CEILING = 8.0
 
 
 def _weekday_code(day: dt.date) -> str:
@@ -36,6 +49,7 @@ def recommend_intent(
     recent_rides: list[ActivitySummaryOut],
     *,
     today: dt.date,
+    load: TrainingLoadOut | None = None,
 ) -> SessionIntent:
     reasons: list[str] = []
     off_schedule = bool(profile.available_days) and (
@@ -55,6 +69,10 @@ def recommend_intent(
     if profile.target_event_date:
         days_to_event = (profile.target_event_date - today).days
 
+    # Load only steers the session once there is enough history to trust it.
+    load_ok = load is not None and load.confidence == "ok"
+    load_note = _load_note(load) if load_ok and load is not None else ""
+
     emphasis: Emphasis
 
     if request.feel == "tired":
@@ -67,13 +85,32 @@ def recommend_intent(
         emphasis = "recovery"
         event = f" for {profile.target_event_name}" if profile.target_event_name else ""
         reasons.append(f"Only {days_to_event} day(s) left{event} — easing off to arrive fresh.")
+    elif (
+        load_ok
+        and load is not None
+        and (load.tsb < VERY_TIRED_TSB or load.ramp_rate_7d > _RAMP_CEILING)
+    ):
+        emphasis = "recovery"
+        reasons.append(
+            f"Your training load is high ({load_note}) — this is a recovery-focused session."
+        )
     elif days_to_event is not None and 4 <= days_to_event <= 14:
         emphasis = "tempo"
         event = f" ({profile.target_event_name})" if profile.target_event_name else ""
         reasons.append(f"Your event{event} is close — controlled intensity rather than a deep dig.")
+    elif load_ok and load is not None and load.tsb < TIRED_TSB:
+        emphasis = "endurance"
+        reasons.append(f"You're carrying some fatigue ({load_note}) — keeping this aerobic.")
     elif "climbing" in profile.focus_areas and request.setting == "outdoor":
         emphasis = "climbing"
         reasons.append("Climbing is one of your focus areas, so this leans into hill work.")
+    elif load_ok and load is not None and load.tsb >= FRESH_TSB and load.ramp_rate_7d <= 0:
+        driven = profile.self_rated_level in ("enthusiast", "competitive")
+        emphasis = "threshold" if driven else "tempo"
+        reasons.append(
+            f"You're fresh and your fitness is slipping ({load_note}) — time for some "
+            f"{'threshold' if driven else 'tempo'} work."
+        )
     elif profile.weekly_hours > 0 and hours_this_week >= profile.weekly_hours:
         emphasis = "endurance"
         reasons.append("You've already reached your weekly hours target — keeping this lighter.")
@@ -91,3 +128,12 @@ def recommend_intent(
         reasons.append("A steady endurance session to build your aerobic base.")
 
     return SessionIntent(emphasis=emphasis, reasons=reasons, off_schedule=off_schedule)
+
+
+def _load_note(load: TrainingLoadOut) -> str:
+    """The numbers behind a load-driven reason, with an honest caveat when
+    most of the rider's rides could only be scored from duration."""
+    total = sum(load.basis_counts.values())
+    estimated = load.basis_counts.get("duration", 0)
+    caveat = ", partly estimated" if total and estimated * 2 >= total else ""
+    return f"fitness {load.ctl:.0f}, fatigue {load.atl:.0f}, form {load.tsb:+.0f}{caveat}"

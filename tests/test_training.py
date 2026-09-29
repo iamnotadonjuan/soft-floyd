@@ -17,6 +17,7 @@ from soft_floyd_core.activities.service import (
 )
 from soft_floyd_core.bikes.service import BikeOut
 from soft_floyd_core.llm.client import CHAT_MODEL, EMBEDDING_MODEL, Usage
+from soft_floyd_core.metrics.service import TrainingLoadOut
 from soft_floyd_core.models import Base, Bike, RiderProfile
 from soft_floyd_core.profile.service import ProfileOut
 from soft_floyd_core.training import export as export_mod
@@ -352,6 +353,77 @@ def _ride(days_ago: int, duration_s: float) -> ActivitySummaryOut:
         sensors_present=[],
         fit_status="ok",
     )
+
+
+def _load(tsb, *, ramp=0.0, confidence="ok", basis_counts=None):
+    return TrainingLoadOut(
+        as_of=TODAY,
+        ctl=50.0,
+        atl=50.0 - tsb,
+        tsb=tsb,
+        form="neutral",
+        ramp_rate_7d=ramp,
+        days_of_history=60,
+        confidence=confidence,
+        basis_counts=basis_counts or {"hr_zones": 10},
+        series=[],
+        notes=[],
+    )
+
+
+def _intent_with(load, **profile):
+    return recommend_intent(_request(), _profile(**profile), _summary(), [], today=TODAY, load=load)
+
+
+def test_very_tired_form_means_recovery_and_quotes_the_numbers():
+    intent = _intent_with(_load(-35.0))
+    assert intent.emphasis == "recovery"
+    assert any("form -35" in r and "fatigue 85" in r for r in intent.reasons)
+
+
+def test_steep_ramp_means_recovery_even_when_form_is_fine():
+    assert _intent_with(_load(-5.0, ramp=9.5)).emphasis == "recovery"
+
+
+def test_very_tired_form_outranks_the_tempo_a_close_event_would_ask_for():
+    profile = {"target_event_date": TODAY + dt.timedelta(days=10)}
+    assert _intent_with(_load(-40.0), **profile).emphasis == "recovery"
+
+
+def test_tired_form_keeps_it_aerobic():
+    intent = _intent_with(_load(-20.0), self_rated_level="competitive")
+    assert intent.emphasis == "endurance"
+
+
+def test_fresh_and_slipping_fitness_asks_for_intensity_by_rider_level():
+    assert _intent_with(_load(10.0, ramp=-2.0), self_rated_level="competitive").emphasis == (
+        "threshold"
+    )
+    assert _intent_with(_load(10.0, ramp=-2.0), self_rated_level="recreational").emphasis == (
+        "tempo"
+    )
+    # Fresh but still building: no load rule fires, the old chain decides.
+    assert _intent_with(_load(10.0, ramp=3.0), self_rated_level="beginner").emphasis == (
+        "endurance"
+    )
+
+
+def test_load_is_ignored_until_there_is_enough_history():
+    for confidence in ("low", "partial"):
+        assert _intent_with(_load(-45.0, confidence=confidence)).emphasis == "endurance"
+
+
+def test_mostly_estimated_load_is_flagged_in_the_reason():
+    intent = _intent_with(_load(-35.0, basis_counts={"duration": 8, "hr_zones": 2}))
+    assert any("partly estimated" in r for r in intent.reasons)
+
+
+def test_feel_and_taper_rules_still_outrank_load():
+    intent = recommend_intent(
+        _request(feel="tired"), _profile(), _summary(), [], today=TODAY, load=_load(15.0, ramp=-3)
+    )
+    assert intent.emphasis == "recovery"
+    assert any("tired" in r for r in intent.reasons)
 
 
 def test_tired_always_means_recovery():
@@ -697,3 +769,21 @@ async def test_send_to_garmin_stores_the_returned_workout_id(db_session):
 
     await training_service.send_to_garmin(db_session, created.id, runner)
     assert runner.calls[1][2] == "12345"  # a re-send updates the same Garmin workout
+
+
+# --- generator prompt: training-load snapshot ---
+
+
+def test_prompt_includes_load_only_when_it_can_be_trusted():
+    from soft_floyd_core.training.generator import _prompt
+    from soft_floyd_core.training.schemas import SessionIntent
+
+    intent = SessionIntent(emphasis="endurance", reasons=["steady"], off_schedule=False)
+    args = (_request(), intent, _profile(), None, [])
+
+    trusted = _prompt(*args, load=_load(-13.0, ramp=4.0))
+    assert "<training_load>" in trusted
+    assert "form -13" in trusted and "+4.0 over the last 7 days" in trusted
+
+    assert "<training_load>" not in _prompt(*args, load=_load(-13.0, confidence="partial"))
+    assert "<training_load>" not in _prompt(*args)

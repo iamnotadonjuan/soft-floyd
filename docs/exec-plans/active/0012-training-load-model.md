@@ -162,6 +162,23 @@ per-bike or per-discipline load splits.
    needed wiring. Step 7 should add the route and tool to the lists in
    `docs/product-specs/coach-chat.md`.
 5. `intent.py` load rules and the generator prompt snapshot.
+
+   *Done.* `recommend_intent(..., load=None)`; the load rules only fire
+   when `load.confidence == "ok"`. Chain, after the existing feel /
+   long-ride / event-within-3-days rules: TSB below -30 or a 7-day CTL
+   ramp above 8 -> recovery (this outranks the event 4-14 days tempo
+   rule); event 4-14 days -> tempo (unchanged); TSB below -10 ->
+   endurance; climbing focus outdoors (unchanged); TSB >= 5 with a
+   non-positive ramp -> threshold for enthusiast/competitive riders,
+   tempo otherwise; then the old chain. Reasons quote fitness / fatigue /
+   form, adding "partly estimated" when at least half the rides were
+   scored from duration only. The generator prompt gets a
+   `<training_load>` block (same numbers plus the load notes) only at
+   "ok" confidence, and its system prompt says never to invent load
+   figures. `training/service.py::_build` computes the load once and
+   passes it to both. Thresholds are the named constants in
+   `metrics/service.py` plus `_RAMP_CEILING` in `intent.py`; they are
+   starting points to tune once there are months of real rides.
 6. Dashboard `LoadCard`, `api/client.ts` + `api/types.ts`, i18n.
 7. Docs: mark the implemented formulas in
    `docs/design-docs/training-signal-model.md`, add a `training-load`
