@@ -293,3 +293,26 @@ export interface TrainingSessionOut {
   created_at: string;
   updated_at: string;
 }
+
+// Fitness / fatigue / form (exec-plan 0012) — mirrors soft_floyd_core.metrics.service.
+export interface DayLoadOut {
+  date: string; // ISO date
+  load: number;
+  ctl: number;
+  atl: number;
+  tsb: number;
+}
+
+export interface TrainingLoadOut {
+  as_of: string;
+  ctl: number;
+  atl: number;
+  tsb: number;
+  form: "fresh" | "neutral" | "tired" | "very tired";
+  ramp_rate_7d: number;
+  days_of_history: number;
+  confidence: "low" | "partial" | "ok";
+  basis_counts: Record<string, number>;
+  series: DayLoadOut[]; // oldest first, ending today
+  notes: string[]; // English only for now, straight from the server
+}

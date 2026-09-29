@@ -134,6 +134,27 @@ const en = {
     lap: (n: number) => `Lap ${n}`,
   },
 
+  load: {
+    eyebrow: "Training load",
+    title: "Fitness, fatigue and form",
+    fitness: "Fitness",
+    fitnessHint: "Your 6-week average load",
+    fatigue: "Fatigue",
+    fatigueHint: "Your 7-day average load",
+    form: "Form",
+    formHint: "Fitness minus fatigue",
+    vsLastWeek: (change: string) => `${change} vs 7 days ago`,
+    formLabel: { fresh: "Fresh", neutral: "Neutral", tired: "Tired", "very tired": "Very tired" },
+    buildingBaseline: (days: number) =>
+      `Building your baseline: ${days} day${days === 1 ? "" : "s"} of ride history so far. These numbers get reliable after about 6 weeks.`,
+    empty: "No rides synced yet, so there's no training load to show.",
+    chartAria: (days: number) => `Fitness and fatigue over the last ${days} days. Use the arrow keys to read each day.`,
+    legendAria: "Chart legend",
+    dayLoad: "Ride load that day",
+    tableSummary: "View as a table",
+    columns: { date: "Date", load: "Load", fitness: "Fitness", fatigue: "Fatigue", form: "Form" },
+  },
+
   coach: {
     brand: "Soft Floyd / Coach",
     suggestions: [

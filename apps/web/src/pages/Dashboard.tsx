@@ -1,9 +1,12 @@
 import { useEffect, useState } from "react";
 
 import { api } from "../api/client";
-import type { ActivitySummaryOut, ConnectionOut, ProfileOut, TrainingSessionOut } from "../api/types";
+import type {
+  ActivitySummaryOut, ConnectionOut, ProfileOut, TrainingLoadOut, TrainingSessionOut,
+} from "../api/types";
 import { rideDate, rideDistance, rideDuration, rideTitle } from "../components/activityFormat";
 import LanguageToggle from "../components/LanguageToggle";
+import LoadCard from "../components/LoadCard";
 import { useI18n } from "../i18n/I18nProvider";
 
 function connectionTone(status: ConnectionOut["status"]): string {
@@ -27,6 +30,7 @@ export default function Dashboard({
   const [rides, setRides] = useState<ActivitySummaryOut[] | null>(null);
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
   const [nextSession, setNextSession] = useState<TrainingSessionOut | null>(null);
+  const [load, setLoad] = useState<TrainingLoadOut | null>(null);
   const [rideError, setRideError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -50,6 +54,9 @@ export default function Dashboard({
         setNextSession(upcoming[0] ?? null);
       })
       .catch(() => { /* the training card is optional on the dashboard */ });
+    api.getTrainingLoad()
+      .then((result) => { if (active) setLoad(result); })
+      .catch(() => { /* the load card is optional too; it just doesn't render */ });
     return () => { active = false; };
   }, []);
 
@@ -132,6 +139,8 @@ export default function Dashboard({
             <span className="mt-3 block text-sm font-semibold text-[#31563e]">{m.dashboard.viewSession}</span>
           </button>
         )}
+
+        {load && <LoadCard load={load} />}
 
         <section aria-labelledby="latest-heading">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">

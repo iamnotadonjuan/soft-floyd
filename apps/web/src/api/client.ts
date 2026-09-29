@@ -18,6 +18,7 @@ import type {
   ProfileOut,
   SessionRequestIn,
   SessionStatus,
+  TrainingLoadOut,
   TrainingSessionOut,
 } from "./types";
 
@@ -139,6 +140,7 @@ export const api = {
   listCoachMemory: () => request<CoachMemoryNoteOut[]>("/coach/memory"),
   deleteCoachMemory: (id: number) => request<void>(`/coach/memory/${id}`, { method: "DELETE" }),
 
+  getTrainingLoad: (days = 56) => request<TrainingLoadOut>(`/training/load?days=${days}`),
   listTrainingSessions: () => request<TrainingSessionOut[]>("/training/sessions"),
   planTrainingSession: (data: SessionRequestIn) =>
     request<TrainingSessionOut>("/training/sessions", { method: "POST", body: JSON.stringify(data) }),

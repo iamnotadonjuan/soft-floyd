@@ -180,6 +180,26 @@ per-bike or per-discipline load splits.
    `metrics/service.py` plus `_RAMP_CEILING` in `intent.py`; they are
    starting points to tune once there are months of real rides.
 6. Dashboard `LoadCard`, `api/client.ts` + `api/types.ts`, i18n.
+
+   *Done.* `apps/web/src/components/LoadCard.tsx`, rendered on the
+   Dashboard between the upcoming-session tile and the newest ride; it
+   stays hidden if the request fails. Three stat tiles (fitness with its
+   7-day change, fatigue, form with a status pill carrying a glyph and a
+   label) and a two-line chart: fitness blue `#2a78d6`, fatigue orange
+   `#eb6834`. The app's greens don't work for the pair: every green/orange
+   candidate failed the `dataviz` skill's colorblind-separation check
+   (best ΔE 5.9 against a target of 8), so the chart uses the validated
+   blue/orange, which passes on the app's `#fffef9` surface (worst
+   colorblind ΔE 24.7, contrast at least 3:1). Chart: legend, end labels
+   only when the two lines are at least 16px apart, hover/keyboard
+   crosshair with one tooltip for both series, a table view, drawn at real
+   pixel width (measured with a ResizeObserver) so text stays readable on a
+   phone, and no end labels below 440px. Not done: the app has one light
+   theme, so there are no dark-mode colors yet. Server `notes` render in
+   English regardless of UI language (the short-history note is replaced
+   by a localized message) until notes carry codes. Checked with headless
+   Chrome screenshots of a throwaway harness at desktop and 500px widths;
+   not tried in the real app (it needs a Google login) or in Spanish.
 7. Docs: mark the implemented formulas in
    `docs/design-docs/training-signal-model.md`, add a `training-load`
    product spec, and record deferred items in the tech-debt tracker.

@@ -59,6 +59,13 @@ button:disabled { cursor: not-allowed; }
 .lang-toggle button[aria-pressed="true"] { background: #30553c; color: white; }
 .notice-error { border-radius: .7rem; background: #f8e9e4; color: #8c3c2d; padding: .65rem .8rem; font-size: .86rem; }
 .rule { border-color: #dce2d6; }
+/* Training-load chart (LoadCard). Series colors are the validated blue/orange
+   pair (dataviz palette check on the #fffef9 surface). The app has a single
+   light theme, so there are no dark overrides yet; add them here with the
+   rest of the theme when dark mode lands. */
+.load-viz { --viz-surface: #fffef9; --viz-fitness: #2a78d6; --viz-fatigue: #eb6834; --viz-grid: #e8ebe2; --viz-axis: #c9cfc3; }
+.load-viz svg:focus-visible { outline-offset: 4px; border-radius: .5rem; }
+.load-tooltip { position: absolute; top: 2.4rem; z-index: 1; pointer-events: none; min-width: 10.5rem; padding: .55rem .75rem; border: 1px solid #d9ded1; border-radius: .7rem; background: #fffef9; box-shadow: 0 10px 24px -14px #263e2c; }
 .ride-tile { width: 100%; text-align: left; transition: border-color .15s ease, transform .15s ease, box-shadow .15s ease; }
 .ride-tile:hover { border-color: #8eae91; transform: translateY(-2px); box-shadow: 0 12px 25px -24px #263e2c; }
 .coach-panel { display: flex; flex-direction: column; min-height: min(78vh, 52rem); overflow: hidden; }

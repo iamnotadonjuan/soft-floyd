@@ -121,6 +121,27 @@ const es: Messages = {
     lap: (n) => `Vuelta ${n}`,
   },
 
+  load: {
+    eyebrow: "Carga de entrenamiento",
+    title: "Forma física, fatiga y frescura",
+    fitness: "Forma física",
+    fitnessHint: "Tu carga media de 6 semanas",
+    fatigue: "Fatiga",
+    fatigueHint: "Tu carga media de 7 días",
+    form: "Frescura",
+    formHint: "Forma física menos fatiga",
+    vsLastWeek: (change) => `${change} frente a hace 7 días`,
+    formLabel: { fresh: "Fresco", neutral: "Neutral", tired: "Cansado", "very tired": "Muy cansado" },
+    buildingBaseline: (days) =>
+      `Creando tu base: ${days} ${days === 1 ? "día" : "días"} de historial de salidas por ahora. Estos números son fiables después de unas 6 semanas.`,
+    empty: "Aún no hay salidas sincronizadas, así que no hay carga de entrenamiento que mostrar.",
+    chartAria: (days) => `Forma física y fatiga de los últimos ${days} días. Usa las flechas para leer cada día.`,
+    legendAria: "Leyenda del gráfico",
+    dayLoad: "Carga de la salida ese día",
+    tableSummary: "Ver como tabla",
+    columns: { date: "Fecha", load: "Carga", fitness: "Forma física", fatigue: "Fatiga", form: "Frescura" },
+  },
+
   coach: {
     brand: "Soft Floyd / Coach",
     suggestions: [
