@@ -3,6 +3,9 @@ carried over from v0's tests (git tag `v0-legacy`)."""
 
 from __future__ import annotations
 
+import datetime as dt
+import itertools
+
 import pytest
 from soft_floyd_core.metrics.load import (
     RideLoad,
@@ -10,6 +13,7 @@ from soft_floyd_core.metrics.load import (
     normalized_power,
     ride_load,
 )
+from soft_floyd_core.metrics.service import form_label, get_training_load
 from soft_floyd_core.metrics.zones import (
     lthr_from_max_hr,
     make_zones,
@@ -17,6 +21,9 @@ from soft_floyd_core.metrics.zones import (
     time_in_zones,
     zone_for_hr,
 )
+from soft_floyd_core.models import Activity, Base, Bike, Record, RiderProfile
+from sqlalchemy import create_engine
+from sqlalchemy.orm import Session
 
 
 def test_zone_boundaries_lthr_165():
@@ -163,3 +170,141 @@ def test_nothing_verified_scores_duration_as_an_estimate():
 
 def test_zero_duration_is_zero_load():
     assert ride_load(RideLoadInput(0), ftp_watts=200, lthr=165) == RideLoad(0.0, "duration")
+
+
+# ---- get_training_load ---------------------------------------------------
+
+NOW = dt.datetime(2026, 9, 28, 12, 0)
+_garmin_ids = itertools.count(1000)
+
+
+@pytest.fixture
+def session():
+    engine = create_engine("sqlite:///:memory:")
+    Base.metadata.create_all(engine)
+    with Session(engine, expire_on_commit=False) as db:
+        yield db
+    engine.dispose()
+
+
+def _rider(session, *, ftp=200, lthr=165, power_meter=True):
+    session.add(RiderProfile(id=1, goal_text="x", has_hr_monitor=True, ftp_watts=ftp, lthr=lthr))
+    session.add(Bike(nickname="Road", kind="road", is_primary=True, has_power_meter=power_meter))
+    session.commit()
+
+
+def _ride(session, days_ago, *, hours=1.0, records_power=None, **fields):
+    ride = Activity(
+        garmin_id=next(_garmin_ids),
+        start_time=NOW - dt.timedelta(days=days_ago),
+        duration_s=hours * 3600,
+        fit_status=fields.pop("fit_status", "ok"),
+        records_stored=records_power is not None,
+        **fields,
+    )
+    session.add(ride)
+    session.flush()
+    if records_power is not None:
+        session.add_all(
+            Record(activity_id=ride.id, t_offset_s=float(i), power_w=records_power)
+            for i in range(int(hours * 3600))
+        )
+    session.commit()
+    return ride
+
+
+def test_no_rides_is_a_flat_low_confidence_series(session):
+    _rider(session)
+    load = get_training_load(session, days=14, now=NOW)
+    assert load.days_of_history == 0
+    assert load.confidence == "low"
+    assert len(load.series) == 14
+    assert {d.load for d in load.series} == {0.0}
+    assert (load.ctl, load.atl, load.tsb, load.form) == (0.0, 0.0, 0.0, "neutral")
+    assert "No rides synced" in load.notes[0]
+
+
+def test_one_ride_today_ewma_hand_computed(session):
+    _rider(session)
+    _ride(session, 0, hours=1.0)  # nothing verified: 40 load (duration basis)
+    load = get_training_load(session, days=14, now=NOW)
+    # ctl = 40 * (1 - e^(-1/42)) = 0.941; atl = 40 * (1 - e^(-1/7)) = 5.325
+    assert load.ctl == pytest.approx(0.9, abs=0.05)
+    assert load.atl == pytest.approx(5.3, abs=0.05)
+    assert load.tsb == pytest.approx(-4.4, abs=0.05)
+    assert load.form == "neutral"
+    assert load.series[-1].load == 40.0
+    assert load.basis_counts == {"duration": 1}
+
+
+def test_rest_days_drop_fatigue_faster_than_fitness(session):
+    _rider(session)
+    _ride(session, 20, hours=1.0)
+    load = get_training_load(session, days=30, now=NOW)
+    # 20 rest days after the ride: ctl 0.941 * e^(-20/42) = 0.585, atl
+    # 5.325 * e^(-20/7) = 0.306, so form has swung positive.
+    assert load.ctl == pytest.approx(0.6, abs=0.05)
+    assert load.atl == pytest.approx(0.3, abs=0.05)
+    assert load.tsb > 0
+    assert load.ramp_rate_7d < 0
+
+
+def test_verified_power_ride_is_scored_from_its_records(session):
+    _rider(session)
+    _ride(session, 0, avg_power_w=200, has_power_data=True, records_power=200)
+    load = get_training_load(session, now=NOW)
+    assert load.basis_counts == {"power_np": 1}
+    assert load.series[-1].load == pytest.approx(100.0)
+
+
+def test_power_is_ignored_when_the_ride_did_not_record_it(session):
+    _rider(session)
+    _ride(session, 0, avg_power_w=250, has_power_data=False)
+    assert get_training_load(session, now=NOW).basis_counts == {"duration": 1}
+
+
+def test_failed_fit_parse_never_reads_a_stale_stream_flag(session):
+    _rider(session)
+    _ride(session, 0, avg_power_w=250, has_power_data=True, fit_status="parse_failed")
+    assert get_training_load(session, now=NOW).basis_counts == {"duration": 1}
+
+
+def test_power_ride_without_ftp_falls_to_hr_and_says_so(session):
+    _rider(session, ftp=None)
+    _ride(session, 0, avg_power_w=200, has_power_data=True, avg_hr=165, has_hr_data=True)
+    load = get_training_load(session, now=NOW)
+    assert load.basis_counts == {"hr_avg": 1}
+    assert any("no FTP is set" in n for n in load.notes)
+
+
+def test_no_power_meter_on_profile_blocks_power_basis(session):
+    _rider(session, power_meter=False)
+    _ride(session, 0, avg_power_w=200, has_power_data=True)
+    assert get_training_load(session, now=NOW).basis_counts == {"duration": 1}
+
+
+def test_confidence_follows_days_of_history(session):
+    _rider(session)
+    _ride(session, 0)
+    assert get_training_load(session, now=NOW).confidence == "low"
+    _ride(session, 25)
+    partial = get_training_load(session, now=NOW)
+    assert (partial.days_of_history, partial.confidence) == (26, "partial")
+    _ride(session, 50)
+    ok = get_training_load(session, now=NOW)
+    assert (ok.days_of_history, ok.confidence) == (51, "ok")
+
+
+def test_mostly_estimated_load_is_called_out(session):
+    _rider(session)
+    for days_ago in (1, 3, 5):
+        _ride(session, days_ago)
+    notes = get_training_load(session, now=NOW).notes
+    assert any("100% of your recent load is estimated" in n for n in notes)
+
+
+def test_form_labels():
+    assert form_label(12.0) == "fresh"
+    assert form_label(0.0) == "neutral"
+    assert form_label(-15.0) == "tired"
+    assert form_label(-45.0) == "very tired"

@@ -62,9 +62,9 @@ rider's history is measured (`power_*`, `hr_*`) versus estimated
 Sum ride loads per calendar day (rest days are zero), then two
 exponentially-weighted averages: CTL with a 42-day time constant and ATL
 with a 7-day one, TSB = CTL − ATL, ramp rate = CTL change over 7 days.
-`days_of_history` and `confidence` (`low` under 21 days of data, `ok`
-from 42) are returned alongside, and consumers must ignore load when it's
-`low`. The series is computed on demand from the `activity` (and, for
+`days_of_history` and `confidence` (`low` under 21 days of data,
+`partial` from 21, `ok` from 42) are returned alongside, and consumers
+must ignore load unless it's `ok`. The series is computed on demand from the `activity` (and, for
 NP/zones, `record`) tables — no schema change in this plan.
 
 **Output** (`TrainingLoadOut`, pydantic, shared by all surfaces):
@@ -133,6 +133,21 @@ per-bike or per-discipline load splits.
 3. `metrics/service.py`: daily series, CTL/ATL/TSB, confidence, basis
    counts, notes, and the `TrainingLoadOut` model. Reads `activity` and
    `record` through the same per-ride gate as `get_training_summary`.
+
+   *Done.* `get_training_load(session, days=56, now=None)` in
+   `metrics/service.py`. The gate is `available_metrics_for_activity`:
+   power needs `training_stress_score` allowed and the ride's own
+   `has_power_data`, HR needs `hr_zones` and `has_hr_data`. EWMA alpha is
+   `1 - exp(-1/tau)`. It reads the last 180 days (CTL starts from zero at
+   the first ride in that window) and returns the last `days`. Form
+   labels: TSB >= 5 fresh, >= -10 neutral, >= -30 tired, else very tired
+   (named constants, to revisit with real data). Notes cover short
+   history, mostly-estimated load, and power/HR rides that couldn't be
+   scored because FTP / LTHR-or-max-HR is unset. On a copy of the dev
+   database (4 rides) it takes ~0.06 s and every ride scored from
+   `hr_zones`; the two rides with power were correctly left unscored from
+   power because no FTP is set. Timing at realistic scale (months of
+   rides with stored records) is still untested.
 4. Coach tool, MCP tool and REST route; register the tool in `TOOLS`,
    `run_tool` and `mcp_server.py`; update the coach system prompt.
 5. `intent.py` load rules and the generator prompt snapshot.
