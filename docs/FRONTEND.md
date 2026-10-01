@@ -15,7 +15,7 @@ apps/web/src/
                      keep field names identical to the API response.
   components/       Presentational pieces (forms, cards, pickers) shared
                      between pages — e.g. FocusPicker, AvailabilityPicker,
-                     BikeEditor, connections/ (ConnectionsPanel,
+                     BikeEditor, AppNavigation, connections/ (ConnectionsPanel,
                      ConnectionCard, GarminLoginForm).
   components/onboarding/  Onboarding-wizard-specific step shells (Habits/
                      Goals/Garage/AboutYou/Anchors/ConnectStep) — each a
@@ -24,9 +24,18 @@ apps/web/src/
   pages/            Onboarding, Dashboard, RideDetail, Settings, Coach.
   App.tsx           The auth and onboarding gates, plus the
                    dashboard/settings/ride/coach/profile view toggle.
+  index.css         Signed-in editorial tokens, surfaces, responsive
+                   navigation, and screen accents; sign-in styles are separate.
 ```
 
 ## Rules
+
+- `AppNavigation` is shared by completed-onboarding views. Dashboard,
+  Training, and Coach are primary destinations; Coach stays disabled until
+  a ride source is connected. Settings, Profile, and language remain in the
+  header. The mobile primary navigation sits at the bottom. Onboarding uses
+  its own step header. Keep the dashboard mounted during ride detail so
+  returning to history restores scroll and focus.
 
 - `App.tsx` checks `/api/auth/me` before requesting rider data. Anonymous
   visitors see `pages/SignIn.tsx`; session expiry returns them there. The

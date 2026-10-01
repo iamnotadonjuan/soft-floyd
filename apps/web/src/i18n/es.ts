@@ -41,6 +41,14 @@ const es: Messages = {
     noAppsYet: "Aún no hay apps disponibles.",
   },
 
+  navigation: {
+    primaryAria: "Navegación principal",
+    home: "Inicio",
+    training: "Entrenamiento",
+    coach: "Coach",
+    settings: "Ajustes",
+  },
+
   app: {
     serverError: (error) => `No se pudo conectar con el servidor: ${error}`,
     loading: "Cargando tu diario de salidas…",
@@ -164,6 +172,7 @@ const es: Messages = {
     eyebrow: "Tu coach de ciclismo",
     title: "Pregunta sobre tus salidas, tu entrenamiento o cómo ir más rápido.",
     intro: "El coach lee tus salidas sincronizadas y los libros de entrenamiento importados, y recuerda lo que le cuentas. Solo habla de ciclismo.",
+    startPrompt: "¿Por dónde empezamos?",
     thinking: "Pensando…",
     turnError: "El coach no pudo responder. Inténtalo de nuevo.",
     messageLabel: "Escríbele al coach",

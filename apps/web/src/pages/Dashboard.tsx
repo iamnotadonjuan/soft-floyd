@@ -5,7 +5,6 @@ import type {
   ActivitySummaryOut, ConnectionOut, ProfileOut, TrainingLoadOut, TrainingSessionOut,
 } from "../api/types";
 import { rideDate, rideDistance, rideDuration, rideTitle } from "../components/activityFormat";
-import LanguageToggle from "../components/LanguageToggle";
 import LoadCard from "../components/LoadCard";
 import { useI18n } from "../i18n/I18nProvider";
 
@@ -17,11 +16,10 @@ function connectionTone(status: ConnectionOut["status"]): string {
 }
 
 export default function Dashboard({
-  profile, onOpenSettings, onOpenProfile, onOpenCoach, onOpenTraining, onOpenRide,
+  profile, onOpenSettings, onOpenCoach, onOpenTraining, onOpenRide,
 }: {
   profile: ProfileOut;
   onOpenSettings: () => void;
-  onOpenProfile: () => void;
   onOpenCoach: () => void;
   onOpenTraining: () => void;
   onOpenRide: (id: number) => void;
@@ -86,35 +84,36 @@ export default function Dashboard({
   return (
     <main className="app-shell">
       <div className="page-wrap">
-        <header className="mb-12 flex flex-wrap items-start justify-between gap-4">
-          <span className="brand">{m.dashboard.brand}</span>
-          <div className="flex flex-wrap items-center gap-2">
-            <button onClick={onOpenCoach} className="primary-button" disabled={!coachReady}
-              aria-describedby={coachReady ? undefined : "coach-hint"}>{m.dashboard.askCoach}</button>
-            <button onClick={onOpenTraining} className="secondary-button">{m.dashboard.planSession}</button>
-            <button onClick={onOpenSettings} className="secondary-button">{m.dashboard.settings}</button>
-            <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
-            <LanguageToggle />
-          </div>
-          {connections !== null && !coachReady &&
-            <p id="coach-hint" className="body-muted w-full text-right text-sm">{m.dashboard.coachHint}</p>}
-        </header>
-
-        <section className="mb-9 grid gap-6 lg:grid-cols-[1.5fr_1fr] lg:items-end">
-          <div>
+        <section className="dashboard-hero mb-8 grid gap-8 lg:grid-cols-[1.4fr_1fr] lg:items-end">
+          <svg className="hero-route" viewBox="0 0 570 360" fill="none" aria-hidden="true">
+            <path d="M-34 294C72 281 38 155 160 189C260 217 246 51 356 99C444 138 444 202 605 -20" stroke="currentColor" strokeWidth="2" strokeDasharray="5 11" strokeLinecap="round" />
+            <circle cx="356" cy="99" r="7" fill="currentColor" />
+          </svg>
+          <div className="relative z-10">
             <p className="eyebrow mb-3">{m.dashboard.eyebrow}</p>
             <h1 className="display-title">{m.dashboard.title}</h1>
             <p className="body-muted mt-4 max-w-xl text-lg">{m.dashboard.subtitle}</p>
+            <div className="mt-7 flex flex-wrap gap-3">
+              {connections !== null && !coachReady ? <>
+                <button onClick={onOpenSettings} className="primary-button">{m.dashboard.connectGarmin}<span aria-hidden="true" className="ml-3">↗</span></button>
+                <button onClick={onOpenTraining} className="secondary-button">{m.dashboard.planSession}</button>
+              </> : <>
+                <button onClick={onOpenTraining} className="primary-button">{m.dashboard.planSession}<span aria-hidden="true" className="ml-3">↗</span></button>
+                <button onClick={onOpenCoach} className="secondary-button" disabled={!coachReady}
+                  aria-describedby={coachReady ? undefined : "coach-hint"}>{m.dashboard.askCoach}</button>
+              </>}
+            </div>
+            {connections !== null && !coachReady && <p id="coach-hint" className="body-muted mt-3 text-sm">{m.dashboard.coachHint}</p>}
           </div>
-          <div className="surface p-5 sm:p-6">
+          <div className="goal-feature relative z-10 p-5 sm:p-7">
             <p className="eyebrow mb-2">{m.dashboard.goalEyebrow}</p>
-            <p className="text-lg font-semibold leading-snug">{profile.goal_text}</p>
+            <p className="goal-feature-text text-2xl font-semibold leading-snug">{profile.goal_text}</p>
             <p className="body-muted mt-3 text-sm">{m.dashboard.weeklySummary(profile.weekly_rides, profile.weekly_hours)}{profile.primary_discipline ? ` · ${profile.primary_discipline}` : ""}</p>
             <span className="status-pill mt-4" data-tone="good">{m.dashboard.tierView[profile.capability_tier]}</span>
           </div>
         </section>
 
-        <section className="surface-soft mb-12 flex flex-wrap items-center justify-between gap-4 p-5" aria-label={m.dashboard.connectionsAria}>
+        <section className="connection-band mb-8 flex flex-wrap items-center justify-between gap-4 p-5" aria-label={m.dashboard.connectionsAria}>
           <div>
             <p className="eyebrow mb-1">{m.dashboard.connectedApps}</p>
             {connectionError ? <p className="text-sm text-red-700">{m.dashboard.connectionsError(connectionError)}</p> :
@@ -140,9 +139,7 @@ export default function Dashboard({
           </button>
         )}
 
-        {load && <LoadCard load={load} />}
-
-        <section aria-labelledby="latest-heading">
+        <section className="mb-12" aria-labelledby="latest-heading">
           <div className="mb-4 flex flex-wrap items-end justify-between gap-2">
             <div><p className="eyebrow mb-2">{m.dashboard.latestEyebrow}</p><h2 id="latest-heading" className="section-title">{m.dashboard.newestRide}</h2></div>
             {newest && <span className="body-muted text-sm">{rideDate(newest.start_time, intlLocale)}</span>}
@@ -156,6 +153,8 @@ export default function Dashboard({
           {newest && <RideTile ride={newest} onOpen={onOpenRide} featured />}
           {rideError && <div className="notice-error mt-3" role="alert">{m.dashboard.ridesError(rideError)}</div>}
         </section>
+
+        {load && <LoadCard load={load} />}
 
         {rides !== null && rides.length > 1 && <section className="mt-12" aria-labelledby="history-heading">
           <p className="eyebrow mb-2">{m.dashboard.lookBack}</p>
@@ -178,7 +177,7 @@ function RideTile({ ride, onOpen, featured = false }: {
   ride: ActivitySummaryOut; onOpen: (id: number) => void; featured?: boolean;
 }) {
   const { m, intlLocale } = useI18n();
-  return <button id={`ride-${ride.id}`} onClick={() => onOpen(ride.id)} className={`ride-tile surface p-5 ${featured ? "sm:p-7" : ""}`}>
+  return <button id={`ride-${ride.id}`} onClick={() => onOpen(ride.id)} className={`ride-tile surface p-5 ${featured ? "ride-tile-featured sm:p-7" : ""}`}>
     <span className="eyebrow">{rideDate(ride.start_time, intlLocale)} · {ride.is_indoor ? m.rides.indoor : m.rides.outdoor}</span>
     <span className={`block font-semibold text-[#243e2c] ${featured ? "mt-3 text-2xl sm:text-3xl" : "mt-2 text-xl"}`}>{rideTitle(ride, m)}</span>
     <span className="body-muted mt-4 flex flex-wrap gap-x-5 gap-y-1 text-sm">

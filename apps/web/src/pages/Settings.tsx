@@ -6,14 +6,12 @@ import AvailabilityPicker, { type AvailabilityValue } from "../components/Availa
 import BikeEditor from "../components/BikeEditor";
 import ConnectionsPanel from "../components/connections/ConnectionsPanel";
 import FocusPicker from "../components/FocusPicker";
-import LanguageToggle from "../components/LanguageToggle";
 import { useI18n } from "../i18n/I18nProvider";
 
 interface Props {
   profile: ProfileOut;
   onProfileChange: (profile: ProfileOut) => void;
-  onBack: () => void;
-  onOpenProfile: () => void;
+  onConnectionsChange: () => void;
 }
 
 const LEVELS: SelfRatedLevel[] = ["beginner", "recreational", "enthusiast", "competitive"];
@@ -27,7 +25,7 @@ function numberField(raw: string): number | null {
 // PUT /api/profile partial update — the same components (pickers,
 // BikeEditor, ConnectionsPanel) onboarding walks as steps, here stacked
 // as always-visible sections instead. See docs/FRONTEND.md.
-export default function Settings({ profile, onProfileChange, onBack, onOpenProfile }: Props) {
+export default function Settings({ profile, onProfileChange, onConnectionsChange }: Props) {
   const { m } = useI18n();
   async function save(patch: Record<string, unknown>) {
     const updated = await api.updateProfile(patch);
@@ -38,15 +36,7 @@ export default function Settings({ profile, onProfileChange, onBack, onOpenProfi
   return (
     <main className="app-shell">
       <div className="page-wrap">
-        <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">{m.settings.brand}</span>
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-button">{m.common.backToRides}</button>
-            <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
-            <LanguageToggle />
-          </div>
-        </header>
-        <div className="mb-10 max-w-2xl">
+        <div className="page-intro mb-10 max-w-2xl">
           <p className="eyebrow mb-3">{m.settings.eyebrow}</p>
           <h1 className="display-title">{m.settings.title}</h1>
           <p className="body-muted mt-4">{m.settings.intro}</p>
@@ -63,8 +53,8 @@ export default function Settings({ profile, onProfileChange, onBack, onOpenProfi
           <SensorsAndAnchorsSection profile={profile} save={save} />
           <DevicesSection profile={profile} save={save} />
 
-          <SettingsSection title={m.settings.connections.title} description={m.settings.connections.description}>
-            <ConnectionsPanel />
+          <SettingsSection id="settings-connections" title={m.settings.connections.title} description={m.settings.connections.description}>
+            <ConnectionsPanel onChanged={onConnectionsChange} />
           </SettingsSection>
         </div>
       </div>
@@ -73,16 +63,18 @@ export default function Settings({ profile, onProfileChange, onBack, onOpenProfi
 }
 
 function SettingsSection({
+  id,
   title,
   description,
   children,
 }: {
+  id?: string;
   title: string;
   description?: string;
   children: ReactNode;
 }) {
   return (
-    <section className="surface space-y-5 p-5 sm:p-7">
+    <section id={id} className="surface space-y-5 p-5 sm:p-7">
       <div>
         <h2 className="font-semibold">{title}</h2>
         {description && <p className="body-muted mt-1 text-sm">{description}</p>}

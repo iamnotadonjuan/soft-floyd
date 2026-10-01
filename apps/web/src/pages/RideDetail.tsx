@@ -3,7 +3,6 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { ActivityDetailOut } from "../api/types";
 import { rideDate, rideDistance, rideDuration, rideTitle } from "../components/activityFormat";
-import LanguageToggle from "../components/LanguageToggle";
 import { useI18n } from "../i18n/I18nProvider";
 
 export default function RideDetail({ id, onBack }: { id: number; onBack: () => void }) {
@@ -22,24 +21,18 @@ export default function RideDetail({ id, onBack }: { id: number; onBack: () => v
   return (
     <main className="app-shell">
       <div className="page-wrap max-w-4xl">
-        <div className="mb-10 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">{m.dashboard.brand}</span>
-          <div className="flex items-center gap-4">
-            <button className="text-button" onClick={onBack}>{m.common.backToRides}</button>
-            <LanguageToggle />
-          </div>
-        </div>
+        <button className="text-button mb-7" onClick={onBack}>{m.common.backToRides}</button>
         {error && <div className="notice-error" role="alert">{m.rideDetail.loadError(error)}</div>}
         {!ride && !error && <p className="body-muted">{m.rideDetail.loading}</p>}
         {ride && (
           <>
-            <header className="mb-8">
+            <header className="ride-detail-hero mb-8">
               <p className="eyebrow mb-3">{rideDate(ride.start_time, intlLocale)}</p>
               <h1 className="display-title">{rideTitle(ride, m)}</h1>
               <p className="body-muted mt-3">{m.rideDetail.recordedBy(ride.is_indoor ? m.rides.indoor : m.rides.outdoor)}</p>
             </header>
 
-            <section className="surface grid gap-5 p-5 sm:grid-cols-3 sm:p-7" aria-label={m.rideDetail.summaryAria}>
+            <section className="surface ride-stats grid gap-5 p-5 sm:grid-cols-3 sm:p-7" aria-label={m.rideDetail.summaryAria}>
               <Stat label={m.rideDetail.distance} value={rideDistance(ride.distance_m, intlLocale)} />
               <Stat label={m.rideDetail.duration} value={rideDuration(ride.duration_s)} />
               <Stat label={m.rideDetail.elevationGain} value={`${Math.round(ride.elev_gain_m)} m`} />

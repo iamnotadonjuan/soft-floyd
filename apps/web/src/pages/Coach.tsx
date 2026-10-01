@@ -9,7 +9,6 @@ import type {
   TrainingSessionOut,
 } from "../api/types";
 import CoachText from "../components/CoachText";
-import LanguageToggle from "../components/LanguageToggle";
 import WorkoutCard from "../components/training/WorkoutCard";
 import { useI18n } from "../i18n/I18nProvider";
 
@@ -40,7 +39,7 @@ function SourceList({ sources }: { sources: CoachSourceOut[] }) {
 
 // The coach chat (exec-plan 0007). Dashboard only offers this view once a
 // ride source is connected; the server enforces cycling-only scope.
-export default function Coach({ onBack }: { onBack: () => void }) {
+export default function Coach() {
   const { m } = useI18n();
   const [conversations, setConversations] = useState<CoachConversationOut[] | null>(null);
   const [activeId, setActiveId] = useState<number | null>(null);
@@ -195,14 +194,11 @@ export default function Coach({ onBack }: { onBack: () => void }) {
   return (
     <main className="app-shell">
       <div className="page-wrap">
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">{m.coach.brand}</span>
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-button">{m.common.backToRides}</button>
-            <LanguageToggle />
-          </div>
-        </header>
-
+        <div className="page-intro mb-8 max-w-3xl">
+          <p className="eyebrow mb-3">{m.coach.eyebrow}</p>
+          <h1 className="section-title">{m.coach.title}</h1>
+          <p className="body-muted mt-3 max-w-2xl">{m.coach.intro}</p>
+        </div>
         <div className="grid gap-6 lg:grid-cols-[17rem_1fr]">
           <aside className="space-y-5" aria-label={m.coach.sidebarAria}>
             <button onClick={startNew} disabled={busy} className="primary-button w-full">{m.coach.newConversation}</button>
@@ -239,10 +235,9 @@ export default function Coach({ onBack }: { onBack: () => void }) {
           <section className="surface coach-panel" aria-label={m.coach.chatAria}>
             <div className="coach-thread" aria-live="polite">
               {messages.length === 0 && !busy && (
-                <div className="py-6">
-                  <p className="eyebrow mb-3">{m.coach.eyebrow}</p>
-                  <h1 className="section-title">{m.coach.title}</h1>
-                  <p className="body-muted mt-3 max-w-xl">{m.coach.intro}</p>
+                <div className="coach-welcome py-6">
+                  <span className="coach-welcome-mark" aria-hidden="true">✳</span>
+                  <h2 className="section-title mt-5">{m.coach.startPrompt}</h2>
                   <div className="mt-5 flex flex-wrap gap-2">
                     {m.coach.suggestions.map((s) => (
                       <button key={s} className="choice-chip" onClick={() => void send(s)}>{s}</button>

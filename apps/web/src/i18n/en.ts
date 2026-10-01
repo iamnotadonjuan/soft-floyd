@@ -54,6 +54,14 @@ const en = {
     noAppsYet: "No apps available yet.",
   },
 
+  navigation: {
+    primaryAria: "Main navigation",
+    home: "Overview",
+    training: "Training",
+    coach: "Coach",
+    settings: "Settings",
+  },
+
   app: {
     serverError: (error: string) => `Couldn't reach the server: ${error}`,
     loading: "Loading your ride journal…",
@@ -177,6 +185,7 @@ const en = {
     eyebrow: "Your cycling coach",
     title: "Ask about your rides, training, or how to get faster.",
     intro: "The coach reads your synced rides and imported training books, and remembers what you tell it. It only talks cycling.",
+    startPrompt: "Where should we start?",
     thinking: "Thinking…",
     turnError: "The coach couldn't answer. Please try again.",
     messageLabel: "Message the coach",

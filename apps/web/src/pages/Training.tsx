@@ -11,7 +11,6 @@ import type {
   TrainingSessionOut,
   WorkoutDevice,
 } from "../api/types";
-import LanguageToggle from "../components/LanguageToggle";
 import SessionFields from "../components/training/SessionFields";
 import WorkoutCard from "../components/training/WorkoutCard";
 import { useI18n } from "../i18n/I18nProvider";
@@ -38,10 +37,9 @@ function weekdayCode(dateStr: string): string {
 interface Props {
   profile: ProfileOut;
   onProfileChange: (profile: ProfileOut) => void;
-  onBack: () => void;
 }
 
-export default function Training({ profile, onProfileChange, onBack }: Props) {
+export default function Training({ profile, onProfileChange }: Props) {
   const { m } = useI18n();
   const [bikes, setBikes] = useState<BikeOut[] | null>(null);
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
@@ -74,15 +72,7 @@ export default function Training({ profile, onProfileChange, onBack }: Props) {
   return (
     <main className="app-shell">
       <div className="page-wrap max-w-3xl">
-        <header className="mb-8 flex flex-wrap items-center justify-between gap-4">
-          <span className="brand">{m.training.brand}</span>
-          <div className="flex items-center gap-4">
-            <button onClick={onBack} className="text-button">{m.training.backToDashboard}</button>
-            <LanguageToggle />
-          </div>
-        </header>
-
-        <div className="mb-8 max-w-2xl">
+        <div className="page-intro mb-8 max-w-2xl">
           <p className="eyebrow mb-3">{m.training.eyebrow}</p>
           <h1 className="display-title">{m.training.title}</h1>
           <p className="body-muted mt-4">{m.training.intro}</p>
@@ -160,7 +150,7 @@ function DevicesStep({
   }
 
   return (
-    <div className="surface flow-panel space-y-5 p-5 sm:p-8">
+    <div className="surface flow-panel training-form space-y-5 p-5 sm:p-8">
       <div>
         <h2 className="text-xl font-semibold">{m.training.devices.title}</h2>
         <p className="body-muted mt-1 text-sm">{m.training.devices.body}</p>
@@ -236,7 +226,7 @@ function PlanForm({
   }
 
   return (
-    <div className="surface space-y-5 p-5 sm:p-7">
+    <div className="surface training-form space-y-5 p-5 sm:p-7">
       <SessionFields
         value={{ plannedDate, minutes: availableMinutes, setting, discipline, bikeId, routeIdea, feel }}
         bikes={bikes}

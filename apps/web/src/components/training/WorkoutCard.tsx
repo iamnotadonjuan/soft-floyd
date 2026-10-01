@@ -85,7 +85,7 @@ export default function WorkoutCard({ session, garminConnected, onChange, onDele
   }
 
   return (
-    <div className="surface space-y-5 p-5 sm:p-7">
+    <div className="surface workout-card space-y-5 p-5 sm:p-7">
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="eyebrow mb-1">{m.training.emphasisLabel[session.intent.emphasis]}</p>

@@ -8,7 +8,7 @@ import ConnectionCard from "./ConnectionCard";
 // Fetches and renders every connected app generically — today that's
 // just Garmin, but adding a provider means adding a row to
 // connections/service.py's list_connections, not touching this component.
-export default function ConnectionsPanel() {
+export default function ConnectionsPanel({ onChanged }: { onChanged?: () => void } = {}) {
   const { m } = useI18n();
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -25,6 +25,7 @@ export default function ConnectionsPanel() {
     setConnections((prev) =>
       (prev ?? []).map((c) => (c.provider === updated.provider ? updated : c)),
     );
+    onChanged?.();
   }
 
   if (error) return <p className="notice-error" role="alert">{m.connections.loadError(error)}</p>;

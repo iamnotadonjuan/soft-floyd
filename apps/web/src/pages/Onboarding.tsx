@@ -72,7 +72,7 @@ export default function Onboarding({ initialProfile, onComplete, onOpenProfile }
           <p className="eyebrow mb-3">{m.onboarding.eyebrow}</p>
           <h1 className="display-title">{m.onboarding.title}</h1>
         </div>
-        <div className="surface flow-panel mx-auto max-w-2xl p-5 sm:p-8">
+        <div className="surface flow-panel onboarding-card mx-auto max-w-2xl p-5 sm:p-8">
 
         {step !== "summary" && (
           <div className="mb-6">

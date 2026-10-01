@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { api, ApiError } from "./api/client";
 import { hasCompletedOnboarding, type AccountOut, type ProfileOut } from "./api/types";
 import LanguageToggle from "./components/LanguageToggle";
+import AppNavigation, { type NavView } from "./components/AppNavigation";
 import { useI18n } from "./i18n/I18nProvider";
 import Coach from "./pages/Coach";
 import Dashboard from "./pages/Dashboard";
@@ -15,7 +16,7 @@ import Training from "./pages/Training";
 
 // These are local views; a ride detail keeps the dashboard mounted so
 // returning to history preserves loaded pages and keyboard focus.
-type View = "dashboard" | "settings" | "ride" | "coach" | "profile" | "training";
+type View = NavView;
 
 export default function App() {
   const { m } = useI18n();
@@ -23,6 +24,7 @@ export default function App() {
   const [profile, setProfile] = useState<ProfileOut | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
+  const [coachReady, setCoachReady] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<number | null>(null);
   const rideListScroll = useRef(0);
 
@@ -41,6 +43,39 @@ export default function App() {
     window.addEventListener("soft-floyd-unauthorized", unauthorized);
     return () => { active = false; window.removeEventListener("soft-floyd-unauthorized", unauthorized); };
   }, []);
+
+  useEffect(() => {
+    if (!account || !profile || !hasCompletedOnboarding(profile)) return;
+    let active = true;
+    api.listConnections()
+      .then((items) => { if (active) setCoachReady(items.some((item) => item.status === "connected")); })
+      .catch(() => { if (active) setCoachReady(false); });
+    return () => { active = false; };
+  }, [account, profile, view]);
+
+  function navigate(next: Exclude<View, "ride">) {
+    if (view === "ride" && next === "dashboard") {
+      setView("dashboard");
+      requestAnimationFrame(() => {
+        window.scrollTo(0, rideListScroll.current);
+        document.getElementById(`ride-${selectedRideId}`)?.focus({ preventScroll: true });
+      });
+      return;
+    }
+    setView(next);
+    window.scrollTo(0, 0);
+  }
+
+  function openConnections() {
+    navigate("settings");
+    requestAnimationFrame(() => document.getElementById("settings-connections")?.scrollIntoView({ behavior: "smooth", block: "start" }));
+  }
+
+  function refreshCoachReady() {
+    api.listConnections()
+      .then((items) => setCoachReady(items.some((item) => item.status === "connected")))
+      .catch(() => setCoachReady(false));
+  }
 
   if (account === undefined && !error) {
     return <div className="app-shell page-wrap body-muted">{m.auth.loading}</div>;
@@ -65,8 +100,9 @@ export default function App() {
     return <div className="app-shell page-wrap body-muted">{m.app.loading}</div>;
   }
 
-  if (view === "profile") {
+  if (!hasCompletedOnboarding(profile) && view === "profile") {
     return <Profile account={account} onBack={() => setView("dashboard")}
+      showLanguageToggle
       onSignOut={() => { setAccount(null); setProfile(null); setView("dashboard"); }} />;
   }
 
@@ -75,35 +111,20 @@ export default function App() {
       onOpenProfile={() => setView("profile")} />;
   }
 
-  if (view === "settings") {
-    return (
-      <Settings profile={profile} onProfileChange={setProfile} onBack={() => setView("dashboard")}
-        onOpenProfile={() => setView("profile")} />
-    );
-  }
-
-  if (view === "coach") {
-    return <Coach onBack={() => setView("dashboard")} />;
-  }
-
-  if (view === "training") {
-    return (
-      <Training
-        profile={profile}
-        onProfileChange={setProfile}
-        onBack={() => setView("dashboard")}
-      />
-    );
-  }
-
   return <>
-    <div hidden={view === "ride"}>
+    <AppNavigation view={view} coachReady={coachReady} onNavigate={navigate} />
+    {view === "profile" && <Profile account={account} onBack={() => navigate("dashboard")}
+      onSignOut={() => { setAccount(null); setProfile(null); setView("dashboard"); }} />}
+    {view === "settings" && <Settings profile={profile} onProfileChange={setProfile}
+      onConnectionsChange={refreshCoachReady} />}
+    {view === "coach" && <Coach />}
+    {view === "training" && <Training profile={profile} onProfileChange={setProfile} />}
+    {(view === "dashboard" || view === "ride") && <div hidden={view === "ride"}>
       <Dashboard
         profile={profile}
-        onOpenSettings={() => setView("settings")}
-        onOpenProfile={() => setView("profile")}
-        onOpenCoach={() => { setView("coach"); window.scrollTo(0, 0); }}
-        onOpenTraining={() => { setView("training"); window.scrollTo(0, 0); }}
+        onOpenSettings={openConnections}
+        onOpenCoach={() => navigate("coach")}
+        onOpenTraining={() => navigate("training")}
         onOpenRide={(id) => {
           rideListScroll.current = window.scrollY;
           setSelectedRideId(id);
@@ -111,7 +132,7 @@ export default function App() {
           window.scrollTo(0, 0);
         }}
       />
-    </div>
+    </div>}
     {view === "ride" && selectedRideId !== null &&
       <RideDetail id={selectedRideId} onBack={() => {
         setView("dashboard");

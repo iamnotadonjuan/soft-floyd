@@ -68,6 +68,11 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0014-signed-in-ui-redesign** (done; live-account review pending): a
+  premium cycling editorial theme, shared desktop/mobile navigation, a
+  connect-first empty dashboard, and refreshed signed-in screens. Login
+  and backend behavior are unchanged. See `docs/FRONTEND.md`.
+
 - **0013-edit-planned-sessions** (built; manual checks pending, so the plan
   is still in `docs/exec-plans/active/`): a planned session can be edited
   from its card (Training page and coach chat) or by asking the coach —

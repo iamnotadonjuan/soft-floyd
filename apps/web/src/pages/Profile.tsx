@@ -5,10 +5,11 @@ import type { AccountOut } from "../api/types";
 import LanguageToggle from "../components/LanguageToggle";
 import { useI18n } from "../i18n/I18nProvider";
 
-export default function Profile({ account, onBack, onSignOut }: {
+export default function Profile({ account, onBack, onSignOut, showLanguageToggle = false }: {
   account: AccountOut;
   onBack: () => void;
   onSignOut: () => void;
+  showLanguageToggle?: boolean;
 }) {
   const { m } = useI18n();
   const [busy, setBusy] = useState(false);
@@ -27,17 +28,14 @@ export default function Profile({ account, onBack, onSignOut }: {
   return (
     <main className="app-shell min-h-screen">
       <div className="page-wrap max-w-4xl">
-        <header className="mb-12 flex items-center justify-between gap-4">
-          <span className="brand">Soft Floyd / {m.auth.profile}</span>
-          <div className="flex items-center gap-4">
-            <button className="text-button" onClick={onBack}>{m.common.back}</button>
-            <LanguageToggle />
-          </div>
-        </header>
+        <div className="mb-10 flex items-center justify-between gap-4">
+          <button className="text-button" onClick={onBack}>{m.common.back}</button>
+          {showLanguageToggle && <LanguageToggle />}
+        </div>
         <p className="eyebrow mb-3">{m.auth.account}</p>
         <h1 className="display-title">{m.auth.profileTitle}</h1>
         <p className="body-muted mt-4">{m.auth.profileIntro}</p>
-        <section className="surface mt-9 flex flex-wrap items-center gap-5 p-6 sm:p-8">
+        <section className="surface profile-card mt-9 flex flex-wrap items-center gap-5 p-6 sm:p-8">
           {account.picture_url ?
             <img src={account.picture_url} alt="" referrerPolicy="no-referrer"
               className="h-20 w-20 rounded-full object-cover" /> :
