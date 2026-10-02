@@ -20,3 +20,10 @@ Follow `docs/product-specs/suggested-training.md`, `docs/design-docs/core-belief
 - Test outdoor context validation and old saved sessions, rest rules, no data/books, sensor filtering, cost usage and account isolation.
 - Test REST/MCP parity and unchanged existing planning contract.
 - Run `make check` and web build; review desktop/mobile and EN/ES interactions if a signed-in browser is available.
+
+## Result
+
+- `make check` passed: Ruff lint and format, web typecheck, and 282 Python tests. `pnpm build` passed.
+- Core tests cover rest thresholds, indoor field clearing, sensor-filtered ride evidence, books and paid-call usage, and account isolation. REST/MCP parity and Coach field forwarding are covered.
+- Signed-in desktop/mobile visual review and a live OpenAI call remain pending; the in-app browser connection was unavailable in this session. Tracked in the tech-debt tracker.
+- Quality self-score: core owns all recommendation rules; adapters are thin; per-ride metrics use `ride_context`; paid calls record usage; old sessions remain valid without migration; docs and tests cover the new contract. Live visual and model verification remain untested.

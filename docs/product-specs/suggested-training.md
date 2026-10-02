@@ -1,6 +1,6 @@
 # Suggested training and outdoor context
 
-Status: **in progress** (exec-plan 0016). Training keeps its existing idea-led planner and adds **Suggest for me**. Both modes ask for date, available minutes, indoor/outdoor, discipline, bike and how the rider feels. Outdoor sessions optionally ask for a training area, flat/rolling/hilly terrain and approximate starting altitude in metres. These are rider-provided context, not geocoded route facts. They are stored with the session request and editable later. Indoor sessions clear outdoor context.
+Status: **implemented** (exec-plan 0016). Training keeps its existing idea-led planner and adds **Suggest for me**. Both modes ask for date, available minutes, indoor/outdoor, discipline, bike and how the rider feels. Outdoor sessions optionally ask for a training area, flat/rolling/hilly terrain and approximate starting altitude in metres. These are rider-provided context, not geocoded route facts. They are stored with the session request and editable later. Indoor sessions clear outdoor context.
 
 Suggestion mode uses the existing goal, weekly summary, recent-ride and training-load intent, plus a sensor-verified digest of up to five recent rides. With fewer than 42 days of history it does not use fitness/fatigue/form to prescribe intensity. Relevant imported-book passages may inform the explanation and appear as page citations; no books or no rides are valid states. The result explains the key evidence and uncertainty. It never attributes an absent sensor reading to a ride.
 

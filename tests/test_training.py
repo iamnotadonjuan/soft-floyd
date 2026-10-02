@@ -11,6 +11,7 @@ import struct
 import pytest
 from fit_tool.fit_file import FitFile
 from fit_tool.validation import ConformanceLevel, validate_fit_file
+from soft_floyd_core.account_scope import scoped_account
 from soft_floyd_core.activities.service import (
     ActivitySummaryOut,
     TrainingSummaryOut,
@@ -768,6 +769,32 @@ async def test_suggestion_uses_imported_book_passage_and_records_both_paid_calls
     assert [(s.title, s.page_start) for s in result.sources] == [("Training guide", 12)]
     assert "Training guide p.12" in llm.calls[0][1]["content"]
     assert db_session.query(LLMUsageRecord).count() == 2
+
+
+async def test_suggestion_does_not_read_another_accounts_ride(db_session):
+    _seed(db_session)
+    with scoped_account(2):
+        db_session.add(RiderProfile(id=2, goal_text="Other rider"))
+        db_session.add(
+            Activity(
+                garmin_id=202,
+                start_time=NOW,
+                duration_s=7000,
+                avg_power_w=300,
+                has_power_data=True,
+                fit_status="ok",
+            )
+        )
+        db_session.commit()
+    llm = FakeStructuredLLM(
+        _generated_response({"kind": "none", "low": None, "high": None, "hr_zone": None})
+    )
+    result = await training_service.suggest_session(
+        db_session, llm, None, _request(feel="tired"), budget_usd=10.0, now=NOW
+    )
+    assert result.kind == "session"
+    assert result.rides == []
+    assert "No synced rides available" in llm.calls[0][1]["content"]
 
 
 async def test_plan_session_keeps_power_target_for_a_power_rider(db_session):

@@ -168,8 +168,8 @@ export default function Training({ profile, onProfileChange }: Props) {
                 <WorkoutCard
                   session={active}
                   garminConnected={garminConnected}
-                  onChange={(updated) => { setActive(updated); refreshSessions(); }}
-                  onDeleted={() => { setActive(null); refreshSessions(); }}
+                  onChange={(updated) => { setActive(updated); setSuggestion(null); refreshSessions(); }}
+                  onDeleted={() => { setActive(null); setSuggestion(null); refreshSessions(); }}
                 />
               </div>
             )}
@@ -178,13 +178,13 @@ export default function Training({ profile, onProfileChange }: Props) {
               heading={m.training.upcomingHeading}
               sessions={upcoming}
               activeId={active?.id ?? null}
-              onSelect={setActive}
+              onSelect={(session) => { setActive(session); setSuggestion(null); setRestRequest(null); }}
             />
             <SessionList
               heading={m.training.historyHeading}
               sessions={past}
               activeId={active?.id ?? null}
-              onSelect={setActive}
+              onSelect={(session) => { setActive(session); setSuggestion(null); setRestRequest(null); }}
             />
           </>
         )}

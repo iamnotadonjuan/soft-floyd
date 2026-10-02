@@ -442,10 +442,20 @@ async def test_plan_tool_passes_bike_id_and_reports_the_session(session):
             "adjustments": None,
         }
     )
-    args = {"setting": "outdoor", "discipline": "road", "bike_id": bike_id}
+    args = {
+        "setting": "outdoor",
+        "discipline": "road",
+        "bike_id": bike_id,
+        "training_area": "Bogotá north",
+        "terrain": "hilly",
+        "starting_altitude_m": 2600,
+    }
     result = await run_tool(session, "plan_training_session", json.dumps(args), llm)
     payload = json.loads(result.content)
     assert payload["request"]["bike_id"] == bike_id
+    assert payload["request"]["training_area"] == "Bogotá north"
+    assert payload["request"]["terrain"] == "hilly"
+    assert payload["request"]["starting_altitude_m"] == 2600
     assert result.training_session_ids == [payload["id"]]
 
 
