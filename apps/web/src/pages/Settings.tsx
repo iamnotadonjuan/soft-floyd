@@ -6,6 +6,7 @@ import AvailabilityPicker, { type AvailabilityValue } from "../components/Availa
 import BikeEditor from "../components/BikeEditor";
 import ConnectionsPanel from "../components/connections/ConnectionsPanel";
 import FocusPicker from "../components/FocusPicker";
+import HelpDisclosure from "../components/HelpDisclosure";
 import { useI18n } from "../i18n/I18nProvider";
 
 interface Props {
@@ -45,7 +46,7 @@ export default function Settings({ profile, onProfileChange, onConnectionsChange
           <HabitsSection profile={profile} save={save} />
           <GoalsSection profile={profile} save={save} />
 
-          <SettingsSection title={m.settings.garage.title} description={m.settings.garage.description}>
+          <SettingsSection title={m.settings.garage.title} description={m.settings.garage.description} help={m.settings.garage.help}>
             <BikeEditor onBikesChange={() => api.getProfile().then(onProfileChange)} />
           </SettingsSection>
 
@@ -53,7 +54,7 @@ export default function Settings({ profile, onProfileChange, onConnectionsChange
           <SensorsAndAnchorsSection profile={profile} save={save} />
           <DevicesSection profile={profile} save={save} />
 
-          <SettingsSection id="settings-connections" title={m.settings.connections.title} description={m.settings.connections.description}>
+          <SettingsSection id="settings-connections" title={m.settings.connections.title} description={m.settings.connections.description} help={m.settings.connections.help}>
             <ConnectionsPanel onChanged={onConnectionsChange} />
           </SettingsSection>
         </div>
@@ -66,17 +67,19 @@ function SettingsSection({
   id,
   title,
   description,
+  help,
   children,
 }: {
   id?: string;
   title: string;
   description?: string;
+  help: string;
   children: ReactNode;
 }) {
   return (
     <section id={id} className="surface space-y-5 p-5 sm:p-7">
       <div>
-        <h2 className="font-semibold">{title}</h2>
+        <div className="flex items-start gap-2"><h2 className="font-semibold">{title}</h2><HelpDisclosure title={title}>{help}</HelpDisclosure></div>
         {description && <p className="body-muted mt-1 text-sm">{description}</p>}
       </div>
       {children}
@@ -135,7 +138,7 @@ function HabitsSection({ profile, save }: SectionProps) {
   });
 
   return (
-    <SettingsSection title={m.settings.habits.title} description={m.settings.habits.description}>
+    <SettingsSection title={m.settings.habits.title} description={m.settings.habits.description} help={m.settings.habits.help}>
       <div className="max-w-xs">
         <label className="block space-y-1">
           <span className="text-sm font-medium">{m.fields.hoursPerWeek}</span>
@@ -165,7 +168,7 @@ function GoalsSection({ profile, save }: SectionProps) {
   const [eventDate, setEventDate] = useState(profile.target_event_date ?? "");
 
   return (
-    <SettingsSection title={m.settings.goals.title} description={m.settings.goals.description}>
+    <SettingsSection title={m.settings.goals.title} description={m.settings.goals.description} help={m.settings.goals.help}>
       <FocusPicker value={focusAreas} onChange={setFocusAreas} />
       <label className="block space-y-1">
         <span className="text-sm font-medium">{m.fields.ownWords}</span>
@@ -216,7 +219,7 @@ function AboutYouSection({ profile, save }: SectionProps) {
   const [healthNotes, setHealthNotes] = useState(profile.health_notes ?? "");
 
   return (
-    <SettingsSection title={m.settings.about.title} description={m.settings.about.description}>
+    <SettingsSection title={m.settings.about.title} description={m.settings.about.description} help={m.settings.about.help}>
       <div className="grid grid-cols-2 gap-3">
         <label className="block space-y-1">
           <span className="text-sm font-medium">{m.fields.birthYear}</span>
@@ -326,6 +329,7 @@ function SensorsAndAnchorsSection({ profile, save }: SectionProps) {
     <SettingsSection
       title={m.settings.anchors.title}
       description={m.settings.anchors.description}
+      help={m.settings.anchors.help}
     >
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -383,7 +387,7 @@ function DevicesSection({ profile, save }: SectionProps) {
     setDevices((items) => (items.includes(device) ? items.filter((d) => d !== device) : [...items, device]));
 
   return (
-    <SettingsSection title={m.settings.devices.title} description={m.settings.devices.description}>
+    <SettingsSection title={m.settings.devices.title} description={m.settings.devices.description} help={m.settings.devices.help}>
       <div className="flex flex-wrap gap-2">
         {DEVICES.map((key) => (
           <button

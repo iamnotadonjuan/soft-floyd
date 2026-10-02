@@ -12,6 +12,7 @@ import GoalsStep from "../components/onboarding/GoalsStep";
 import HabitsStep from "../components/onboarding/HabitsStep";
 import LanguageToggle from "../components/LanguageToggle";
 import { useI18n } from "../i18n/I18nProvider";
+import Help from "./Help";
 
 type Step = "habits" | "goals" | "garage" | "about" | "anchors" | "connect" | "summary";
 
@@ -32,6 +33,7 @@ export default function Onboarding({ initialProfile, onComplete, onOpenProfile }
   const [profile, setProfile] = useState<ProfileOut>(initialProfile);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
   const steps = (profile.has_power_meter || profile.has_hr_monitor)
     ? STEP_ORDER : STEP_ORDER.filter((item) => item !== "anchors");
   const stepIndex = steps.indexOf(step);
@@ -58,12 +60,14 @@ export default function Onboarding({ initialProfile, onComplete, onOpenProfile }
   }
 
   return (
-    <main className="app-shell min-h-screen">
+    <>
+    <main className="app-shell min-h-screen" hidden={showHelp}>
       <div className="page-wrap max-w-4xl">
         <header className="mb-10 flex flex-wrap items-center justify-between gap-4">
           <span className="brand">{m.onboarding.brand}</span>
           <div className="flex items-center gap-4">
             <span className="body-muted text-sm">{m.onboarding.tagline}</span>
+            <button onClick={() => setShowHelp(true)} className="text-button">{m.navigation.help}</button>
             <button onClick={onOpenProfile} className="text-button">{m.auth.profile}</button>
             <LanguageToggle />
           </div>
@@ -183,5 +187,7 @@ export default function Onboarding({ initialProfile, onComplete, onOpenProfile }
         </div>
       </div>
     </main>
+    {showHelp && <Help onBack={() => setShowHelp(false)} />}
+    </>
   );
 }

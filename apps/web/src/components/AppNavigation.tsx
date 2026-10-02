@@ -1,7 +1,7 @@
 import LanguageToggle from "./LanguageToggle";
 import { useI18n } from "../i18n/I18nProvider";
 
-export type NavView = "dashboard" | "training" | "coach" | "settings" | "profile" | "ride";
+export type NavView = "dashboard" | "training" | "coach" | "settings" | "profile" | "help" | "ride";
 
 export default function AppNavigation({ view, coachReady, onNavigate }: {
   view: NavView;
@@ -32,6 +32,7 @@ export default function AppNavigation({ view, coachReady, onNavigate }: {
         </nav>
         <div className="nav-utilities">
           <button className="nav-utility" data-active={view === "settings"} onClick={() => onNavigate("settings")}>{m.navigation.settings}</button>
+          <button className="nav-utility" data-active={view === "help"} onClick={() => onNavigate("help")}>{m.navigation.help}</button>
           <button className="nav-utility" data-active={view === "profile"} onClick={() => onNavigate("profile")}>{m.auth.profile}</button>
           <LanguageToggle />
         </div>

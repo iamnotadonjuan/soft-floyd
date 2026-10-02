@@ -68,6 +68,11 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0015-help-and-first-use** (done; signed-in visual review pending): a
+  dismissible guide after onboarding, a Help/FAQ page, and tappable
+  explanations in Settings and training load. English and Spanish UI copy;
+  browser-local, account-keyed dismissal. See
+  `docs/product-specs/help-and-first-use.md`.
 - **0014-signed-in-ui-redesign** (done; live-account review pending): a
   premium cycling editorial theme, shared desktop/mobile navigation, a
   connect-first empty dashboard, and refreshed signed-in screens. Login

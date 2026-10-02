@@ -21,9 +21,9 @@ apps/web/src/
                      Goals/Garage/AboutYou/Anchors/ConnectStep) — each a
                      thin "Next"-gated wrapper around the shared
                      components above plus its own fields.
-  pages/            Onboarding, Dashboard, RideDetail, Settings, Coach.
+  pages/            Onboarding, Dashboard, RideDetail, Settings, Coach, Help.
   App.tsx           The auth and onboarding gates, plus the
-                   dashboard/settings/ride/coach/profile view toggle.
+                   dashboard/settings/ride/coach/profile/help view toggle.
   index.css         Signed-in editorial tokens, surfaces, responsive
                    navigation, and screen accents; sign-in styles are separate.
 ```
@@ -32,7 +32,7 @@ apps/web/src/
 
 - `AppNavigation` is shared by completed-onboarding views. Dashboard,
   Training, and Coach are primary destinations; Coach stays disabled until
-  a ride source is connected. Settings, Profile, and language remain in the
+  a ride source is connected. Settings, Help, Profile, and language remain in the
   header. The mobile primary navigation sits at the bottom. Onboarding uses
   its own step header. Keep the dashboard mounted during ride detail so
   returning to history restores scroll and focus.
@@ -43,6 +43,12 @@ apps/web/src/
 - `pages/Profile.tsx` is the account identity/sign-out screen. Training
   fields remain in Settings. New sign-in/Profile copy lives in both language
   dictionaries.
+- `pages/Help.tsx` holds the first-use guide and FAQ. Onboarding can open it
+  without losing in-progress answers. The dashboard guide appears after a new
+  rider completes onboarding; dismissal is stored in this browser under the
+  account ID, and Help can reopen it. Existing accounts are not prompted.
+  Settings groups and training load tiles use keyboard-operable `?`
+  disclosures for short explanations.
 
 - `api/types.ts` types must match the FastAPI response shape exactly —
   when `packages/core/.../profile/service.py`'s `ProfileOut` (or

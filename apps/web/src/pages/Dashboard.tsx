@@ -17,17 +17,22 @@ function connectionTone(status: ConnectionOut["status"]): string {
 
 export default function Dashboard({
   profile, onOpenSettings, onOpenCoach, onOpenTraining, onOpenRide,
+  showGuide, onDismissGuide, onOpenHelp,
 }: {
   profile: ProfileOut;
   onOpenSettings: () => void;
   onOpenCoach: () => void;
   onOpenTraining: () => void;
   onOpenRide: (id: number) => void;
+  showGuide: boolean;
+  onDismissGuide: () => void;
+  onOpenHelp: () => void;
 }) {
   const { m, intlLocale } = useI18n();
   const [rides, setRides] = useState<ActivitySummaryOut[] | null>(null);
   const [connections, setConnections] = useState<ConnectionOut[] | null>(null);
   const [nextSession, setNextSession] = useState<TrainingSessionOut | null>(null);
+  const [hasSession, setHasSession] = useState(false);
   const [load, setLoad] = useState<TrainingLoadOut | null>(null);
   const [rideError, setRideError] = useState<string | null>(null);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -45,6 +50,7 @@ export default function Dashboard({
     api.listTrainingSessions()
       .then((items) => {
         if (!active) return;
+        setHasSession(items.length > 0);
         const today = new Date().toISOString().slice(0, 10);
         const upcoming = items
           .filter((s) => s.status === "planned" && s.planned_date >= today)
@@ -112,6 +118,30 @@ export default function Dashboard({
             <span className="status-pill mt-4" data-tone="good">{m.dashboard.tierView[profile.capability_tier]}</span>
           </div>
         </section>
+
+        {showGuide && <section className="surface first-use-guide mb-8 p-5 sm:p-7" aria-labelledby="first-use-heading">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div>
+              <p className="eyebrow mb-2">{m.help.eyebrow}</p>
+              <h2 id="first-use-heading" className="section-title">{m.help.guideTitle}</h2>
+              <p className="body-muted mt-2">{m.help.guideIntro}</p>
+            </div>
+            <button className="text-button text-sm" onClick={onDismissGuide}>{m.help.dismissGuide}</button>
+          </div>
+          <ol className="mt-6 grid gap-3 md:grid-cols-3">
+            {([
+              { copy: m.help.connect, ready: coachReady, action: onOpenSettings },
+              { copy: { ...m.help.ride, action: newest ? m.dashboard.viewRide : m.help.connect.action }, ready: Boolean(newest), action: newest ? () => onOpenRide(newest.id) : onOpenSettings },
+              { copy: m.help.session, ready: hasSession, action: onOpenTraining },
+            ] as const).map((step, index) => <li key={step.copy.title} className="surface-soft p-5">
+              <span className="eyebrow">0{index + 1}{step.ready ? ` · ${m.help.ready}` : ""}</span>
+              <h3 className="mt-2 text-lg font-semibold">{step.copy.title}</h3>
+              <p className="body-muted mt-2 text-sm">{step.copy.body}</p>
+              <button className="text-button mt-4 text-sm" onClick={step.action}>{step.copy.action} →</button>
+            </li>)}
+          </ol>
+          <button className="text-button mt-5 text-sm" onClick={onOpenHelp}>{m.help.moreHelp} →</button>
+        </section>}
 
         <section className="connection-band mb-8 flex flex-wrap items-center justify-between gap-4 p-5" aria-label={m.dashboard.connectionsAria}>
           <div>

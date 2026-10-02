@@ -4,6 +4,7 @@ import { api, ApiError } from "./api/client";
 import { hasCompletedOnboarding, type AccountOut, type ProfileOut } from "./api/types";
 import LanguageToggle from "./components/LanguageToggle";
 import AppNavigation, { type NavView } from "./components/AppNavigation";
+import { isGuidePending, setGuidePending } from "./components/firstUseStorage";
 import { useI18n } from "./i18n/I18nProvider";
 import Coach from "./pages/Coach";
 import Dashboard from "./pages/Dashboard";
@@ -13,6 +14,7 @@ import RideDetail from "./pages/RideDetail";
 import Profile from "./pages/Profile";
 import SignIn from "./pages/SignIn";
 import Training from "./pages/Training";
+import Help from "./pages/Help";
 
 // These are local views; a ride detail keeps the dashboard mounted so
 // returning to history preserves loaded pages and keyboard focus.
@@ -25,21 +27,24 @@ export default function App() {
   const [error, setError] = useState<string | null>(null);
   const [view, setView] = useState<View>("dashboard");
   const [coachReady, setCoachReady] = useState(false);
+  const [showGuide, setShowGuide] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<number | null>(null);
   const rideListScroll = useRef(0);
+  const previousView = useRef<Exclude<View, "help">>("dashboard");
 
   useEffect(() => {
     let active = true;
     api.getMe().then((identity) => {
       if (!active) return;
       setAccount(identity);
+      setShowGuide(isGuidePending(identity.id));
       return api.getProfile().then((rider) => { if (active) setProfile(rider); });
     }).catch((reason) => {
       if (!active) return;
       if (reason instanceof ApiError && reason.status === 401) setAccount(null);
       else setError(String(reason));
     });
-    const unauthorized = () => { setAccount(null); setProfile(null); };
+    const unauthorized = () => { setAccount(null); setProfile(null); setShowGuide(false); };
     window.addEventListener("soft-floyd-unauthorized", unauthorized);
     return () => { active = false; window.removeEventListener("soft-floyd-unauthorized", unauthorized); };
   }, []);
@@ -54,6 +59,7 @@ export default function App() {
   }, [account, profile, view]);
 
   function navigate(next: Exclude<View, "ride">) {
+    if (next === "help" && view !== "help") previousView.current = view;
     if (view === "ride" && next === "dashboard") {
       setView("dashboard");
       requestAnimationFrame(() => {
@@ -75,6 +81,24 @@ export default function App() {
     api.listConnections()
       .then((items) => setCoachReady(items.some((item) => item.status === "connected")))
       .catch(() => setCoachReady(false));
+  }
+
+  function finishOnboarding(updated: ProfileOut) {
+    setGuidePending(account!.id, true);
+    setShowGuide(true);
+    setProfile(updated);
+    setView("dashboard");
+  }
+
+  function dismissGuide() {
+    setGuidePending(account!.id, false);
+    setShowGuide(false);
+  }
+
+  function reopenGuide() {
+    setGuidePending(account!.id, true);
+    setShowGuide(true);
+    navigate("dashboard");
   }
 
   if (account === undefined && !error) {
@@ -103,20 +127,22 @@ export default function App() {
   if (!hasCompletedOnboarding(profile) && view === "profile") {
     return <Profile account={account} onBack={() => setView("dashboard")}
       showLanguageToggle
-      onSignOut={() => { setAccount(null); setProfile(null); setView("dashboard"); }} />;
+      onSignOut={() => { setAccount(null); setProfile(null); setShowGuide(false); setView("dashboard"); }} />;
   }
 
   if (!hasCompletedOnboarding(profile)) {
-    return <Onboarding initialProfile={profile} onComplete={setProfile}
+    return <Onboarding initialProfile={profile} onComplete={finishOnboarding}
       onOpenProfile={() => setView("profile")} />;
   }
 
   return <>
     <AppNavigation view={view} coachReady={coachReady} onNavigate={navigate} />
     {view === "profile" && <Profile account={account} onBack={() => navigate("dashboard")}
-      onSignOut={() => { setAccount(null); setProfile(null); setView("dashboard"); }} />}
+      onSignOut={() => { setAccount(null); setProfile(null); setShowGuide(false); setView("dashboard"); }} />}
     {view === "settings" && <Settings profile={profile} onProfileChange={setProfile}
       onConnectionsChange={refreshCoachReady} />}
+    {view === "help" && <Help onBack={() => navigate(previousView.current === "ride" ? "dashboard" : previousView.current)}
+      onNavigate={navigate} onOpenConnections={openConnections} onReopenGuide={reopenGuide} />}
     {view === "coach" && <Coach />}
     {view === "training" && <Training profile={profile} onProfileChange={setProfile} />}
     {(view === "dashboard" || view === "ride") && <div hidden={view === "ride"}>
@@ -125,6 +151,9 @@ export default function App() {
         onOpenSettings={openConnections}
         onOpenCoach={() => navigate("coach")}
         onOpenTraining={() => navigate("training")}
+        showGuide={showGuide}
+        onDismissGuide={dismissGuide}
+        onOpenHelp={() => navigate("help")}
         onOpenRide={(id) => {
           rideListScroll.current = window.scrollY;
           setSelectedRideId(id);

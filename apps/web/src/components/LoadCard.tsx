@@ -2,6 +2,7 @@ import { type KeyboardEvent, type PointerEvent, type ReactNode, useEffect, useRe
 
 import type { DayLoadOut, TrainingLoadOut } from "../api/types";
 import { useI18n } from "../i18n/I18nProvider";
+import HelpDisclosure from "./HelpDisclosure";
 
 // Chart geometry. Width follows the container so text stays at its real
 // pixel size on every screen; only the height is fixed.
@@ -44,15 +45,16 @@ function LineKey({ color }: { color: string }) {
   );
 }
 
-function Tile({ label, value, hint, swatch, extra }: {
-  label: string; value: string; hint: string; swatch?: string; extra?: ReactNode;
+function Tile({ label, value, hint, help, swatch, extra }: {
+  label: string; value: string; hint: string; help: string; swatch?: string; extra?: ReactNode;
 }) {
   return (
     <div className="surface-soft p-4">
-      <p className="eyebrow flex items-center gap-2">
+      <div className="eyebrow flex items-center gap-2">
         {swatch && <LineKey color={swatch} />}
         {label}
-      </p>
+        <HelpDisclosure title={label}>{help}</HelpDisclosure>
+      </div>
       <p className="mt-2 text-3xl font-semibold leading-none">{value}</p>
       <p className="body-muted mt-2 text-sm">{hint}</p>
       {extra}
@@ -272,12 +274,12 @@ export default function LoadCard({ load }: { load: TrainingLoadOut }) {
             <p className="surface-soft mb-4 p-3 text-sm">{t.buildingBaseline(load.days_of_history)}</p>
           )}
           <div className="mb-5 grid gap-3 sm:grid-cols-3">
-            <Tile label={t.fitness} swatch="var(--viz-fitness)" value={whole.format(load.ctl)}
+            <Tile label={t.fitness} help={t.fitnessHelp} swatch="var(--viz-fitness)" value={whole.format(load.ctl)}
               hint={t.fitnessHint}
               extra={<p className="body-muted mt-1 text-sm">{t.vsLastWeek(signed1.format(load.ramp_rate_7d))}</p>} />
-            <Tile label={t.fatigue} swatch="var(--viz-fatigue)" value={whole.format(load.atl)}
+            <Tile label={t.fatigue} help={t.fatigueHelp} swatch="var(--viz-fatigue)" value={whole.format(load.atl)}
               hint={t.fatigueHint} />
-            <Tile label={t.form} value={signed0.format(load.tsb)} hint={t.formHint}
+            <Tile label={t.form} help={t.formHelp} value={signed0.format(load.tsb)} hint={t.formHint}
               extra={
                 <span className="status-pill mt-2" data-tone={FORM_TONE[load.form]}>
                   <span aria-hidden="true">{FORM_GLYPH[load.form]}</span>
