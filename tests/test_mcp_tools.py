@@ -36,6 +36,7 @@ async def test_tools_are_registered():
         "sync_garmin_now",
         "get_garmin_sync_status",
         "plan_training_session",
+        "suggest_training_session",
         "list_training_sessions",
         "get_training_session",
         "send_training_session_to_garmin",
@@ -225,6 +226,53 @@ async def test_mcp_and_rest_agree_on_a_planned_training_session(client, monkeypa
         rest_session.pop(key)
         created.pop(key)
     assert rest_session == created
+
+
+async def test_suggestion_rest_and_mcp_share_the_same_result_shape(client, monkeypatch):
+    import datetime as dt
+
+    from soft_floyd_core.llm.client import CHAT_MODEL, Usage
+    from soft_floyd_core.models import Activity
+    from soft_floyd_core.training import service as training_service
+    from soft_floyd_server.runtime import get_session_factory
+
+    class FakeLLM:
+        async def chat_structured(
+            self, messages, schema_name, schema, *, max_completion_tokens, temperature=0
+        ):
+            assert schema_name == "rest_recommendation"
+            return {"rationale": "Rest after that long ride."}, Usage(CHAT_MODEL, 300, 0, 80)
+
+    monkeypatch.setattr(training_service, "make_training_llm", lambda _key: FakeLLM())
+    today = dt.datetime.now(dt.UTC).date()
+    with get_session_factory()() as session:
+        session.add(
+            Activity(
+                garmin_id=910,
+                start_time=dt.datetime.now(dt.UTC),
+                duration_s=6000,
+                distance_m=50000,
+                fit_status="unavailable",
+            )
+        )
+        session.commit()
+
+    request = {
+        "planned_date": (today + dt.timedelta(days=1)).isoformat(),
+        "available_minutes": 60,
+        "setting": "outdoor",
+        "discipline": "road",
+        "feel": "tired",
+        "terrain": "rolling",
+        "training_area": "local roads",
+    }
+    rest_result = client.post("/api/training/suggestions", json=request)
+    assert rest_result.status_code == 200, rest_result.text
+    async with Client(mcp) as mcp_client:
+        mcp_result = await mcp_client.call_tool("suggest_training_session", {"request": request})
+    assert _as_json(mcp_result.data) == rest_result.json()
+    assert rest_result.json()["kind"] == "rest"
+    assert client.get("/api/training/sessions").json() == []
 
 
 async def test_mcp_edit_of_a_planned_session_is_visible_over_rest(client, monkeypatch):

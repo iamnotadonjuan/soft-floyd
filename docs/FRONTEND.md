@@ -49,6 +49,11 @@ apps/web/src/
   account ID, and Help can reopen it. Existing accounts are not prompted.
   Settings groups and training load tiles use keyboard-operable `?`
   disclosures for short explanations.
+- Training offers an idea-led mode and a suggested mode. Both share
+  `SessionFields` (also used by session editing); outdoor area, terrain and
+  approximate starting altitude are optional request fields. Suggested rest
+  stays on the page without creating a workout, while a suggested workout
+  uses the existing `WorkoutCard` and shows its verified ride evidence.
 
 - `api/types.ts` types must match the FastAPI response shape exactly —
   when `packages/core/.../profile/service.py`'s `ProfileOut` (or

@@ -133,6 +133,28 @@ def recommend_intent(
     return SessionIntent(emphasis=emphasis, reasons=reasons, off_schedule=off_schedule)
 
 
+def recommend_rest(
+    request: SessionRequest,
+    recent_rides: list[ActivitySummaryOut],
+    *,
+    today: dt.date,
+    load: TrainingLoadOut | None,
+) -> bool:
+    """A short-horizon rest suggestion; older or sparse load cannot trigger it."""
+    days_ahead = (request.planned_date - today).days
+    if not 0 <= days_ahead <= 2:
+        return False
+    last_ride = recent_rides[0] if recent_rides else None
+    recent_long_ride = (
+        last_ride is not None
+        and 0 <= (today - last_ride.start_time.date()).days <= 1
+        and last_ride.duration_s >= _LONG_RIDE_SECONDS
+    )
+    return (request.feel == "tired" and recent_long_ride) or (
+        load is not None and load.confidence == "ok" and load.form == "very tired"
+    )
+
+
 def _load_note(load: TrainingLoadOut) -> str:
     """The numbers behind a load-driven reason, with an honest caveat when
     most of the rider's rides could only be scored from duration."""

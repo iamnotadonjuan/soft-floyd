@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from soft_floyd_core.bikes.service import BikeOut
@@ -17,7 +18,7 @@ from soft_floyd_core.llm.schema import to_strict_schema
 from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
 from soft_floyd_core.metrics.service import TrainingLoadOut
 from soft_floyd_core.profile.service import ProfileOut
-from soft_floyd_core.rag.service import Embedder, PassageOut, get_training_context
+from soft_floyd_core.rag.service import Embedder, PassageOut, RideContextOut, get_training_context
 from soft_floyd_core.training.sanitize import sanitize_workout
 from soft_floyd_core.training.schemas import (
     GeneratedSession,
@@ -39,6 +40,8 @@ You are a cycling coach's session planner. You are given:
   <plan_intent>; you may mention it in plain words but never invent load
   figures of your own
 - optionally, cited training-book passages to ground your choices
+- optionally, a verified digest of recent rides and rider-provided outdoor
+  area, terrain and approximate starting altitude
 
 Build ONE structured workout that blends the two: respect the rider's
 idea (their route, their available time, their stated feel) while
@@ -58,6 +61,9 @@ Rules:
 - An outdoor step that should end at a landmark ("until the top of the
   climb") uses end.kind = "lap_button", not a guessed time or distance.
 - Keep the total workout close to the rider's available minutes.
+- Use the supplied terrain to choose a feasible workout shape. A place name
+  does not prove there is a hill or a route. Starting altitude is approximate;
+  use it as qualitative context, never claim a precise physiological effect.
 - `rationale` is 2-4 sentences in a coach's voice: reflect plan_intent's
   reasons in your own words. Never state a metric the rider hasn't been
   shown, and never claim a sensor reading you don't have.
@@ -71,6 +77,16 @@ class GeneratorResult:
     workout: Workout
     rationale: str
     adjustments: str | None
+    passages: list[PassageOut]
+
+
+class RestDraft(BaseModel):
+    rationale: str
+
+
+@dataclass(frozen=True)
+class RestResult:
+    rationale: str
     passages: list[PassageOut]
 
 
@@ -105,6 +121,28 @@ def _load_lines(load: TrainingLoadOut | None) -> list[str]:
     ]
 
 
+def _ride_lines(rides: list[RideContextOut]) -> list[str]:
+    if not rides:
+        return ["<recent_rides>", "No synced rides available.", "</recent_rides>"]
+    lines = ["<recent_rides>"]
+    for ride in rides:
+        metrics = [
+            f"{ride.duration_s / 60:.0f} min",
+            f"{ride.distance_m / 1000:.1f} km",
+            f"{ride.elev_gain_m:.0f} m climbing",
+        ]
+        if ride.avg_hr is not None:
+            metrics.append(f"recorded average HR {ride.avg_hr} bpm")
+        if ride.avg_power_w is not None:
+            metrics.append(f"recorded average power {ride.avg_power_w} W")
+        if ride.avg_cadence is not None:
+            metrics.append(f"recorded average cadence {ride.avg_cadence} rpm")
+        lines.append(f"- {ride.start_time[:10]}: {', '.join(metrics)}.")
+        if ride.data_note:
+            lines.append(f"  {ride.data_note}")
+    return [*lines, "</recent_rides>"]
+
+
 def _prompt(
     request: SessionRequest,
     intent: SessionIntent,
@@ -112,8 +150,14 @@ def _prompt(
     bike: BikeOut | None,
     passages: list[PassageOut],
     load: TrainingLoadOut | None = None,
+    rides: list[RideContextOut] | None = None,
 ) -> str:
     book_lines = "\n".join(f"- {p.title} p.{p.page_start}: {p.text[:300]}" for p in passages)
+    altitude = (
+        f"{request.starting_altitude_m} m"
+        if request.starting_altitude_m is not None
+        else "(not provided)"
+    )
     return "\n".join(
         [
             "<rider_request>",
@@ -123,12 +167,16 @@ def _prompt(
             f"Discipline: {request.discipline}",
             f"How they feel: {request.feel}",
             f"Their idea: {request.route_idea or '(none given — plan is free to choose)'}",
+            f"Training area: {request.training_area or '(not provided)'}",
+            f"Terrain: {request.terrain or '(not provided)'}",
+            f"Approximate starting altitude: {altitude}",
             "</rider_request>",
             "<plan_intent>",
             f"Emphasis: {intent.emphasis}",
             *[f"- {r}" for r in intent.reasons],
             "</plan_intent>",
             *_load_lines(load),
+            *(_ride_lines(rides) if rides is not None else []),
             f"Goal: {profile.goal_text or 'not set'}.",
             f"Capability tier: {profile.capability_tier}.",
             _bike_line(bike),
@@ -148,10 +196,13 @@ async def generate_session(
     bike: BikeOut | None,
     budget_usd: float,
     load: TrainingLoadOut | None = None,
+    rides: list[RideContextOut] | None = None,
 ) -> GeneratorResult:
     ensure_within_budget(session, budget_usd)
 
-    query = request.route_idea.strip() or f"{intent.emphasis} {request.discipline} training"
+    query = request.route_idea.strip() or (
+        f"{intent.emphasis} {request.terrain or ''} {request.discipline} training"
+    )
     passages: list[PassageOut] = []
     try:
         context = await get_training_context(session, query, embedder)
@@ -163,7 +214,10 @@ async def generate_session(
     raw, usage = await llm.chat_structured(
         [
             {"role": "system", "content": SYSTEM_PROMPT},
-            {"role": "user", "content": _prompt(request, intent, profile, bike, passages, load)},
+            {
+                "role": "user",
+                "content": _prompt(request, intent, profile, bike, passages, load, rides),
+            },
         ],
         "training_session",
         schema,
@@ -186,3 +240,52 @@ async def generate_session(
         adjustments=generated.adjustments,
         passages=passages,
     )
+
+
+async def generate_rest_explanation(
+    session: Session,
+    llm: LLMClient,
+    embedder: Embedder | None,
+    *,
+    request: SessionRequest,
+    intent: SessionIntent,
+    profile: ProfileOut,
+    rides: list[RideContextOut],
+    load: TrainingLoadOut | None,
+    budget_usd: float,
+) -> RestResult:
+    ensure_within_budget(session, budget_usd)
+    passages: list[PassageOut] = []
+    try:
+        context = await get_training_context(
+            session, "cycling rest recovery after training load", embedder
+        )
+        passages = context.passages
+    except ValueError:
+        pass
+
+    raw, usage = await llm.chat_structured(
+        [
+            {
+                "role": "system",
+                "content": (
+                    "You are a cycling coach. The app has already decided that a rest day is "
+                    "appropriate. Explain that choice in 2-4 plain sentences using only the "
+                    "verified ride facts and trusted load shown. Mention uncertainty when history "
+                    "is short or a ride lacks sensor data. You may use a relevant supplied book "
+                    "passage, but do not invent a citation, physiological measurement, route, "
+                    "or medical claim. Do not prescribe a workout."
+                ),
+            },
+            {
+                "role": "user",
+                "content": _prompt(request, intent, profile, None, passages, load, rides),
+            },
+        ],
+        "rest_recommendation",
+        to_strict_schema(RestDraft),
+        max_completion_tokens=400,
+        temperature=0.3,
+    )
+    record_usage(session, usage)
+    return RestResult(rationale=RestDraft.model_validate(raw).rationale, passages=passages)

@@ -22,6 +22,13 @@ From the dashboard, "Plan a session" opens Training:
 4. **The idea**: free text ("hill repeats at Patios, Bogotá", "just
    spin"), and how they feel (fresh/normal/tired).
 
+Outdoor sessions can also include a rider-provided training area, expected
+flat/rolling/hilly terrain, and approximate starting altitude. The Training
+page offers **Suggest for me** alongside the idea-led flow; it may return an
+unsaved rest recommendation or a saved workout using recent verified rides,
+trusted load, and relevant imported-book passages. See
+[suggested-training.md](suggested-training.md).
+
 The result is one `Workout`: a name, a rationale in the coach's voice
 explaining what it kept from the rider's idea and what it adjusted (and
 why — recent load, the goal, how they said they feel), and the step list

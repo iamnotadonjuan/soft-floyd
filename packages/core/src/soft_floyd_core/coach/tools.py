@@ -147,6 +147,23 @@ TOOLS: list[dict[str, Any]] = [
                 "type": ["string", "null"],
                 "description": "The rider's own idea, in their words, e.g. 'hill repeats'.",
             },
+            "training_area": {
+                "type": ["string", "null"],
+                "description": (
+                    "Outdoor area explicitly named by the rider; do not invent a location."
+                ),
+            },
+            "terrain": {
+                "type": ["string", "null"],
+                "enum": ["flat", "rolling", "hilly", None],
+                "description": (
+                    "Only when the rider describes the route terrain, not from a town name."
+                ),
+            },
+            "starting_altitude_m": {
+                "type": ["integer", "null"],
+                "description": "Approximate starting altitude only if the rider supplied it.",
+            },
             "feel": {
                 "type": ["string", "null"],
                 "enum": ["fresh", "normal", "tired", None],
@@ -173,6 +190,9 @@ TOOLS: list[dict[str, Any]] = [
             },
             "route_idea": {"type": ["string", "null"]},
             "feel": {"type": ["string", "null"], "enum": ["fresh", "normal", "tired", None]},
+            "training_area": {"type": ["string", "null"]},
+            "terrain": {"type": ["string", "null"], "enum": ["flat", "rolling", "hilly", None]},
+            "starting_altitude_m": {"type": ["integer", "null"]},
         },
         ["session_id"],
     ),
@@ -276,6 +296,9 @@ async def _plan_training_session(session: Session, args: dict[str, Any], llm: An
         bike_id=args.get("bike_id"),
         route_idea=str(args.get("route_idea") or ""),
         feel=args.get("feel") or "normal",
+        training_area=str(args.get("training_area") or ""),
+        terrain=args.get("terrain"),
+        starting_altitude_m=args.get("starting_altitude_m"),
     )
     try:
         result = await training_service.plan_session(
@@ -290,9 +313,14 @@ async def _update_training_session(session: Session, args: dict[str, Any], llm: 
     status = "Updating your training session"
     settings = get_settings()
     session_id = int(args["session_id"])
-    # Only the fields the model sent; `sent()` ignores nulls except bike_id.
+    # Only the fields the model sent; terrain/altitude nulls clear saved context.
     changes = SessionChanges.model_validate(
-        {k: v for k, v in args.items() if k != "session_id" and (k == "bike_id" or v is not None)}
+        {
+            k: v
+            for k, v in args.items()
+            if k != "session_id"
+            and (k in {"bike_id", "terrain", "starting_altitude_m"} or v is not None)
+        }
     )
     try:
         result = await training_service.update_session(

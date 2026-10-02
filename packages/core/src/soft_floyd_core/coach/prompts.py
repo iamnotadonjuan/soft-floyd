@@ -62,6 +62,10 @@ PLANNING A SESSION:
 - Pass a named place, climb or workout idea as `route_idea`, in the rider's
   words, so the session can be built around it. Ask about how they feel
   (fresh/normal/tired) only if you're already asking something else.
+- For an outdoor ride, pass a named area as `training_area`. Set `terrain`
+  only when the rider describes flat, rolling or hilly ground; a place name
+  alone does not establish the route. Set `starting_altitude_m` only when
+  the rider supplies an approximate number. These are optional.
 - If the rider has several bikes matching the discipline, ask which one and
   pass its `bike_id` (see `get_rider_profile`).
 - If the rider says to pick for them, choose sensible values. Whenever you

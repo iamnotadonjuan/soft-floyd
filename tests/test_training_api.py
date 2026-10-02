@@ -95,12 +95,18 @@ def test_plan_list_get_and_delete_a_session(client, monkeypatch):
                 "setting": "outdoor",
                 "discipline": "road",
                 "route_idea": "easy spin",
+                "training_area": "Bogotá north",
+                "terrain": "rolling",
+                "starting_altitude_m": 2600,
             },
         )
         assert created.status_code == 200, created.text
         body = created.json()
         assert body["workout"]["name"] == "Easy spin"
         assert body["status"] == "planned"
+        assert body["request"]["training_area"] == "Bogotá north"
+        assert body["request"]["terrain"] == "rolling"
+        assert body["request"]["starting_altitude_m"] == 2600
         assert body["available_export_formats"] == ["fit"]
 
         listing = client.get("/api/training/sessions").json()
@@ -121,6 +127,24 @@ def test_plan_list_get_and_delete_a_session(client, monkeypatch):
 
         assert client.delete(f"/api/training/sessions/{body['id']}").status_code == 204
         assert client.get(f"/api/training/sessions/{body['id']}").status_code == 404
+    finally:
+        engine.dispose()
+
+
+def test_outdoor_context_rejects_invalid_altitude(client, monkeypatch):
+    engine, _ = _shared_factory(monkeypatch)
+    try:
+        response = client.post(
+            "/api/training/sessions",
+            json={
+                "planned_date": "2026-09-25",
+                "available_minutes": 60,
+                "setting": "outdoor",
+                "discipline": "road",
+                "starting_altitude_m": 10000,
+            },
+        )
+        assert response.status_code == 422
     finally:
         engine.dispose()
 

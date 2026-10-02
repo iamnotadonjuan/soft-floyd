@@ -10,11 +10,12 @@ from __future__ import annotations
 import datetime as dt
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from soft_floyd_core.models import Discipline
 
 SessionSetting = Literal["indoor", "outdoor"]
+Terrain = Literal["flat", "rolling", "hilly"]
 Feel = Literal["fresh", "normal", "tired"]
 SessionStatus = Literal["planned", "done", "skipped"]
 WorkoutDevice = Literal["garmin", "wahoo", "zwift", "other"]
@@ -33,12 +34,24 @@ class SessionRequest(BaseModel):
     bike_id: int | None = None
     route_idea: str = ""
     feel: Feel = "normal"
+    training_area: str = Field(default="", max_length=120)
+    terrain: Terrain | None = None
+    starting_altitude_m: int | None = Field(default=None, ge=-500, le=9000)
+
+    @model_validator(mode="after")
+    def outdoor_context_only(self) -> SessionRequest:
+        self.training_area = self.training_area.strip()
+        if self.setting == "indoor":
+            self.training_area = ""
+            self.terrain = None
+            self.starting_altitude_m = None
+        return self
 
 
 class SessionChanges(BaseModel):
     """A partial edit of a planned session's request. Which fields the caller
-    actually sent is read from `model_fields_set`, so an explicit
-    `bike_id: null` ("pick one for me") differs from leaving it out."""
+    actually sent is read from `model_fields_set`, so explicit nulls for
+    bike, terrain or altitude differ from leaving them out."""
 
     planned_date: dt.date | None = None
     available_minutes: int | None = Field(default=None, gt=0, le=600)
@@ -47,14 +60,18 @@ class SessionChanges(BaseModel):
     bike_id: int | None = None
     route_idea: str | None = None
     feel: Feel | None = None
+    training_area: str | None = Field(default=None, max_length=120)
+    terrain: Terrain | None = None
+    starting_altitude_m: int | None = Field(default=None, ge=-500, le=9000)
 
     def sent(self) -> dict[str, object]:
-        """Only the fields the caller sent. A field other than `bike_id`
-        sent as null is treated as not sent: null isn't a valid value for them."""
+        """Only the fields the caller sent. Null clears bike, terrain and
+        altitude; null for other fields means no change."""
         return {
             name: getattr(self, name)
             for name in self.model_fields_set
-            if name == "bike_id" or getattr(self, name) is not None
+            if name in {"bike_id", "terrain", "starting_altitude_m"}
+            or getattr(self, name) is not None
         }
 
 

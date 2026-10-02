@@ -27,6 +27,9 @@ User-facing behavior specs — *what* a feature must do. Pair with
 - [training-sessions.md](training-sessions.md) — implemented
   (exec-plan 0010). Optional "what should I ride next" flow — a
   sensor-honest structured workout, pushed to Garmin or downloaded.
+- [suggested-training.md](suggested-training.md) — implemented
+  (exec-plan 0016). Outdoor terrain and altitude context, evidence-led
+  workout suggestions, and unsaved rest recommendations.
 - [training-load.md](training-load.md) — implemented (exec-plan 0012).
   Fitness, fatigue and form from the rider's own rides; steers session
   planning and the coach.

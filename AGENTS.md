@@ -68,6 +68,12 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0016-suggested-training** (done; signed-in visual review pending):
+  Training accepts optional outdoor area, terrain and starting altitude,
+  and offers an evidence-led suggestion from recent verified rides, load
+  and imported books. Suggestions can be saved workouts or unsaved rest
+  advice with an easy-ride alternative. REST and MCP share core logic.
+  See `docs/product-specs/suggested-training.md`.
 - **0015-help-and-first-use** (done; signed-in visual review pending): a
   dismissible guide after onboarding, a Help/FAQ page, and tappable
   explanations in Settings and training load. English and Spanish UI copy;

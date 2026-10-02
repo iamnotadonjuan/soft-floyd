@@ -153,6 +153,19 @@ async def plan_training_session(data: SessionRequest) -> training_service.Traini
             raise HTTPException(status_code=402, detail=str(exc)) from exc
 
 
+@router.post("/training/suggestions", response_model=training_service.SuggestionOut)
+async def suggest_training_session(data: SessionRequest) -> training_service.SuggestionOut:
+    settings = get_settings()
+    llm = _training_llm()
+    with session_scope(get_session_factory()) as session:
+        try:
+            return await training_service.suggest_session(
+                session, llm, llm, data, budget_usd=settings.llm_monthly_budget_usd
+            )
+        except BudgetExceededError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+
+
 @router.get("/training/sessions", response_model=list[training_service.TrainingSessionOut])
 def list_training_sessions() -> list[training_service.TrainingSessionOut]:
     with session_scope(get_session_factory()) as session:

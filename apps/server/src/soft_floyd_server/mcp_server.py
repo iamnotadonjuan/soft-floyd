@@ -266,6 +266,22 @@ async def plan_training_session(request: SessionRequest) -> training_service.Tra
 
 
 @mcp.tool
+async def suggest_training_session(request: SessionRequest) -> training_service.SuggestionOut:
+    """Suggest a sensor-honest workout or an unsaved rest day from recent rides,
+    trusted load and relevant book passages. The rider supplies date, time,
+    bike and feel; outdoor terrain and altitude are optional rider context.
+    """
+    settings = get_settings()
+    llm = training_service.make_training_llm(settings.openai_api_key)
+    if llm is None:
+        raise ValueError("SOFT_FLOYD_OPENAI_API_KEY is required to suggest training")
+    with session_scope(get_session_factory()) as session:
+        return await training_service.suggest_session(
+            session, llm, llm, request, budget_usd=settings.llm_monthly_budget_usd
+        )
+
+
+@mcp.tool
 async def update_training_session(
     training_session_id: int, changes: SessionChanges
 ) -> training_service.TrainingSessionOut:

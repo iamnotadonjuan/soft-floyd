@@ -19,6 +19,7 @@ import type {
   SessionChangesIn,
   SessionRequestIn,
   SessionStatus,
+  SuggestionOut,
   TrainingLoadOut,
   TrainingSessionOut,
 } from "./types";
@@ -145,6 +146,8 @@ export const api = {
   listTrainingSessions: () => request<TrainingSessionOut[]>("/training/sessions"),
   planTrainingSession: (data: SessionRequestIn) =>
     request<TrainingSessionOut>("/training/sessions", { method: "POST", body: JSON.stringify(data) }),
+  suggestTrainingSession: (data: SessionRequestIn) =>
+    request<SuggestionOut>("/training/suggestions", { method: "POST", body: JSON.stringify(data) }),
   getTrainingSession: (id: number) => request<TrainingSessionOut>(`/training/sessions/${id}`),
   regenerateTrainingSession: (id: number) =>
     request<TrainingSessionOut>(`/training/sessions/${id}/regenerate`, { method: "POST" }),

@@ -19,6 +19,9 @@ function initialValue(session: TrainingSessionOut): SessionFieldsValue {
     bikeId: request.bike_id ?? "",
     routeIdea: request.route_idea,
     feel: request.feel,
+    trainingArea: request.training_area,
+    terrain: request.terrain,
+    startingAltitudeM: request.starting_altitude_m ?? "",
   };
 }
 
@@ -34,6 +37,10 @@ function changesFrom(session: TrainingSessionOut, value: SessionFieldsValue): Se
   if (value.bikeId !== "" && value.bikeId !== request.bike_id) changes.bike_id = value.bikeId;
   if (value.routeIdea !== request.route_idea) changes.route_idea = value.routeIdea;
   if (value.feel !== request.feel) changes.feel = value.feel;
+  if (value.trainingArea !== request.training_area) changes.training_area = value.trainingArea;
+  if (value.terrain !== request.terrain) changes.terrain = value.terrain;
+  if ((value.startingAltitudeM === "" ? null : value.startingAltitudeM) !== request.starting_altitude_m)
+    changes.starting_altitude_m = value.startingAltitudeM === "" ? null : value.startingAltitudeM;
   return changes;
 }
 

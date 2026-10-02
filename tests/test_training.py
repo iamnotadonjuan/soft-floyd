@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import datetime as dt
+import struct
 
 import pytest
 from fit_tool.fit_file import FitFile
@@ -18,11 +19,19 @@ from soft_floyd_core.activities.service import (
 from soft_floyd_core.bikes.service import BikeOut
 from soft_floyd_core.llm.client import CHAT_MODEL, EMBEDDING_MODEL, Usage
 from soft_floyd_core.metrics.service import TrainingLoadOut
-from soft_floyd_core.models import Base, Bike, RiderProfile
+from soft_floyd_core.models import (
+    Activity,
+    Base,
+    Bike,
+    Book,
+    BookPassage,
+    LLMUsageRecord,
+    RiderProfile,
+)
 from soft_floyd_core.profile.service import ProfileOut
 from soft_floyd_core.training import export as export_mod
 from soft_floyd_core.training import service as training_service
-from soft_floyd_core.training.intent import recommend_intent
+from soft_floyd_core.training.intent import recommend_intent, recommend_rest
 from soft_floyd_core.training.sanitize import sanitize_workout
 from soft_floyd_core.training.schemas import (
     DraftRepeatBlock,
@@ -464,6 +473,36 @@ def test_off_schedule_day_is_flagged():
     assert intent.off_schedule is True
 
 
+def test_rest_needs_a_near_date_and_real_recent_signal():
+    assert recommend_rest(_request(feel="tired"), [_ride(0, 6000)], today=TODAY, load=None)
+    assert not recommend_rest(
+        _request(feel="tired", planned_date=TODAY + dt.timedelta(days=4)),
+        [_ride(0, 6000)],
+        today=TODAY,
+        load=None,
+    )
+    assert not recommend_rest(_request(feel="tired"), [_ride(0, 1200)], today=TODAY, load=None)
+    very_tired = _load(-35).model_copy(update={"form": "very tired"})
+    assert recommend_rest(_request(), [], today=TODAY, load=very_tired)
+    assert not recommend_rest(
+        _request(),
+        [],
+        today=TODAY,
+        load=very_tired.model_copy(update={"confidence": "partial"}),
+    )
+
+
+def test_outdoor_context_is_optional_and_cleared_indoor():
+    outdoor = _request(training_area="  Bogotá north  ", terrain="hilly", starting_altitude_m=2600)
+    assert outdoor.training_area == "Bogotá north"
+    assert SessionRequest.model_validate(outdoor.model_dump()).terrain == "hilly"
+    indoor = outdoor.model_copy(update={"setting": "indoor"})
+    indoor = SessionRequest.model_validate(indoor.model_dump())
+    assert (indoor.training_area, indoor.terrain, indoor.starting_altitude_m) == ("", None, None)
+    changes = SessionChanges.model_validate({"terrain": None, "starting_altitude_m": None})
+    assert changes.sent() == {"terrain": None, "starting_altitude_m": None}
+
+
 # --- export.py: device formats ---
 
 
@@ -657,6 +696,78 @@ async def test_plan_session_drops_power_target_for_a_no_power_rider(db_session):
     assert out.available_export_formats == ["fit"]  # no zwo/erg without power
     assert out.status == "planned"
     assert out.bike_id is not None
+
+
+async def test_suggestion_rest_is_unsaved_and_hides_unverified_power(db_session):
+    _seed(db_session)
+    db_session.add(
+        Activity(
+            garmin_id=101,
+            start_time=NOW,
+            bike_type="road",
+            duration_s=6000,
+            distance_m=50000,
+            elev_gain_m=500,
+            avg_power_w=240,
+            has_power_data=True,
+            fit_status="ok",
+        )
+    )
+    db_session.commit()
+    llm = FakeStructuredLLM({"rationale": "Take a rest day after that long ride."})
+    result = await training_service.suggest_session(
+        db_session, llm, None, _request(feel="tired"), budget_usd=10.0, now=NOW
+    )
+    assert result.kind == "rest" and result.session is None
+    assert result.rides[0].avg_power_w is None
+    assert len(training_service.list_sessions(db_session)) == 0
+    assert "recent_rides" in llm.calls[0][1]["content"]
+
+
+async def test_suggestion_workout_saves_and_uses_outdoor_context(db_session):
+    _seed(db_session)
+    llm = FakeStructuredLLM(
+        _generated_response({"kind": "none", "low": None, "high": None, "hr_zone": None})
+    )
+    request = _request(
+        route_idea="", training_area="Bogotá north", terrain="flat", starting_altitude_m=2600
+    )
+    result = await training_service.suggest_session(
+        db_session, llm, None, request, budget_usd=10.0, now=NOW
+    )
+    assert result.kind == "session" and result.session is not None
+    assert result.session.request.terrain == "flat"
+    assert result.rides == []
+    assert "Training area: Bogotá north" in llm.calls[0][1]["content"]
+    assert len(training_service.list_sessions(db_session)) == 1
+
+
+async def test_suggestion_uses_imported_book_passage_and_records_both_paid_calls(db_session):
+    _seed(db_session)
+    book = Book(sha256="a" * 64, title="Training guide", source_name="guide.pdf")
+    db_session.add(book)
+    db_session.flush()
+    db_session.add(
+        BookPassage(
+            book_id=book.id,
+            ordinal=0,
+            page_start=12,
+            page_end=12,
+            text="Easy recovery after a hard training block.",
+            embedding=struct.pack("<2f", 1, 0),
+        )
+    )
+    db_session.commit()
+    llm = FakeStructuredLLM(
+        _generated_response({"kind": "none", "low": None, "high": None, "hr_zone": None})
+    )
+    result = await training_service.suggest_session(
+        db_session, llm, llm, _request(route_idea=""), budget_usd=10.0, now=NOW
+    )
+    assert result.kind == "session"
+    assert [(s.title, s.page_start) for s in result.sources] == [("Training guide", 12)]
+    assert "Training guide p.12" in llm.calls[0][1]["content"]
+    assert db_session.query(LLMUsageRecord).count() == 2
 
 
 async def test_plan_session_keeps_power_target_for_a_power_rider(db_session):

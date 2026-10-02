@@ -10,6 +10,7 @@ from __future__ import annotations
 import datetime as dt
 import json
 import re
+from typing import Literal
 
 from pydantic import BaseModel
 from sqlalchemy import select
@@ -22,13 +23,13 @@ from soft_floyd_core.garmin.sync import SyncRunner
 from soft_floyd_core.llm.client import LLMClient
 from soft_floyd_core.log import get_logger
 from soft_floyd_core.metrics.service import get_training_load
-from soft_floyd_core.models import TrainingSession
+from soft_floyd_core.models import Activity, TrainingSession
 from soft_floyd_core.profile.service import ProfileOut, get_profile
-from soft_floyd_core.rag.service import Embedder, PassageOut
+from soft_floyd_core.rag.service import Embedder, PassageOut, RideContextOut, ride_context
 from soft_floyd_core.training import export as export_mod
-from soft_floyd_core.training.generator import GeneratorResult
+from soft_floyd_core.training.generator import GeneratorResult, generate_rest_explanation
 from soft_floyd_core.training.generator import generate_session as _run_generator
-from soft_floyd_core.training.intent import is_off_schedule, recommend_intent
+from soft_floyd_core.training.intent import is_off_schedule, recommend_intent, recommend_rest
 from soft_floyd_core.training.schemas import (
     SessionChanges,
     SessionIntent,
@@ -80,6 +81,17 @@ class TrainingSessionOut(BaseModel):
     available_export_formats: list[str]
     created_at: dt.datetime
     updated_at: dt.datetime
+
+
+class SuggestionOut(BaseModel):
+    kind: Literal["rest", "session"]
+    session: TrainingSessionOut | None
+    rationale: str
+    reasons: list[str]
+    sources: list[SessionSourceOut]
+    rides: list[RideContextOut]
+    load_confidence: str
+    days_of_history: int
 
 
 def _bike_out(bikes: list[BikeOut], bike_id: int | None) -> BikeOut | None:
@@ -194,6 +206,7 @@ async def _build(
     *,
     budget_usd: float,
     now: dt.datetime | None,
+    rides: list[RideContextOut] | None = None,
 ) -> tuple[SessionIntent, GeneratorResult]:
     profile = get_profile(session)
     today = (now or dt.datetime.now(dt.UTC)).date()
@@ -211,6 +224,7 @@ async def _build(
         bike=bike,
         load=load,
         budget_usd=budget_usd,
+        rides=rides,
     )
     return intent, result
 
@@ -223,6 +237,7 @@ async def plan_session(
     *,
     budget_usd: float,
     now: dt.datetime | None = None,
+    rides: list[RideContextOut] | None = None,
 ) -> TrainingSessionOut:
     bikes = list_bikes(session)
     bike = _pick_bike(request, bikes)
@@ -230,7 +245,7 @@ async def plan_session(
         request = request.model_copy(update={"bike_id": bike.id})
 
     intent, result = await _build(
-        session, llm, embedder, request, bike, budget_usd=budget_usd, now=now
+        session, llm, embedder, request, bike, budget_usd=budget_usd, now=now, rides=rides
     )
 
     row = TrainingSession(
@@ -248,6 +263,70 @@ async def plan_session(
     session.add(row)
     session.flush()
     return _out_for_row(session, row)
+
+
+def _verified_recent_rides(session: Session, recent: list) -> list[RideContextOut]:
+    ids = [ride.id for ride in recent]
+    if not ids:
+        return []
+    rows = session.scalars(select(Activity).where(Activity.id.in_(ids))).all()
+    by_id = {row.id: row for row in rows}
+    return [ride_context(session, by_id[id_]) for id_ in ids if id_ in by_id]
+
+
+async def suggest_session(
+    session: Session,
+    llm: LLMClient,
+    embedder: Embedder | None,
+    request: SessionRequest,
+    *,
+    budget_usd: float,
+    now: dt.datetime | None = None,
+) -> SuggestionOut:
+    """One evidence-led suggestion. Rest is advice, never a persisted workout."""
+    today = (now or dt.datetime.now(dt.UTC)).date()
+    profile = get_profile(session)
+    recent = list_activities(session, limit=_RECENT_RIDES)
+    rides = _verified_recent_rides(session, recent)
+    load = get_training_load(session, now=now)
+    if recommend_rest(request, recent, today=today, load=load):
+        summary = get_training_summary(session, weeks=_SUMMARY_WEEKS, now=now)
+        intent = recommend_intent(request, profile, summary, recent, today=today, load=load)
+        rest = await generate_rest_explanation(
+            session,
+            llm,
+            embedder,
+            request=request,
+            intent=intent,
+            profile=profile,
+            rides=rides,
+            load=load,
+            budget_usd=budget_usd,
+        )
+        return SuggestionOut(
+            kind="rest",
+            session=None,
+            rationale=rest.rationale,
+            reasons=intent.reasons,
+            sources=[SessionSourceOut.model_validate(s) for s in _sources_json(rest.passages)],
+            rides=rides,
+            load_confidence=load.confidence,
+            days_of_history=load.days_of_history,
+        )
+
+    planned = await plan_session(
+        session, llm, embedder, request, budget_usd=budget_usd, now=now, rides=rides
+    )
+    return SuggestionOut(
+        kind="session",
+        session=planned,
+        rationale=planned.rationale,
+        reasons=planned.intent.reasons,
+        sources=planned.sources,
+        rides=rides,
+        load_confidence=load.confidence,
+        days_of_history=load.days_of_history,
+    )
 
 
 async def regenerate_session(

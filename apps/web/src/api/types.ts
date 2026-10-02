@@ -210,6 +210,7 @@ export interface AccountOut {
 export type Discipline = "road" | "mtb" | "gravel";
 export type WorkoutDevice = "garmin" | "wahoo" | "zwift" | "other";
 export type SessionSetting = "indoor" | "outdoor";
+export type Terrain = "flat" | "rolling" | "hilly";
 export type Feel = "fresh" | "normal" | "tired";
 export type SessionStatus = "planned" | "done" | "skipped";
 export type Emphasis = "recovery" | "endurance" | "tempo" | "threshold" | "vo2" | "climbing";
@@ -224,6 +225,9 @@ export interface SessionRequest {
   bike_id: number | null;
   route_idea: string;
   feel: Feel;
+  training_area: string;
+  terrain: Terrain | null;
+  starting_altitude_m: number | null;
 }
 
 // The POST body — bike_id/route_idea/feel may be omitted, matching the
@@ -232,7 +236,7 @@ export type SessionRequestIn = Pick<
   SessionRequest,
   "planned_date" | "available_minutes" | "setting" | "discipline"
 > &
-  Partial<Pick<SessionRequest, "bike_id" | "route_idea" | "feel">>;
+  Partial<Pick<SessionRequest, "bike_id" | "route_idea" | "feel" | "training_area" | "terrain" | "starting_altitude_m">>;
 
 // A partial edit of a planned session (PATCH). Send only what changed.
 export type SessionChangesIn = Partial<SessionRequest>;
@@ -295,6 +299,33 @@ export interface TrainingSessionOut {
   available_export_formats: ExportFormat[];
   created_at: string;
   updated_at: string;
+}
+
+export interface RideContextOut {
+  activity_id: number;
+  start_time: string;
+  bike_type: string;
+  duration_s: number;
+  distance_m: number;
+  elev_gain_m: number;
+  avg_hr: number | null;
+  max_hr: number | null;
+  avg_power_w: number | null;
+  avg_cadence: number | null;
+  sensors_present: string[];
+  available_metrics: string[];
+  data_note: string | null;
+}
+
+export interface SuggestionOut {
+  kind: "rest" | "session";
+  session: TrainingSessionOut | null;
+  rationale: string;
+  reasons: string[];
+  sources: CoachSourceOut[];
+  rides: RideContextOut[];
+  load_confidence: "low" | "partial" | "ok";
+  days_of_history: number;
 }
 
 // Fitness / fatigue / form (exec-plan 0012) — mirrors soft_floyd_core.metrics.service.

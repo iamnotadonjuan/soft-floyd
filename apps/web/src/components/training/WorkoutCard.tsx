@@ -5,6 +5,7 @@ import type { RepeatBlock, StepEnd, StepTarget, TrainingSessionOut, WorkoutStep 
 import { useI18n } from "../../i18n/I18nProvider";
 import { rideDuration } from "../activityFormat";
 import EditSessionForm from "./EditSessionForm";
+import HelpDisclosure from "../HelpDisclosure";
 
 function errorText(e: unknown): string {
   return e instanceof ApiError ? e.message : String(e);
@@ -107,7 +108,8 @@ export default function WorkoutCard({ session, garminConnected, onChange, onDele
       )}
 
       <div>
-        <p className="text-sm font-medium">{m.training.rationaleLabel}</p>
+        <div className="flex items-center gap-2"><p className="text-sm font-medium">{m.training.rationaleLabel}</p>
+          <HelpDisclosure title={m.training.rationaleLabel}>{m.training.help.rationale}</HelpDisclosure></div>
         <p className="body-muted mt-1 text-sm">{session.rationale}</p>
         {session.adjustments && (
           <p className="mt-2 text-sm">
