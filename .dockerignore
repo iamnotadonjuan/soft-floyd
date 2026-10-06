@@ -1,0 +1,15 @@
+.git
+.venv
+.env
+data
+node_modules
+apps/web
+tests
+docs
+infra
+.agents
+.claude
+.pytest_cache
+.ruff_cache
+**/__pycache__
+*.db

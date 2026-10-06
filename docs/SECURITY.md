@@ -19,6 +19,19 @@ or local config; they must not be committed or logged. The signing secret
 must contain at least 32 characters. Local HTTP is only for localhost;
 future remote hosting requires HTTPS and secure cookies.
 
+## Hosted deployment
+
+On AWS the server is reachable only through CloudFront: the instance's
+security group admits just the CloudFront origin-facing prefix list, and
+`SOFT_FLOYD_ORIGIN_VERIFY_SECRET` makes the server reject any request without
+the `X-Origin-Verify` header CloudFront adds (`origin_verify.py`). Cookies are
+`Secure` (`SOFT_FLOYD_COOKIE_SECURE=true`) and `SOFT_FLOYD_WEB_ORIGIN` is the
+CloudFront URL. Secrets live in SSM Parameter Store (SecureString) and are
+written to a root-only env file on the instance at service start. There is no
+SSH; access is through SSM Session Manager. The origin hop CloudFront to EC2 is
+plain HTTP inside AWS's network; a custom domain with an origin certificate
+would remove that. Backups in the private S3 bucket include Garmin tokens.
+
 ## Account data
 
 ORM reads and writes of rider-owned tables are scoped to the authenticated

@@ -67,3 +67,13 @@ an unofficial client library. That means:
   `create_all()` path.
 - `soft-floyd serve` binds to `127.0.0.1` — a bind failure (port in use)
   should error clearly, not silently pick another port.
+
+## Hosted deployment backups
+
+The instance runs `soft-floyd-backup.timer` nightly: a consistent
+`sqlite3 .backup` of the database plus a tarball of `fit/` and `garmin/` go to
+the backup bucket (`db/<date>.db.gz`, `files/<date>.tar.gz`), kept 30 days.
+The data volume is a separate, protected EBS volume, so replacing the instance
+keeps rider data. Restore steps are in `infra/README.md`. This is a single
+instance in one availability zone: expect minutes of downtime on instance
+replacement and up to a day of data loss if the volume itself is lost.

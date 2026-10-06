@@ -1,0 +1,15 @@
+config:
+  aws:region: us-east-1
+  soft-floyd:instanceType: t4g.nano
+  soft-floyd:dataVolumeGb: "2"
+  soft-floyd:llmMonthlyBudgetUsd: "10"
+  # Secrets are set with `pulumi config set --secret`, see README.md:
+  #   soft-floyd:openaiApiKey, soft-floyd:googleClientId, soft-floyd:googleClientSecret
+
+  soft-floyd:openaiApiKey:
+    secure: v1:9rKpCyXIirYRcQHI:u40shxVXxSq5DK4lmM8Mgw1bCtZH1SkY8I9M+y+xSqVD//+BOMOpm1iluROQmRk8lJ1xiivymTOBfyZGzArbEYC/B4KaxgPrcgETVymYEI1FRb4m+//ihsx6bDyzUIEEt/rI6DRXSv+vfZNx0RuzpB9W29LB/xRvoeus31FvturH5JFNNcc4CdjoBW/MWq1FnVid95BS161gAAGm2M/eJW7Ji4cVQF7AdpdNNuPfuzYtYzFu
+  soft-floyd:googleClientId:
+    secure: v1:4PnYrq1SWDDhShyc:GJpCDfhL3Wv9qergUMcIdpC9hRXyoNC1gwpwnxtqfXvo+T/344j5t991NfyZuF+3nDrTxTuOQaQuV2OTfxAIG3S5UoZbhfdE5ubWvV1ATAh1tflCAktvrA==
+  soft-floyd:googleClientSecret:
+    secure: v1:PPgkypHHpAVNR1tq:KxRsdTCU0mSGw4oEjYq1UX58Hrj7IYSRLBIaTSHO9fpsMYPjald09vqUWvzxXqG3c+V8
+encryptionsalt: v1:w9cGCqS/acg=:v1:K40wKPTOJQvdddl3:+xi8A0yWT6LqjTKldyikD45U39lW/A==

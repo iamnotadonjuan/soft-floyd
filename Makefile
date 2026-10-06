@@ -1,4 +1,5 @@
-.PHONY: setup dev dev-server dev-web lint lint-py lint-web test check docs-schema
+.PHONY: setup dev dev-server dev-web lint lint-py lint-web test check docs-schema \
+	infra-up deploy-backend deploy-web
 
 setup:
 	uv sync
@@ -29,3 +30,13 @@ check: lint test
 
 docs-schema:
 	uv run python scripts/gen_db_schema.py
+
+# AWS hosting (see infra/README.md). Needs `pulumi login` and AWS credentials.
+infra-up:
+	cd infra && pulumi up
+
+deploy-backend:
+	infra/scripts/deploy-backend.sh
+
+deploy-web:
+	infra/scripts/deploy-web.sh

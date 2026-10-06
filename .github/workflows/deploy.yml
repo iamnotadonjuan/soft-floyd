@@ -1,0 +1,48 @@
+name: Deploy
+
+# Manual only for now. Before first use, create an AWS role that GitHub can
+# assume through OIDC and store its ARN in the AWS_ROLE_ARN repository variable.
+on:
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency: deploy
+
+env:
+  AWS_REGION: us-east-1
+  PULUMI_BACKEND_URL: ${{ vars.PULUMI_BACKEND_URL }}
+  PULUMI_CONFIG_PASSPHRASE: ${{ secrets.PULUMI_CONFIG_PASSPHRASE }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ vars.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+      - uses: astral-sh/setup-uv@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - uses: docker/setup-qemu-action@v3
+      - uses: docker/setup-buildx-action@v3
+      - uses: pulumi/actions@v6
+      - name: Infrastructure
+        working-directory: infra
+        run: |
+          uv sync
+          pulumi stack select prod
+          pulumi up --yes
+      - name: Backend
+        run: infra/scripts/deploy-backend.sh
+      - name: Web
+        run: infra/scripts/deploy-web.sh

@@ -68,6 +68,11 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0017-aws-deployment** (built; not yet deployed, so the plan is still in
+  `docs/exec-plans/active/`): `infra/` Pulumi program (S3 + CloudFront UI,
+  one t4g.nano EC2 backend, SSM secrets, nightly S3 backups), a `Dockerfile`,
+  and an origin-verify guard. See `infra/README.md`.
+
 - **0016-suggested-training** (done; signed-in visual review pending):
   Training accepts optional outdoor area, terrain and starting altitude,
   and offers an evidence-led suggestion from recent verified rides, load

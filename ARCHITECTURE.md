@@ -13,6 +13,15 @@ Web coach --short-lived Bearer JWT--> /mcp --> core --> SQLite
 Garmin poller (one runner per account) --> core --> SQLite + per-account files
 ```
 
+## Hosted deployment
+
+`infra/` (Pulumi, Python) hosts the same app on AWS: the built web app sits in
+a private S3 bucket behind CloudFront, which also forwards `/api/*` and `/mcp*`
+to one `t4g.nano` EC2 instance running the server in Docker with SQLite on a
+protected EBS volume. The browser sees one HTTPS origin, so the cookie and
+Origin checks are unchanged. See `infra/README.md` and
+`docs/exec-plans/active/0017-aws-deployment.md`.
+
 ## Authentication and account ownership
 
 `auth_api.py` handles Google's authorization-code redirect and callback.

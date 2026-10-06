@@ -1,0 +1,7 @@
+name: soft-floyd
+description: Soft Floyd hosting - S3 + CloudFront UI, one small EC2 box for the backend
+runtime:
+  name: python
+  options:
+    toolchain: uv
+# State backend is chosen with `pulumi login s3://<bucket>` (see scripts/bootstrap-state.sh).
