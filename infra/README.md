@@ -104,3 +104,4 @@ variable exists. One-time setup:
    secret `PULUMI_CONFIG_PASSPHRASE`.
 4. Optional: add protection rules to the `production` environment, and require
    the `CI` checks on `main` in branch protection.
+
