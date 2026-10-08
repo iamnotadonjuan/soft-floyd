@@ -54,4 +54,4 @@ EC2: Docker image from ECR, /data on a separate protected EBS volume,
 - Garmin may throttle datacenter IPs; fallback is a local `garmin-login` and
   uploading the token dir with `infra/scripts/migrate-data.sh`.
 - 512MB RAM: swap added; move to `t4g.micro` if the coach or PDF import OOMs.
-- Custom domain, WAF, multi-AZ and CI activation are not included.
+- Custom domain, WAF, multi-AZ are not included. CI activation moved to 0019-ci-cd.

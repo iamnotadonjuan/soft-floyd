@@ -13,7 +13,7 @@ import typer
 import uvicorn
 from openai import OpenAIError
 from soft_floyd_core.account_scope import scoped_account
-from soft_floyd_core.book_copy import copy_books
+from soft_floyd_core.book_copy import copy_books, merge_books
 from soft_floyd_core.config import get_settings
 from soft_floyd_core.db import make_engine, make_session_factory, session_scope
 from soft_floyd_core.garmin.client import GarminClient
@@ -207,6 +207,19 @@ def import_book(
         f"{status} book {result.book_id}: {result.passages} passages"
         f" (resumed from {result.resumed_from})."
     )
+
+
+@books_app.command(name="copy")
+def copy_books_in(
+    source: Annotated[Path, typer.Option(help="Database holding the books to add.")],
+) -> None:
+    """Add complete books from another database to this one (idempotent)."""
+    try:
+        added, passages, skipped = merge_books(source, get_settings().db_path)
+    except (ValueError, RuntimeError) as exc:
+        typer.secho(str(exc), fg=typer.colors.RED, err=True)
+        raise typer.Exit(1) from exc
+    typer.echo(f"Added {added} books ({passages} passages); {skipped} already present.")
 
 
 if __name__ == "__main__":

@@ -21,7 +21,7 @@ lint-py:
 	uv run ruff format --check .
 
 lint-web:
-	cd apps/web && pnpm run typecheck
+	cd apps/web && pnpm run lint && pnpm run typecheck
 
 test:
 	uv run pytest

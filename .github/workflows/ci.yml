@@ -1,0 +1,57 @@
+name: CI
+
+# Checks run on every PR to main and on every push to main. A push to main that
+# passes all checks deploys automatically (see deploy.yml).
+on:
+  pull_request:
+    branches: [main]
+  push:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    name: Web (eslint + tsc)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter soft-floyd-web lint
+      - run: pnpm --filter soft-floyd-web typecheck
+
+  python:
+    name: Python (ruff + pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv sync --frozen
+      - run: uv run ruff check .
+      - run: uv run ruff format --check .
+      - run: uv run pytest
+
+  deploy:
+    name: Deploy to AWS
+    needs: [web, python]
+    # Skipped (not failed) until the AWS_ROLE_ARN repository variable exists.
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.AWS_ROLE_ARN != ''
+    uses: ./.github/workflows/deploy.yml
+    secrets: inherit
+    permissions:
+      id-token: write
+      contents: read

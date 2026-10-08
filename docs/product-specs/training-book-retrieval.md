@@ -21,3 +21,12 @@ Ride context includes only sensor-derived values verified in that ride's
 FIT data and allowed for the rider. A failed FIT parse exposes only basic
 Garmin summary values and clearly says detailed sensor data is unavailable.
 Results are source material for later coaching, not a generated assessment.
+
+## Copying books between databases
+
+`soft-floyd books copy --source <db>` adds the source database's complete
+books to the configured one, keeping the stored embeddings (no OpenAI calls).
+Books are matched by `sha256`, new rows get fresh ids, and nothing but the book
+tables is touched, so it is safe on a live database and idempotent. The hosted
+deployment uses it through `infra/scripts/copy-books.sh`. `prepare-account-db`
+remains the way to seed a brand-new, empty account-era database.

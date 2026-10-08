@@ -57,6 +57,19 @@ Copies `data/soft-floyd-accounts.db` (snapshotted with `sqlite3 .backup`),
 from AWS addresses, so log in locally with `soft-floyd garmin-login` first and
 migrate the token directory rather than logging in from the server.
 
+## Copy the training books
+
+The server starts with no books, so coach answers cite nothing until some are added.
+To copy the ones you already imported locally (embeddings included, so no new OpenAI
+spend) without touching anything else on the server:
+
+```bash
+make deploy-backend              # the image needs the `soft-floyd books copy` command
+infra/scripts/copy-books.sh      # prints "Added N books (M passages); K already present."
+```
+
+It is safe to rerun: books are matched by hash, so a second run adds nothing.
+
 ## Operations
 
 - Shell on the box: `aws ssm start-session --target $(cd infra && pulumi stack output instance_id)`
@@ -70,9 +83,23 @@ migrate the token directory rather than logging in from the server.
 - Tear down: `pulumi destroy` fails on purpose while the data volume is protected.
   Back up first, then `pulumi state unprotect` it.
 
-## CI later
+## CI/CD
 
-`.github/workflows/deploy.yml` runs the same three steps from GitHub Actions
-(manual trigger for now). Create an AWS role that trusts your repository's
-GitHub OIDC token, then set repository variables `AWS_ROLE_ARN` and
-`PULUMI_BACKEND_URL` and secret `PULUMI_CONFIG_PASSPHRASE`.
+`.github/workflows/ci.yml` runs on every PR to `main` and every push to `main`:
+ESLint + `tsc` for `apps/web`, then ruff (check + format) and pytest. A push to
+`main` that passes all of them calls `.github/workflows/deploy.yml` (the same
+three steps as above). `deploy.yml` can also be run by hand from the Actions tab.
+
+The deploy job is skipped, not failed, until the `AWS_ROLE_ARN` repository
+variable exists. One-time setup:
+
+1. Create the GitHub OIDC identity provider in IAM
+   (`token.actions.githubusercontent.com`, audience `sts.amazonaws.com`).
+2. Create an IAM role whose trust policy allows `sts:AssumeRoleWithWebIdentity`
+   for `repo:iamnotadonjuan/soft-floyd:environment:production` (the deploy job
+   uses the `production` environment), with the permissions Pulumi, ECR, SSM,
+   S3 and CloudFront need.
+3. Set repository variables `AWS_ROLE_ARN` and `PULUMI_BACKEND_URL`, and
+   secret `PULUMI_CONFIG_PASSPHRASE`.
+4. Optional: add protection rules to the `production` environment, and require
+   the `CI` checks on `main` in branch protection.

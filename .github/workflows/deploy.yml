@@ -1,15 +1,19 @@
 name: Deploy
 
-# Manual only for now. Before first use, create an AWS role that GitHub can
-# assume through OIDC and store its ARN in the AWS_ROLE_ARN repository variable.
+# Called by ci.yml after checks pass on a push to main; can also be run by hand.
+# Before first use, create an AWS role that GitHub can assume through OIDC and
+# store its ARN in the AWS_ROLE_ARN repository variable (see infra/README.md).
 on:
+  workflow_call:
   workflow_dispatch:
 
 permissions:
   id-token: write
   contents: read
 
-concurrency: deploy
+concurrency:
+  group: deploy
+  cancel-in-progress: false
 
 env:
   AWS_REGION: us-east-1
@@ -19,6 +23,7 @@ env:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    environment: production
     steps:
       - uses: actions/checkout@v4
       - uses: aws-actions/configure-aws-credentials@v4

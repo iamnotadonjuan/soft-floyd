@@ -85,3 +85,59 @@ def copy_books(source: Path, target: Path) -> tuple[int, int]:
     except Exception:
         # Leave the staging DB for inspection; never alter the source.
         raise
+
+
+def merge_books(source: Path, target: Path) -> tuple[int, int, int]:
+    """Add the source's complete books that the live target lacks.
+
+    Unlike `copy_books` this works on a database that already has rider
+    data: nothing but `book` and `book_passage` is touched. Books are matched
+    by `sha256`, so reruns add nothing, and new rows get fresh ids because
+    the target may hold books of its own. Returns (books_added,
+    passages_added, books_skipped).
+    """
+    source = source.resolve()
+    target = target.resolve()
+    if not source.is_file():
+        raise ValueError(f"Source database does not exist: {source}")
+    if not target.is_file():
+        raise ValueError(f"Target database does not exist: {target}")
+    if target == source:
+        raise ValueError("Source and target must be different database paths")
+    run_migrations(target)
+    conn = sqlite3.connect(target, timeout=30, uri=True)
+    try:
+        conn.execute("ATTACH DATABASE ? AS legacy", (f"file:{source}?mode=ro",))
+        with conn:
+            wanted = conn.execute(
+                "SELECT id, sha256, title, author, source_name, imported_at, import_status "
+                "FROM legacy.book WHERE import_status = 'complete' ORDER BY id"
+            ).fetchall()
+            known = {row[0] for row in conn.execute("SELECT sha256 FROM main.book")}
+            books_added = passages_added = 0
+            expected_passages = 0
+            for old_id, sha256, title, author, source_name, imported_at, status in wanted:
+                if sha256 in known:
+                    continue
+                new_id = conn.execute(
+                    "INSERT INTO main.book "
+                    "(sha256, title, author, source_name, imported_at, import_status) "
+                    "VALUES (?, ?, ?, ?, ?, ?)",
+                    (sha256, title, author, source_name, imported_at, status),
+                ).lastrowid
+                expected_passages += conn.execute(
+                    "SELECT COUNT(*) FROM legacy.book_passage WHERE book_id = ?", (old_id,)
+                ).fetchone()[0]
+                passages_added += conn.execute(
+                    "INSERT INTO main.book_passage "
+                    "(book_id, ordinal, page_start, page_end, text, embedding) "
+                    "SELECT ?, ordinal, page_start, page_end, text, embedding "
+                    "FROM legacy.book_passage WHERE book_id = ? ORDER BY ordinal, id",
+                    (new_id, old_id),
+                ).rowcount
+                books_added += 1
+            if passages_added != expected_passages:
+                raise RuntimeError("Book merge verification failed")
+        return books_added, passages_added, len(wanted) - books_added
+    finally:
+        conn.close()
