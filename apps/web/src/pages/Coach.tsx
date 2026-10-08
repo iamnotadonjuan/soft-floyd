@@ -37,6 +37,25 @@ function SourceList({ sources }: { sources: CoachSourceOut[] }) {
   );
 }
 
+function AttachmentIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="m20.3 11.6-7.9 7.9a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8" />
+    </svg>
+  );
+}
+
+function CameraIcon() {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+      strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+      <path d="M3 7.5A2.5 2.5 0 0 1 5.5 5H8l1.5-2h5L16 5h2.5A2.5 2.5 0 0 1 21 7.5v10a2.5 2.5 0 0 1-2.5 2.5h-13A2.5 2.5 0 0 1 3 17.5z" />
+      <circle cx="12" cy="12.5" r="3.5" />
+    </svg>
+  );
+}
+
 // The coach chat (exec-plan 0007). Dashboard only offers this view once a
 // ride source is connected; the server enforces cycling-only scope.
 export default function Coach() {
@@ -51,6 +70,8 @@ export default function Coach() {
   const [notes, setNotes] = useState<CoachMemoryNoteOut[]>([]);
   const [garminConnected, setGarminConnected] = useState(false);
   const abort = useRef<AbortController | null>(null);
+  const imagePicker = useRef<HTMLInputElement | null>(null);
+  const cameraPicker = useRef<HTMLInputElement | null>(null);
   const threadEnd = useRef<HTMLDivElement>(null);
   const busy = draft !== null;
 
@@ -300,22 +321,33 @@ export default function Coach() {
             {error && <p className="notice-error mx-5 mb-3" role="alert">{error}</p>}
 
             <form onSubmit={onSubmit} className="coach-composer">
-              <label className="secondary-button cursor-pointer" aria-label={m.coach.attachImage}>
-                {m.coach.attachImage}
-                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy}
-                  onChange={(event) => { void chooseImage(event); }} />
-              </label>
               {imageDataUrl ? <div className="flex items-center gap-2">
                 <img src={imageDataUrl} alt={m.coach.attachedImage} className="max-h-16 max-w-20 rounded object-contain" />
                 <button type="button" className="text-sm underline" onClick={() => setImageDataUrl(null)}>{m.coach.removeImage}</button>
               </div> : null}
-              <label htmlFor="coach-input" className="sr-only">{m.coach.messageLabel}</label>
-              <textarea id="coach-input" className="form-field" rows={2} maxLength={4000} value={input}
-                placeholder={m.coach.placeholder}
-                onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown} />
-              <button type="submit" className="primary-button" disabled={busy || !input.trim()}>
-                {busy ? m.coach.coaching : m.coach.send}
-              </button>
+              <div className="coach-composer-row">
+                <button type="button" className="coach-icon-button" disabled={busy}
+                  aria-label={m.coach.attachImage}
+                  onClick={() => imagePicker.current?.click()}>
+                  <AttachmentIcon />
+                </button>
+                <button type="button" className="coach-icon-button coach-camera-button" disabled={busy}
+                  aria-label={m.coach.takePhoto}
+                  onClick={() => cameraPicker.current?.click()}>
+                  <CameraIcon />
+                </button>
+                <label htmlFor="coach-input" className="sr-only">{m.coach.messageLabel}</label>
+                <textarea id="coach-input" className="form-field" rows={2} maxLength={4000} value={input}
+                  placeholder={m.coach.placeholder}
+                  onChange={(e) => setInput(e.target.value)} onKeyDown={onKeyDown} />
+                <button type="submit" className="primary-button" disabled={busy || !input.trim()}>
+                  {busy ? m.coach.coaching : m.coach.send}
+                </button>
+              </div>
+              <input ref={imagePicker} type="file" accept="image/jpeg,image/png,image/webp" className="hidden"
+                tabIndex={-1} disabled={busy} onChange={(event) => { void chooseImage(event); }} />
+              <input ref={cameraPicker} type="file" accept="image/jpeg" capture="environment" className="hidden"
+                tabIndex={-1} disabled={busy} onChange={(event) => { void chooseImage(event); }} />
             </form>
           </section>
         </div>

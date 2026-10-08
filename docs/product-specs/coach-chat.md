@@ -50,7 +50,9 @@ The rider can attach one JPEG, PNG, or WebP image (up to 5 MB) to a text
 message. The coach sees the image with that message and with recent chat
 history for follow-up questions. The image is stored on the account-owned
 message, appears in the conversation after reload, and is served only through
-an authenticated image route. Deleting the conversation deletes its images.
+an authenticated image route. The composer has an icon for choosing an image;
+on mobile it also offers a camera icon to take a photo. Deleting the
+conversation deletes its images.
 
 REST (all under `/api`):
 - `GET` and `POST /coach/conversations`
