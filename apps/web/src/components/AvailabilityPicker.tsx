@@ -1,3 +1,5 @@
+import { useState } from "react";
+
 import type { Weekday } from "../api/types";
 import { useI18n } from "../i18n/I18nProvider";
 
@@ -9,6 +11,15 @@ export interface AvailabilityValue {
 
 const DAYS: Weekday[] = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"];
 
+function hoursFromMinutes(minutes: number | null): string {
+  return minutes === null ? "" : String(Number((minutes / 60).toFixed(2)));
+}
+
+function minutesFromHours(hours: string): number | null {
+  const parsed = Number(hours);
+  return hours !== "" && Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed * 60) : null;
+}
+
 interface Props {
   value: AvailabilityValue;
   onChange: (value: AvailabilityValue) => void;
@@ -16,6 +27,8 @@ interface Props {
 
 export default function AvailabilityPicker({ value, onChange }: Props) {
   const { m } = useI18n();
+  const [weekdayHours, setWeekdayHours] = useState(() => hoursFromMinutes(value.weekday_max_minutes));
+  const [weekendHours, setWeekendHours] = useState(() => hoursFromMinutes(value.weekend_max_minutes));
   const toggleDay = (day: Weekday) => {
     const days = value.available_days.includes(day)
       ? value.available_days.filter((d) => d !== day)
@@ -53,13 +66,15 @@ export default function AvailabilityPicker({ value, onChange }: Props) {
           <input
             type="number"
             min={0}
-            value={value.weekday_max_minutes ?? ""}
-            onChange={(e) =>
+            step="any"
+            value={weekdayHours}
+            onChange={(e) => {
+              setWeekdayHours(e.target.value);
               onChange({
                 ...value,
-                weekday_max_minutes: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
+                weekday_max_minutes: minutesFromHours(e.target.value),
+              });
+            }}
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
           <span className="body-muted block text-xs">{m.availability.weekdayHint}</span>
@@ -69,13 +84,15 @@ export default function AvailabilityPicker({ value, onChange }: Props) {
           <input
             type="number"
             min={0}
-            value={value.weekend_max_minutes ?? ""}
-            onChange={(e) =>
+            step="any"
+            value={weekendHours}
+            onChange={(e) => {
+              setWeekendHours(e.target.value);
               onChange({
                 ...value,
-                weekend_max_minutes: e.target.value === "" ? null : Number(e.target.value),
-              })
-            }
+                weekend_max_minutes: minutesFromHours(e.target.value),
+              });
+            }}
             className="w-full rounded-md border border-neutral-300 px-3 py-2"
           />
         </label>

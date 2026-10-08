@@ -227,9 +227,9 @@ const es: Messages = {
     whichDays: "¿Qué días sueles salir a rodar?",
     selectDays: "Selecciona tus días habituales de salida.",
     daysPerWeek: (n) => `${n} ${n === 1 ? "día" : "días"} por semana`,
-    weekdayMax: "Máx. minutos por día entre semana",
+    weekdayMax: "Máx. horas por día entre semana",
     weekdayHint: "Para cada día de salida seleccionado de lunes a viernes.",
-    weekendMax: "Máx. minutos por día de fin de semana",
+    weekendMax: "Máx. horas por día de fin de semana",
   },
 
   onboarding: {

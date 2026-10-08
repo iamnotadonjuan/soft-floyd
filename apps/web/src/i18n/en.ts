@@ -240,9 +240,9 @@ const en = {
     whichDays: "Which days do you usually ride?",
     selectDays: "Select your usual riding days.",
     daysPerWeek: (n: number) => `${n} ${n === 1 ? "day" : "days"} per week`,
-    weekdayMax: "Max minutes per weekday",
+    weekdayMax: "Max hours per weekday",
     weekdayHint: "For each selected Monday–Friday ride day.",
-    weekendMax: "Max minutes per weekend day",
+    weekendMax: "Max hours per weekend day",
   },
 
   onboarding: {

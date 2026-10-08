@@ -18,7 +18,8 @@ number the rider can't produce):
 1. **Habits** — "How do you ride now?" Hours per week (`weekly_hours`),
    which days the rider usually rides (`available_days`), and a maximum
    duration **per selected weekday or weekend day**
-   (`weekday_max_minutes`, `weekend_max_minutes`). `weekly_rides` is the
+   (entered as hours in the UI, stored as minutes in
+   `weekday_max_minutes` and `weekend_max_minutes`). `weekly_rides` is the
    count of selected usual riding days, not a separate input. Until a
    legacy profile's days are edited, its saved `weekly_rides` is preserved.
 2. **Goals** — "What do you want to get better at?" A fixed set of
