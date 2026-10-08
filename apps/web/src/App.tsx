@@ -119,7 +119,7 @@ export default function App() {
     setTourOpen(false);
     navigate(tourOrigin.current);
     requestAnimationFrame(() => document.querySelector<HTMLElement>(
-      tourOrigin.current === "help" ? "[data-tour='help'] button" : ".nav-brand",
+      tourOrigin.current === "help" ? "[data-tour-replay]" : ".nav-brand",
     )?.focus());
   }
 
@@ -192,6 +192,6 @@ export default function App() {
           document.getElementById(`ride-${selectedRideId}`)?.focus({ preventScroll: true });
         });
       }} />}
-    {tourOpen && <AppTour onNavigate={navigate} onClose={closeTour} />}
+    {tourOpen && <AppTour onNavigate={(next) => { setView(next); window.scrollTo(0, 0); }} onClose={closeTour} />}
   </>;
 }

@@ -10,8 +10,8 @@ User-facing behavior specs — *what* a feature must do. Pair with
   (exec-plan 0004). Habits, goals, garage (per-bike sensors), about-you,
   anchors, connected apps; all editable later from Settings.
 - [help-and-first-use.md](help-and-first-use.md) — implemented
-  (exec-plan 0015). First-use dashboard guide, Help/FAQ, and contextual
-  explanations in Settings and training load.
+  (exec-plans 0015 and 0018). First-open spotlight tour, first-use dashboard
+  guide, Help/FAQ, and contextual explanations in Settings and training load.
 - [connected-apps.md](connected-apps.md) — implemented (exec-plan 0004).
   Provider-generic connected-apps panel; Garmin browser login today.
 - [garmin-sync.md](garmin-sync.md) — implemented (exec-plan 0002).

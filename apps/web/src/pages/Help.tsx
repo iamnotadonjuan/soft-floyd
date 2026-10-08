@@ -29,7 +29,7 @@ export default function Help({ onBack, onNavigate, onOpenConnections, onReopenGu
               <p className="body-muted mt-2 max-w-2xl">{t.guideIntro}</p>
             </div>
             <div className="flex flex-wrap gap-3">
-              {onReplayTour && <button className="secondary-button" onClick={onReplayTour}>{m.tour.replay}</button>}
+              {onReplayTour && <button className="secondary-button" data-tour-replay onClick={onReplayTour}>{m.tour.replay}</button>}
               {onReopenGuide && <button className="secondary-button" onClick={onReopenGuide}>{t.reopenGuide}</button>}
             </div>
           </div>

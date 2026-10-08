@@ -68,7 +68,7 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
-- **0018-first-open-tour** (built): a six-step spotlight walkthrough starts
+- **0018-first-open-tour** (built; signed-in visual review pending): a six-step spotlight walkthrough starts
   after new-rider setup and can be replayed from Help. The Overview checklist
   remains available. See `docs/product-specs/help-and-first-use.md`.
 - **0017-aws-deployment** (built; not yet deployed, so the plan is still in

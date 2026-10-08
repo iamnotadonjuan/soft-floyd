@@ -70,7 +70,7 @@ export default function AppTour({ onNavigate, onClose }: {
     };
     const scheduleMeasure = () => { cancelAnimationFrame(frame); frame = requestAnimationFrame(measure); };
     const target = visibleTarget(step.target);
-    target?.scrollIntoView({ block: "center", inline: "nearest", behavior: "instant" });
+    target?.scrollIntoView({ block: "center", inline: "nearest", behavior: "auto" });
     scheduleMeasure();
     window.addEventListener("resize", scheduleMeasure);
     window.addEventListener("scroll", scheduleMeasure, true);
@@ -109,7 +109,7 @@ export default function AppTour({ onNavigate, onClose }: {
     {spotlight && <div className="app-tour-spotlight" aria-hidden="true" style={spotlight} />}
     <div className="app-tour-card surface" role="dialog" aria-modal="true" aria-labelledby="app-tour-title"
       aria-describedby="app-tour-description" tabIndex={-1} ref={cardRef} onKeyDown={onKeyDown}
-      style={position ?? { visibility: "hidden" }}>
+      style={position ?? { top: "50%", left: "50%", width: "min(370px, calc(100vw - 32px))", transform: "translate(-50%, -50%)" }}>
       <div className="flex items-start justify-between gap-4">
         <p className="eyebrow">{m.tour.progress(index + 1, steps.length)}</p>
         <button className="text-button text-sm" onClick={onClose}>{m.tour.skip}</button>

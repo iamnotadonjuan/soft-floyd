@@ -21,3 +21,10 @@ Follow `docs/product-specs/help-and-first-use.md`, `docs/design-docs/core-belief
 - Check automatic launch only after new onboarding; Skip, Finish, replay, reload, and account switching.
 - Check no Garmin connection, connected Garmin, English and Spanish, desktop and mobile, keyboard focus/Escape, and unavailable targets.
 - Run `git diff --check` and self-score against `docs/QUALITY_SCORE.md`.
+
+## Result
+
+- Web typecheck, production build, and `git diff --check` passed.
+- Code review covered account-keyed state, onboarding-only automatic launch, Help replay, keyboard focus trapping, missing targets, both nav layouts, and disconnected Coach wording.
+- Signed-in visual review remains pending because the in-app browser connection failed before a page could open; tracked in the tech-debt tracker.
+- Quality self-score: the implementation follows the spec, keeps UI-only state outside core, makes no sensor claims beyond existing capability rules, adds no API or schema surface, updates docs, and preserves account separation. Live visual interaction is the unverified item.
