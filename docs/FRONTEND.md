@@ -50,8 +50,9 @@ apps/web/src/
   Settings groups and training load tiles use keyboard-operable `?`
   disclosures for short explanations.
 - `components/AppTour.tsx` runs a six-step spotlight tour immediately after
-  new-rider setup. Help can replay it for any signed-in account. Completion is
-  stored separately from the Overview guide under an account-keyed browser key.
+  new-rider setup. Help can replay it for any signed-in account. Automatic
+  launch follows the setup-completion event; the Overview guide keeps its
+  separate account-keyed browser state.
   Tour targets are marked with `data-tour` on the existing screens and nav.
 - Training offers an idea-led mode and a suggested mode. Both share
   `SessionFields` (also used by session editing); outdoor area, terrain and

@@ -4,7 +4,7 @@ Status: **implemented** (exec-plan 0015).
 
 ## First-open tour
 
-After a new rider completes setup, a short spotlight tour opens on Overview. Six steps point to the rider's goal, Garmin connection status, Training, Coach, Settings, and Help. The tour moves between screens as needed and explains that Coach requires a connected ride source. Riders can go Back or Next, skip at any step, or finish; the tour never changes rider data. Finishing or skipping marks it seen in account-keyed browser storage. Existing completed accounts do not get an automatic tour, and any signed-in rider can replay it from Help. The tour is available in English and Spanish and works with keyboard, touch, and narrow screens. If a spotlight target is unavailable, its explanation remains readable in a centered dialog.
+After a new rider completes setup, a short spotlight tour opens on Overview. Six steps point to the rider's goal, Garmin connection status, Training, Coach, Settings, and Help. The tour moves between screens as needed and explains that Coach requires a connected ride source. Riders can go Back or Next, skip at any step, or finish; the tour never changes rider data. Its automatic launch is tied to completing setup, so skipping or finishing closes it without reopening on reload. Existing completed accounts do not get an automatic tour, and any signed-in rider can replay it from Help. The tour is available in English and Spanish and works with keyboard, touch, and narrow screens. If a spotlight target is unavailable, its explanation remains readable in a centered dialog.
 
 After a new rider finishes the existing onboarding summary, the dashboard shows a short, dismissible guide. It points to connecting Garmin, reviewing a synced ride, and planning a session. The guide reflects connection, ride, and session data already loaded by the dashboard; a "Ready" indicator means the prerequisite exists, not that the rider read or completed a workflow. It never blocks navigation. Dismissal is stored in this browser under the signed-in account ID. Existing riders are not interrupted. Help can reopen the guide.
 
@@ -14,7 +14,7 @@ Each Settings group and the fitness, fatigue, and form tiles have a tappable `?`
 
 ## Acceptance
 
-- Completing new-rider setup starts the tour; skipping or finishing prevents it from reopening automatically for that account in this browser. Existing riders can launch it from Help.
+- Completing new-rider setup starts the tour; skipping or finishing prevents it from reopening automatically on reload. Existing riders can launch it from Help.
 - Tour steps stay readable with no Garmin connection or rides, in English and Spanish, on desktop and mobile, and when a spotlight target is missing.
 - Keyboard users can move through tour controls and close it with Escape; focus does not move into the underlying page.
 - A newly completed onboarding shows the guide; dismissing it persists across reloads for that account in this browser, and Help can reopen it.

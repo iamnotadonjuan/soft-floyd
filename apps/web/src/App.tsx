@@ -5,7 +5,7 @@ import { hasCompletedOnboarding, type AccountOut, type ProfileOut } from "./api/
 import LanguageToggle from "./components/LanguageToggle";
 import AppNavigation, { type NavView } from "./components/AppNavigation";
 import AppTour from "./components/AppTour";
-import { hasSeenTour, isGuidePending, markTourSeen, setGuidePending } from "./components/firstUseStorage";
+import { isGuidePending, setGuidePending } from "./components/firstUseStorage";
 import { useI18n } from "./i18n/I18nProvider";
 import Coach from "./pages/Coach";
 import Dashboard from "./pages/Dashboard";
@@ -91,10 +91,8 @@ export default function App() {
     setShowGuide(true);
     setProfile(updated);
     setView("dashboard");
-    if (!hasSeenTour(account!.id)) {
-      tourOrigin.current = "dashboard";
-      setTourOpen(true);
-    }
+    tourOrigin.current = "dashboard";
+    setTourOpen(true);
   }
 
   function dismissGuide() {
@@ -115,7 +113,6 @@ export default function App() {
   }
 
   function closeTour() {
-    markTourSeen(account!.id);
     setTourOpen(false);
     navigate(tourOrigin.current);
     requestAnimationFrame(() => document.querySelector<HTMLElement>(
