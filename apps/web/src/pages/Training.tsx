@@ -99,7 +99,7 @@ export default function Training({ profile, onProfileChange }: Props) {
   return (
     <main className="app-shell">
       <div className="page-wrap max-w-3xl">
-        <div className="page-intro mb-8 max-w-2xl">
+        <div className="page-intro mb-8 max-w-2xl" data-tour="training">
           <p className="eyebrow mb-3">{m.training.eyebrow}</p>
           <h1 className="display-title">{m.training.title}</h1>
           <p className="body-muted mt-4">{m.training.intro}</p>

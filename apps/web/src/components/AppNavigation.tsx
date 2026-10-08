@@ -23,6 +23,7 @@ export default function AppNavigation({ view, coachReady, onNavigate }: {
         </button>
         <nav className="desktop-nav" aria-label={m.navigation.primaryAria}>
           {primary.map((item) => <button key={item.view} className="nav-link"
+            data-tour={`nav-${item.view}`}
             data-active={(view === "ride" ? "dashboard" : view) === item.view}
             aria-current={(view === "ride" ? "dashboard" : view) === item.view ? "page" : undefined}
             disabled={item.view === "coach" && !coachReady}
@@ -31,8 +32,8 @@ export default function AppNavigation({ view, coachReady, onNavigate }: {
             onClick={() => onNavigate(item.view)}>{item.label}</button>)}
         </nav>
         <div className="nav-utilities">
-          <button className="nav-utility" data-active={view === "settings"} onClick={() => onNavigate("settings")}>{m.navigation.settings}</button>
-          <button className="nav-utility" data-active={view === "help"} onClick={() => onNavigate("help")}>{m.navigation.help}</button>
+          <button className="nav-utility" data-tour="nav-settings" data-active={view === "settings"} onClick={() => onNavigate("settings")}>{m.navigation.settings}</button>
+          <button className="nav-utility" data-tour="nav-help" data-active={view === "help"} onClick={() => onNavigate("help")}>{m.navigation.help}</button>
           <button className="nav-utility" data-active={view === "profile"} onClick={() => onNavigate("profile")}>{m.auth.profile}</button>
           <LanguageToggle />
         </div>
@@ -40,6 +41,7 @@ export default function AppNavigation({ view, coachReady, onNavigate }: {
     </header>
     <nav className="mobile-nav" aria-label={m.navigation.primaryAria}>
       {primary.map((item) => <button key={item.view} className="mobile-nav-link"
+        data-tour={`nav-${item.view}`}
         data-active={(view === "ride" ? "dashboard" : view) === item.view}
         aria-current={(view === "ride" ? "dashboard" : view) === item.view ? "page" : undefined}
         disabled={item.view === "coach" && !coachReady}

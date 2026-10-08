@@ -111,7 +111,7 @@ export default function Dashboard({
             </div>
             {connections !== null && !coachReady && <p id="coach-hint" className="body-muted mt-3 text-sm">{m.dashboard.coachHint}</p>}
           </div>
-          <div className="goal-feature relative z-10 p-5 sm:p-7">
+          <div className="goal-feature relative z-10 p-5 sm:p-7" data-tour="overview">
             <p className="eyebrow mb-2">{m.dashboard.goalEyebrow}</p>
             <p className="goal-feature-text text-2xl font-semibold leading-snug">{profile.goal_text}</p>
             <p className="body-muted mt-3 text-sm">{m.dashboard.weeklySummary(profile.weekly_rides, profile.weekly_hours)}{profile.primary_discipline ? ` · ${profile.primary_discipline}` : ""}</p>
@@ -143,7 +143,7 @@ export default function Dashboard({
           <button className="text-button mt-5 text-sm" onClick={onOpenHelp}>{m.help.moreHelp} →</button>
         </section>}
 
-        <section className="connection-band mb-8 flex flex-wrap items-center justify-between gap-4 p-5" aria-label={m.dashboard.connectionsAria}>
+        <section className="connection-band mb-8 flex flex-wrap items-center justify-between gap-4 p-5" data-tour="connections" aria-label={m.dashboard.connectionsAria}>
           <div>
             <p className="eyebrow mb-1">{m.dashboard.connectedApps}</p>
             {connectionError ? <p className="text-sm text-red-700">{m.dashboard.connectionsError(connectionError)}</p> :

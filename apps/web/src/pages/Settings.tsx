@@ -37,7 +37,7 @@ export default function Settings({ profile, onProfileChange, onConnectionsChange
   return (
     <main className="app-shell">
       <div className="page-wrap">
-        <div className="page-intro mb-10 max-w-2xl">
+        <div className="page-intro mb-10 max-w-2xl" data-tour="settings">
           <p className="eyebrow mb-3">{m.settings.eyebrow}</p>
           <h1 className="display-title">{m.settings.title}</h1>
           <p className="body-muted mt-4">{m.settings.intro}</p>

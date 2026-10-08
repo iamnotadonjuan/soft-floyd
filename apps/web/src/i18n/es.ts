@@ -295,6 +295,23 @@ const es: Messages = {
     hrMonitor: "Uso un monitor de frecuencia cardiaca",
   },
 
+  tour: {
+    replay: "Repetir recorrido",
+    progress: (step, total) => `Recorrido ${step} de ${total}`,
+    skip: "Omitir recorrido",
+    back: "Atrás",
+    next: "Siguiente",
+    finish: "Terminar recorrido",
+    steps: {
+      overview: { title: "Este es tu Inicio", body: "Aquí aparecen tu objetivo y las señales disponibles. Cuando se sincronicen salidas, también verás la más reciente, el historial y la carga de entrenamiento." },
+      connections: { title: "Trae tus salidas", body: "Conecta Garmin en Ajustes para sincronizar nuevas salidas. Puedes planear una sesión antes de conectarlo." },
+      training: { title: "Planea tu próxima salida", body: "En Entrenamiento, trae una idea o pide una sugerencia. Las sesiones se adaptan a tu objetivo y los sensores que realmente usas." },
+      coach: { title: "Pregunta al Coach", body: "El Coach responde preguntas de ciclismo con tu perfil y salidas sincronizadas. Se activa cuando conectas una fuente de salidas." },
+      settings: { title: "Mantén al día tu perfil", body: "En Ajustes puedes actualizar objetivos, días disponibles, bicis, sensores, dispositivos y apps conectadas." },
+      help: { title: "La Ayuda siempre está aquí", body: "Abre Ayuda para ver explicaciones y respuestas, o repite este recorrido cuando quieras." },
+    },
+  },
+
   help: {
     eyebrow: "Cuando la necesites",
     title: "Encuentra tu camino.",

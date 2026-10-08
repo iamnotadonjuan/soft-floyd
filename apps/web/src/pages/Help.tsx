@@ -1,11 +1,12 @@
 import type { NavView } from "../components/AppNavigation";
 import { useI18n } from "../i18n/I18nProvider";
 
-export default function Help({ onBack, onNavigate, onOpenConnections, onReopenGuide }: {
+export default function Help({ onBack, onNavigate, onOpenConnections, onReopenGuide, onReplayTour }: {
   onBack: () => void;
   onNavigate?: (view: Exclude<NavView, "ride" | "help">) => void;
   onOpenConnections?: () => void;
   onReopenGuide?: () => void;
+  onReplayTour?: () => void;
 }) {
   const { m } = useI18n();
   const t = m.help;
@@ -15,7 +16,7 @@ export default function Help({ onBack, onNavigate, onOpenConnections, onReopenGu
     <main className="app-shell">
       <div className="page-wrap">
         {!onNavigate && <button className="text-button mb-7" onClick={onBack}>{m.common.back}</button>}
-        <div className="page-intro mb-10 max-w-2xl">
+        <div className="page-intro mb-10 max-w-2xl" data-tour="help">
           <p className="eyebrow mb-3">{t.eyebrow}</p>
           <h1 className="display-title">{t.title}</h1>
           <p className="body-muted mt-4">{t.intro}</p>
@@ -27,7 +28,10 @@ export default function Help({ onBack, onNavigate, onOpenConnections, onReopenGu
               <h2 id="guide-heading" className="section-title">{t.guideTitle}</h2>
               <p className="body-muted mt-2 max-w-2xl">{t.guideIntro}</p>
             </div>
-            {onReopenGuide && <button className="secondary-button" onClick={onReopenGuide}>{t.reopenGuide}</button>}
+            <div className="flex flex-wrap gap-3">
+              {onReplayTour && <button className="secondary-button" onClick={onReplayTour}>{m.tour.replay}</button>}
+              {onReopenGuide && <button className="secondary-button" onClick={onReopenGuide}>{t.reopenGuide}</button>}
+            </div>
           </div>
           <ol className="mt-6 grid gap-3 md:grid-cols-3">
             {([t.connect, t.ride, t.session] as const).map((step, index) => (

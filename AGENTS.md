@@ -68,6 +68,9 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0018-first-open-tour** (built): a six-step spotlight walkthrough starts
+  after new-rider setup and can be replayed from Help. The Overview checklist
+  remains available. See `docs/product-specs/help-and-first-use.md`.
 - **0017-aws-deployment** (built; not yet deployed, so the plan is still in
   `docs/exec-plans/active/`): `infra/` Pulumi program (S3 + CloudFront UI,
   one t4g.nano EC2 backend, SSM secrets, nightly S3 backups), a `Dockerfile`,

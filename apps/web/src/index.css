@@ -153,6 +153,11 @@ button:disabled { cursor: not-allowed; }
 .faq-item summary::after { content: "+"; position: absolute; right: 0; top: 0; color: var(--pine); font-size: 1.25rem; line-height: 1; }
 .faq-item[open] summary::after { content: "−"; }
 .first-use-guide { border-top: 5px solid var(--clay) !important; }
+.app-tour-layer { position: fixed; inset: 0; z-index: 100; }
+.app-tour-layer[data-target="false"] { background: rgba(13, 30, 19, .67); }
+.app-tour-spotlight { position: fixed; border: 3px solid #e6f3a9; border-radius: 1rem; box-shadow: 0 0 0 9999px rgba(13, 30, 19, .7), 0 0 0 5px rgba(230, 243, 169, .3); pointer-events: none; }
+.app-tour-card { position: fixed; max-height: calc(100dvh - 2rem); overflow-y: auto; padding: 1.5rem; border-top: 5px solid var(--clay); box-shadow: 0 24px 64px -18px #0d1e13; }
+.app-tour-card:focus { outline: none; }
 
 .app-navigation { position: relative; z-index: 20; background: rgba(255,253,247,.94); border-bottom: 1px solid var(--line); backdrop-filter: blur(18px); }
 .app-navigation-inner { width: min(100% - 3rem, 1180px); min-height: 5.1rem; margin: auto; display: flex; align-items: center; gap: clamp(1rem, 3vw, 3.5rem); }

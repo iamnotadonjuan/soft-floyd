@@ -4,7 +4,8 @@ import { api, ApiError } from "./api/client";
 import { hasCompletedOnboarding, type AccountOut, type ProfileOut } from "./api/types";
 import LanguageToggle from "./components/LanguageToggle";
 import AppNavigation, { type NavView } from "./components/AppNavigation";
-import { isGuidePending, setGuidePending } from "./components/firstUseStorage";
+import AppTour from "./components/AppTour";
+import { hasSeenTour, isGuidePending, markTourSeen, setGuidePending } from "./components/firstUseStorage";
 import { useI18n } from "./i18n/I18nProvider";
 import Coach from "./pages/Coach";
 import Dashboard from "./pages/Dashboard";
@@ -28,9 +29,11 @@ export default function App() {
   const [view, setView] = useState<View>("dashboard");
   const [coachReady, setCoachReady] = useState(false);
   const [showGuide, setShowGuide] = useState(false);
+  const [tourOpen, setTourOpen] = useState(false);
   const [selectedRideId, setSelectedRideId] = useState<number | null>(null);
   const rideListScroll = useRef(0);
   const previousView = useRef<Exclude<View, "help">>("dashboard");
+  const tourOrigin = useRef<Exclude<View, "ride">>("dashboard");
 
   useEffect(() => {
     let active = true;
@@ -44,7 +47,7 @@ export default function App() {
       if (reason instanceof ApiError && reason.status === 401) setAccount(null);
       else setError(String(reason));
     });
-    const unauthorized = () => { setAccount(null); setProfile(null); setShowGuide(false); };
+    const unauthorized = () => { setAccount(null); setProfile(null); setShowGuide(false); setTourOpen(false); };
     window.addEventListener("soft-floyd-unauthorized", unauthorized);
     return () => { active = false; window.removeEventListener("soft-floyd-unauthorized", unauthorized); };
   }, []);
@@ -88,6 +91,10 @@ export default function App() {
     setShowGuide(true);
     setProfile(updated);
     setView("dashboard");
+    if (!hasSeenTour(account!.id)) {
+      tourOrigin.current = "dashboard";
+      setTourOpen(true);
+    }
   }
 
   function dismissGuide() {
@@ -99,6 +106,21 @@ export default function App() {
     setGuidePending(account!.id, true);
     setShowGuide(true);
     navigate("dashboard");
+  }
+
+  function replayTour() {
+    tourOrigin.current = view === "ride" ? "dashboard" : view;
+    setView("dashboard");
+    setTourOpen(true);
+  }
+
+  function closeTour() {
+    markTourSeen(account!.id);
+    setTourOpen(false);
+    navigate(tourOrigin.current);
+    requestAnimationFrame(() => document.querySelector<HTMLElement>(
+      tourOrigin.current === "help" ? "[data-tour='help'] button" : ".nav-brand",
+    )?.focus());
   }
 
   if (account === undefined && !error) {
@@ -127,7 +149,7 @@ export default function App() {
   if (!hasCompletedOnboarding(profile) && view === "profile") {
     return <Profile account={account} onBack={() => setView("dashboard")}
       showLanguageToggle
-      onSignOut={() => { setAccount(null); setProfile(null); setShowGuide(false); setView("dashboard"); }} />;
+      onSignOut={() => { setAccount(null); setProfile(null); setShowGuide(false); setTourOpen(false); setView("dashboard"); }} />;
   }
 
   if (!hasCompletedOnboarding(profile)) {
@@ -138,11 +160,11 @@ export default function App() {
   return <>
     <AppNavigation view={view} coachReady={coachReady} onNavigate={navigate} />
     {view === "profile" && <Profile account={account} onBack={() => navigate("dashboard")}
-      onSignOut={() => { setAccount(null); setProfile(null); setShowGuide(false); setView("dashboard"); }} />}
+      onSignOut={() => { setAccount(null); setProfile(null); setShowGuide(false); setTourOpen(false); setView("dashboard"); }} />}
     {view === "settings" && <Settings profile={profile} onProfileChange={setProfile}
       onConnectionsChange={refreshCoachReady} />}
     {view === "help" && <Help onBack={() => navigate(previousView.current === "ride" ? "dashboard" : previousView.current)}
-      onNavigate={navigate} onOpenConnections={openConnections} onReopenGuide={reopenGuide} />}
+      onNavigate={navigate} onOpenConnections={openConnections} onReopenGuide={reopenGuide} onReplayTour={replayTour} />}
     {view === "coach" && <Coach />}
     {view === "training" && <Training profile={profile} onProfileChange={setProfile} />}
     {(view === "dashboard" || view === "ride") && <div hidden={view === "ride"}>
@@ -170,5 +192,6 @@ export default function App() {
           document.getElementById(`ride-${selectedRideId}`)?.focus({ preventScroll: true });
         });
       }} />}
+    {tourOpen && <AppTour onNavigate={navigate} onClose={closeTour} />}
   </>;
 }

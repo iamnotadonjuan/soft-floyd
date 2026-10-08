@@ -308,6 +308,23 @@ const en = {
     hrMonitor: "I wear a heart rate monitor",
   },
 
+  tour: {
+    replay: "Replay app tour",
+    progress: (step: number, total: number) => `Tour ${step} of ${total}`,
+    skip: "Skip tour",
+    back: "Back",
+    next: "Next",
+    finish: "Finish tour",
+    steps: {
+      overview: { title: "This is your Overview", body: "Your goal and available ride signals appear here. As rides sync, this page also shows your latest ride, history, and training load." },
+      connections: { title: "Bring in your rides", body: "Connect Garmin in Settings to sync new rides. You can still plan a session before connecting." },
+      training: { title: "Plan your next ride", body: "In Training, bring an idea or ask for a suggestion. Workouts are built around your goal and the sensors you actually use." },
+      coach: { title: "Ask your Coach", body: "Coach answers cycling questions using your profile and synced rides. It becomes available once a ride source is connected." },
+      settings: { title: "Keep your setup current", body: "Use Settings to update goals, riding days, bikes, sensors, training devices, and connected apps." },
+      help: { title: "Help is always here", body: "Open Help for explanations and answers, or replay this tour whenever you want." },
+    },
+  },
+
   help: {
     eyebrow: "Here when you need it",
     title: "Find your way around.",
