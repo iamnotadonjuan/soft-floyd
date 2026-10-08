@@ -41,6 +41,7 @@ class _Responses:
     async def create(self, **kwargs):
         self.calls.append(kwargs)
         if kwargs.get("stream"):
+
             async def events():
                 for event in self.events:
                     yield event
@@ -64,18 +65,30 @@ def test_luna_cost_includes_cache_writes_and_reasoning_output():
 async def test_stream_preserves_reasoning_and_function_call_items():
     reasoning = {"type": "reasoning", "encrypted_content": "opaque"}
     call = {
-        "type": "function_call", "call_id": "call-1", "name": "get_ride",
+        "type": "function_call",
+        "call_id": "call-1",
+        "name": "get_ride",
         "arguments": '{"id":1}',
     }
     response = NS(output=[_Item(reasoning), _Item(call)], usage=_usage())
-    responses = _Responses(response, [
-        NS(type="response.output_text.delta", delta="Checking ride"),
-        NS(type="response.completed", response=response),
-    ])
+    responses = _Responses(
+        response,
+        [
+            NS(type="response.output_text.delta", delta="Checking ride"),
+            NS(type="response.completed", response=response),
+        ],
+    )
     client = _client(responses)
-    tools = [{"type": "function", "function": {
-        "name": "get_ride", "description": "Find ride", "parameters": {"type": "object"},
-    }}]
+    tools = [
+        {
+            "type": "function",
+            "function": {
+                "name": "get_ride",
+                "description": "Find ride",
+                "parameters": {"type": "object"},
+            },
+        }
+    ]
 
     items = [
         item async for item in client.chat_stream([{"role": "user", "content": "Show ride"}], tools)
@@ -101,7 +114,9 @@ async def test_structured_workout_uses_reasoning_and_scope_does_not():
     schema = {"type": "object", "properties": {"ok": {"type": "boolean"}}}
 
     result, usage = await client.chat_structured(
-        [{"role": "user", "content": "Plan ride"}], "workout", schema,
+        [{"role": "user", "content": "Plan ride"}],
+        "workout",
+        schema,
         max_completion_tokens=4000,
     )
     assert result == {"ok": True}
@@ -118,7 +133,10 @@ async def test_incomplete_structured_response_exposes_billable_usage():
     responses = _Responses(NS(status="incomplete", output_text="", usage=_usage()))
     with pytest.raises(IncompleteResponseError) as error:
         await _client(responses).chat_structured(
-            [{"role": "user", "content": "Plan"}], "workout", {}, max_completion_tokens=4000,
+            [{"role": "user", "content": "Plan"}],
+            "workout",
+            {},
+            max_completion_tokens=4000,
         )
     assert error.value.usage is not None
     assert error.value.usage.prompt_tokens == 1000

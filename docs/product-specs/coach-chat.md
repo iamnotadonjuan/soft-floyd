@@ -46,16 +46,23 @@ Conversations persist in SQLite, and each one's title is the first
 message. Each turn sends the last 12 messages as history. Tool traffic is
 not stored: it is rebuilt from live data on every turn.
 
+The rider can attach one JPEG, PNG, or WebP image (up to 5 MB) to a text
+message. The coach sees the image with that message and with recent chat
+history for follow-up questions. The image is stored on the account-owned
+message, appears in the conversation after reload, and is served only through
+an authenticated image route. Deleting the conversation deletes its images.
+
 REST (all under `/api`):
 - `GET` and `POST /coach/conversations`
 - `GET` and `DELETE /coach/conversations/{id}`
-- `POST /coach/conversations/{id}/messages` with `{text}` (at most 4000 characters). It returns `text/event-stream` with these events:
+- `POST /coach/conversations/{id}/messages` with `{text, image_data_url?}` (text at most 4000 characters; image optional). It returns `text/event-stream` with these events:
   - `delta` `{text}`
   - `tool_status` `{text}`
   - `sources` `{sources}`
   - `done` `{message}`
   - `error` `{text}`
 - `GET /coach/memory` and `DELETE /coach/memory/{id}`
+- `GET /coach/conversations/{id}/messages/{message_id}/image` (account-owned image)
 - `GET /training-summary?weeks=`
 - `GET /training/load?days=`
 

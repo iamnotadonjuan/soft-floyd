@@ -44,10 +44,9 @@ from sqlalchemy.orm import Session
 
 NOW = dt.datetime(2026, 9, 23, 12, 0)  # a Wednesday
 CHAT_USAGE = Usage(CHAT_MODEL, 1000, 0, 100)
-PNG_IMAGE = (
-    "data:image/png;base64,"
-    + base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"small-test-image").decode("ascii")
-)
+PNG_IMAGE = "data:image/png;base64," + base64.b64encode(
+    b"\x89PNG\r\n\x1a\n" + b"small-test-image"
+).decode("ascii")
 
 
 class FakeLLM:
@@ -167,10 +166,17 @@ async def test_image_is_saved_and_included_in_follow_up_context(session):
     _seed(session)
     conv = coach.create_conversation(session)
     first = FakeLLM(rounds=[_text_round("That looks like a bike setup.")])
-    events = [e async for e in coach.run_turn(
-        session, conv.id, "What can you tell me about this bike?", first, 10,
-        image_data_url=PNG_IMAGE,
-    )]
+    events = [
+        e
+        async for e in coach.run_turn(
+            session,
+            conv.id,
+            "What can you tell me about this bike?",
+            first,
+            10,
+            image_data_url=PNG_IMAGE,
+        )
+    ]
     assert events[-1].type == "done"
     detail = coach.get_conversation(session, conv.id)
     image_url = detail.messages[0].image_url
@@ -200,8 +206,11 @@ def test_image_is_account_owned(session):
     _seed(session)
     conv = coach.create_conversation(session)
     msg = CoachMessage(
-        conversation_id=conv.id, role="user", content="bike",
-        image_mime="image/png", image_data=b"png",
+        conversation_id=conv.id,
+        role="user",
+        content="bike",
+        image_mime="image/png",
+        image_data=b"png",
     )
     session.add(msg)
     session.commit()
@@ -218,21 +227,22 @@ def test_image_route_requires_an_owned_message(client):
     conv = client.post("/api/coach/conversations").json()
     with session_scope(get_session_factory()) as session:
         msg = CoachMessage(
-            conversation_id=conv["id"], role="user", content="bike",
-            image_mime="image/png", image_data=b"\x89PNG\r\n\x1a\nimage",
+            conversation_id=conv["id"],
+            role="user",
+            content="bike",
+            image_mime="image/png",
+            image_data=b"\x89PNG\r\n\x1a\nimage",
         )
         session.add(msg)
         session.flush()
         message_id = msg.id
-    response = client.get(
-        f"/api/coach/conversations/{conv['id']}/messages/{message_id}/image"
-    )
+    response = client.get(f"/api/coach/conversations/{conv['id']}/messages/{message_id}/image")
     assert response.status_code == 200
     assert response.headers["content-type"] == "image/png"
     assert response.content.startswith(b"\x89PNG")
-    assert client.get(
-        f"/api/coach/conversations/999/messages/{message_id}/image"
-    ).status_code == 404
+    assert (
+        client.get(f"/api/coach/conversations/999/messages/{message_id}/image").status_code == 404
+    )
 
 
 async def test_tool_loop_uses_core_data_saves_memory_and_cites_books(session):

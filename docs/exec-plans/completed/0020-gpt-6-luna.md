@@ -24,3 +24,9 @@ GPT-4.1 Mini is missing rider instructions when planning workouts. Switch all ch
 - Run focused Python tests, then `make check`.
 - If an API key is available, exercise one workout and one tool-using coach turn and verify usage records and sensor-safe output.
 - Send an image in coach chat, reload the thread, and verify it remains visible and available to a follow-up turn.
+
+## Outcome
+
+- `make check` passed: 297 Python tests, web ESLint (five pre-existing warnings), and TypeScript.
+- Alembic migration applied on a temporary database. Live Luna checks passed for structured workout output, a tool-call continuation, and image input.
+- Signed-in visual review is deferred until a local browser session with a signed-in account is available; tracked in the tech-debt tracker.
