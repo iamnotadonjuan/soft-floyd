@@ -417,6 +417,7 @@ def delete_coach_conversation(conversation_id: int) -> None:
 
 class CoachMessageIn(BaseModel):
     text: str
+    image_data_url: str | None = None
 
 
 def _sse(event: coach_service.CoachEvent) -> str:
@@ -441,7 +442,11 @@ async def send_coach_message(
     with session_scope(get_session_factory()) as session:
         try:
             coach_service.check_turn(
-                session, conversation_id, data.text, settings.llm_monthly_budget_usd
+                session,
+                conversation_id,
+                data.text,
+                settings.llm_monthly_budget_usd,
+                data.image_data_url,
             )
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
@@ -465,6 +470,7 @@ async def send_coach_message(
                         settings.llm_monthly_budget_usd,
                         tool_runner=bridge.run,
                         context_provider=bridge.context,
+                        image_data_url=data.image_data_url,
                     ):
                         yield _sse(event)
         except (ValueError, LookupError) as exc:  # the stream is already 200; report in-band
@@ -479,6 +485,16 @@ async def send_coach_message(
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )
+
+
+@router.get("/coach/conversations/{conversation_id}/messages/{message_id}/image")
+def get_coach_message_image(conversation_id: int, message_id: int) -> Response:
+    with session_scope(get_session_factory()) as session:
+        try:
+            data, mime_type = coach_service.get_message_image(session, conversation_id, message_id)
+        except LookupError as exc:
+            raise HTTPException(status_code=404, detail=str(exc)) from exc
+    return Response(data, media_type=mime_type, headers={"Cache-Control": "private, no-store"})
 
 
 @router.get("/coach/memory", response_model=list[coach_memory.MemoryNoteOut])

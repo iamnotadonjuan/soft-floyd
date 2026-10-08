@@ -18,12 +18,12 @@ from typing import Any
 
 from openai import AsyncOpenAI
 
-CHAT_MODEL = "gpt-4.1-mini"
+CHAT_MODEL = "gpt-6-luna"
 EMBEDDING_MODEL = "text-embedding-3-small"
 
 # USD per 1M tokens.
 _PRICING = {
-    CHAT_MODEL: {"input": 0.40, "cached_input": 0.10, "output": 1.60},
+    CHAT_MODEL: {"input": 0.10, "cached_input": 0.01, "cache_write": 0.125, "output": 0.50},
     EMBEDDING_MODEL: {"input": 0.02, "cached_input": 0.02, "output": 0.0},
 }
 
@@ -34,14 +34,16 @@ class Usage:
     prompt_tokens: int
     cached_tokens: int
     completion_tokens: int
+    cache_write_tokens: int = 0
 
     @property
     def cost_usd(self) -> float:
         price = _PRICING[self.model]
-        uncached = max(self.prompt_tokens - self.cached_tokens, 0)
+        uncached = max(self.prompt_tokens - self.cached_tokens - self.cache_write_tokens, 0)
         return (
             uncached * price["input"]
             + self.cached_tokens * price["cached_input"]
+            + self.cache_write_tokens * price.get("cache_write", price["input"])
             + self.completion_tokens * price["output"]
         ) / 1_000_000
 
@@ -65,18 +67,44 @@ class ChatDone:
 
     usage: Usage
     tool_calls: list[ToolCall] = field(default_factory=list)
+    response_items: list[dict[str, Any]] = field(default_factory=list)
 
 
-def _chat_usage(raw: Any) -> Usage:
+class IncompleteResponseError(RuntimeError):
+    def __init__(self, usage: Usage | None = None) -> None:
+        super().__init__("The model did not return a complete response")
+        self.usage = usage
+
+
+def _response_usage(raw: Any) -> Usage:
     if raw is None:
-        return Usage(CHAT_MODEL, 0, 0, 0)
-    details = getattr(raw, "prompt_tokens_details", None)
+        raise RuntimeError("The model response did not include usage")
+    details = getattr(raw, "input_tokens_details", None)
     return Usage(
         model=CHAT_MODEL,
-        prompt_tokens=raw.prompt_tokens,
+        prompt_tokens=raw.input_tokens,
         cached_tokens=(getattr(details, "cached_tokens", 0) or 0) if details else 0,
-        completion_tokens=raw.completion_tokens,
+        completion_tokens=raw.output_tokens,
+        cache_write_tokens=(getattr(details, "cache_write_tokens", 0) or 0) if details else 0,
     )
+
+
+def _response_input(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Keep complete output items when replaying a tool round, including reasoning."""
+    return messages
+
+
+def _response_tools(tools: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    return [
+        {
+            "type": "function",
+            "name": tool["function"]["name"],
+            "description": tool["function"]["description"],
+            "parameters": tool["function"]["parameters"],
+            "strict": False,
+        }
+        for tool in tools
+    ]
 
 
 class LLMClient:
@@ -98,38 +126,35 @@ class LLMClient:
     async def chat_stream(
         self, messages: list[dict[str, Any]], tools: list[dict[str, Any]] | None = None
     ) -> AsyncIterator[TextDelta | ChatDone]:
-        kwargs: dict[str, Any] = {}
-        if tools:
-            kwargs["tools"] = tools
-        stream = await self._client.chat.completions.create(
+        stream = await self._client.responses.create(
             model=CHAT_MODEL,
-            messages=messages,
+            input=_response_input(messages),
+            tools=_response_tools(tools) if tools else [],
+            reasoning={"effort": "medium"},
+            include=["reasoning.encrypted_content"],
+            store=False,
             stream=True,
-            stream_options={"include_usage": True},
-            temperature=0.4,
-            **kwargs,
         )
-        # Tool-call arguments arrive as fragments keyed by index.
-        pending: dict[int, dict[str, str]] = {}
-        usage_raw = None
-        async for chunk in stream:
-            if chunk.usage is not None:
-                usage_raw = chunk.usage
-            for choice in chunk.choices:
-                delta = choice.delta
-                if delta.content:
-                    yield TextDelta(delta.content)
-                for call in delta.tool_calls or []:
-                    slot = pending.setdefault(call.index, {"id": "", "name": "", "arguments": ""})
-                    if call.id:
-                        slot["id"] = call.id
-                    if call.function and call.function.name:
-                        slot["name"] += call.function.name
-                    if call.function and call.function.arguments:
-                        slot["arguments"] += call.function.arguments
+        completed = None
+        async for event in stream:
+            if event.type == "response.output_text.delta":
+                yield TextDelta(event.delta)
+            elif event.type == "response.completed":
+                completed = event.response
+            elif event.type in {"response.failed", "response.incomplete"}:
+                raw_usage = event.response.usage
+                raise IncompleteResponseError(_response_usage(raw_usage) if raw_usage else None)
+        if completed is None:
+            raise IncompleteResponseError()
+        items = [item.model_dump(exclude_none=True) for item in completed.output]
         yield ChatDone(
-            usage=_chat_usage(usage_raw),
-            tool_calls=[ToolCall(**pending[i]) for i in sorted(pending)],
+            usage=_response_usage(completed.usage),
+            tool_calls=[
+                ToolCall(id=item["call_id"], name=item["name"], arguments=item["arguments"])
+                for item in items
+                if item["type"] == "function_call"
+            ],
+            response_items=items,
         )
 
     async def chat_structured(
@@ -139,25 +164,35 @@ class LLMClient:
         schema: dict[str, Any],
         *,
         max_completion_tokens: int,
-        temperature: float = 0,
+        reasoning_effort: str = "medium",
     ) -> tuple[dict[str, Any], Usage]:
-        response = await self._client.chat.completions.create(
+        response = await self._client.responses.create(
             model=CHAT_MODEL,
-            messages=messages,
-            temperature=temperature,
-            max_completion_tokens=max_completion_tokens,
-            response_format={
-                "type": "json_schema",
-                "json_schema": {"name": schema_name, "schema": schema, "strict": True},
+            input=_response_input(messages),
+            reasoning={"effort": reasoning_effort},
+            max_output_tokens=max_completion_tokens,
+            text={
+                "format": {
+                    "type": "json_schema",
+                    "name": schema_name,
+                    "schema": schema,
+                    "strict": True,
+                }
             },
+            store=False,
         )
-        content = response.choices[0].message.content or "{}"
-        return json.loads(content), _chat_usage(response.usage)
+        usage = _response_usage(response.usage)
+        if response.status != "completed" or not response.output_text:
+            raise IncompleteResponseError(usage)
+        try:
+            return json.loads(response.output_text), usage
+        except json.JSONDecodeError as exc:
+            raise IncompleteResponseError(usage) from exc
 
     async def chat_json(
         self, messages: list[dict[str, Any]], schema_name: str, schema: dict[str, Any]
     ) -> tuple[dict[str, Any], Usage]:
-        """The guardrail's tiny classification call — a fixed 50-token cap
-        keeps it cheap. Anything bigger (training session generation) uses
-        chat_structured directly with its own budget."""
-        return await self.chat_structured(messages, schema_name, schema, max_completion_tokens=50)
+        """A small no-reasoning scope classification call."""
+        return await self.chat_structured(
+            messages, schema_name, schema, max_completion_tokens=100, reasoning_effort="none"
+        )

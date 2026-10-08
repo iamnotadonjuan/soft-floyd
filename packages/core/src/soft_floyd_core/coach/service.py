@@ -9,6 +9,7 @@ can forward them as SSE without knowing anything about the loop.
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import json
 from collections.abc import AsyncIterator, Awaitable, Callable
@@ -20,9 +21,10 @@ from sqlalchemy.orm import Session
 
 from soft_floyd_core.coach import memory
 from soft_floyd_core.coach.guardrail import REFUSAL, ScopeClassifier, classify_scope
+from soft_floyd_core.coach.images import parse_image_data_url
 from soft_floyd_core.coach.prompts import SYSTEM_PROMPT
 from soft_floyd_core.coach.tools import TOOLS, SourceOut, ToolResult, run_tool
-from soft_floyd_core.llm.client import ChatDone, LLMClient, TextDelta
+from soft_floyd_core.llm.client import ChatDone, IncompleteResponseError, LLMClient, TextDelta
 from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
 from soft_floyd_core.models import CoachConversation, CoachMessage
 from soft_floyd_core.profile.service import get_profile
@@ -58,6 +60,7 @@ class MessageOut(BaseModel):
     id: int
     role: Literal["user", "assistant"]
     content: str
+    image_url: str | None = None
     sources: list[SourceOut]
     training_sessions: list[TrainingSessionOut] = []
     created_at: dt.datetime
@@ -94,6 +97,11 @@ def _message_out(msg: CoachMessage, session: Session) -> MessageOut:
         id=msg.id,
         role=msg.role,  # type: ignore[arg-type]
         content=msg.content,
+        image_url=(
+            f"/api/coach/conversations/{msg.conversation_id}/messages/{msg.id}/image"
+            if msg.image_data is not None
+            else None
+        ),
         sources=[SourceOut(**s) for s in msg.sources or []],
         training_sessions=training_sessions,
         created_at=msg.created_at,
@@ -136,7 +144,26 @@ def delete_conversation(session: Session, conversation_id: int) -> None:
     session.flush()
 
 
-def check_turn(session: Session, conversation_id: int, text: str, budget_usd: float) -> str:
+def get_message_image(session: Session, conversation_id: int, message_id: int) -> tuple[bytes, str]:
+    _get(session, conversation_id)
+    msg = session.get(CoachMessage, message_id)
+    if (
+        msg is None
+        or msg.conversation_id != conversation_id
+        or not msg.image_data
+        or not msg.image_mime
+    ):
+        raise LookupError("Image not found")
+    return msg.image_data, msg.image_mime
+
+
+def check_turn(
+    session: Session,
+    conversation_id: int,
+    text: str,
+    budget_usd: float,
+    image_data_url: str | None = None,
+) -> str:
     """Everything that can reject a turn before streaming starts, so the
     REST adapter can still answer with a proper status code. Returns the
     normalized message text."""
@@ -146,6 +173,7 @@ def check_turn(session: Session, conversation_id: int, text: str, budget_usd: fl
         raise ValueError("Message must not be empty")
     if len(text) > MAX_MESSAGE_CHARS:
         raise ValueError(f"Message must be at most {MAX_MESSAGE_CHARS} characters")
+    parse_image_data_url(image_data_url)
     ensure_within_budget(session, budget_usd)
     return text
 
@@ -171,6 +199,26 @@ def rider_context(session: Session, now: dt.datetime) -> str:
     return "\n".join(lines)
 
 
+def _model_message_content(role: str, text: str, image_data_url: str | None) -> dict[str, Any]:
+    if image_data_url is None:
+        return {"role": role, "content": text}
+    return {
+        "role": role,
+        "content": [
+            {"type": "input_text", "text": text},
+            {"type": "input_image", "image_url": image_data_url},
+        ],
+    }
+
+
+def _model_message(message: CoachMessage) -> dict[str, Any]:
+    image_data_url = None
+    if message.image_data and message.image_mime:
+        encoded = base64.b64encode(message.image_data).decode("ascii")
+        image_data_url = f"data:{message.image_mime};base64,{encoded}"
+    return _model_message_content(message.role, message.content, image_data_url)
+
+
 async def run_turn(
     session: Session,
     conversation_id: int,
@@ -180,19 +228,35 @@ async def run_turn(
     now: dt.datetime | None = None,
     tool_runner: Callable[[str, str], Awaitable[ToolResult]] | None = None,
     context_provider: Callable[[], Awaitable[str]] | None = None,
+    image_data_url: str | None = None,
 ) -> AsyncIterator[CoachEvent]:
-    text = check_turn(session, conversation_id, text, budget_usd)
+    text = check_turn(session, conversation_id, text, budget_usd, image_data_url)
+    image = parse_image_data_url(image_data_url)
     conv = _get(session, conversation_id)
     history = list(conv.messages)[-_HISTORY_MESSAGES:]
 
-    session.add(CoachMessage(conversation_id=conv.id, role="user", content=text))
+    session.add(
+        CoachMessage(
+            conversation_id=conv.id,
+            role="user",
+            content=text,
+            image_mime=image.mime_type if image else None,
+            image_data=image.data if image else None,
+        )
+    )
     if not history:
         conv.title = text if len(text) <= _TITLE_CHARS else text[: _TITLE_CHARS - 1] + "…"
     conv.updated_at = dt.datetime.now(dt.UTC)
     session.commit()
 
     previous_reply = next((m.content for m in reversed(history) if m.role == "assistant"), None)
-    in_scope, usage = await classify_scope(llm, text, previous_reply)
+    try:
+        in_scope, usage = await classify_scope(llm, text, previous_reply)
+    except IncompleteResponseError as exc:
+        if exc.usage:
+            record_usage(session, exc.usage)
+            session.commit()
+        raise
     record_usage(session, usage)
     session.commit()
 
@@ -213,20 +277,26 @@ async def run_turn(
                     else rider_context(session, now or dt.datetime.now())
                 ),
             },
-            *({"role": m.role, "content": m.content} for m in history),
-            {"role": "user", "content": text},
+            *(_model_message(m) for m in history),
+            _model_message_content("user", text, image.data_url if image else None),
         ]
         for round_ in range(_MAX_TOOL_ROUNDS + 1):
             # The last round gets no tools, forcing a written answer.
             tools = TOOLS if round_ < _MAX_TOOL_ROUNDS else None
             done: ChatDone | None = None
             round_text = ""
-            async for item in llm.chat_stream(messages, tools):
-                if isinstance(item, TextDelta):
-                    round_text += item.text
-                    yield CoachEvent(type="delta", text=item.text)
-                else:
-                    done = item
+            try:
+                async for item in llm.chat_stream(messages, tools):
+                    if isinstance(item, TextDelta):
+                        round_text += item.text
+                        yield CoachEvent(type="delta", text=item.text)
+                    else:
+                        done = item
+            except IncompleteResponseError as exc:
+                if exc.usage:
+                    record_usage(session, exc.usage)
+                    session.commit()
+                raise
             reply += round_text
             if done is None:
                 break
@@ -234,20 +304,24 @@ async def run_turn(
             session.commit()
             if not done.tool_calls:
                 break
-            messages.append(
-                {
-                    "role": "assistant",
-                    "content": round_text or None,
-                    "tool_calls": [
-                        {
-                            "id": call.id,
-                            "type": "function",
-                            "function": {"name": call.name, "arguments": call.arguments},
-                        }
-                        for call in done.tool_calls
-                    ],
-                }
-            )
+            if done.response_items:
+                messages.extend(done.response_items)
+            else:
+                # Scripted test clients still use the legacy message shape.
+                messages.append(
+                    {
+                        "role": "assistant",
+                        "content": round_text or None,
+                        "tool_calls": [
+                            {
+                                "id": call.id,
+                                "type": "function",
+                                "function": {"name": call.name, "arguments": call.arguments},
+                            }
+                            for call in done.tool_calls
+                        ],
+                    }
+                )
             for call in done.tool_calls:
                 result = (
                     await tool_runner(call.name, call.arguments)
@@ -265,7 +339,9 @@ async def run_turn(
                         training_session=training_service.get_session(session, training_session_id),
                     )
                 messages.append(
-                    {"role": "tool", "tool_call_id": call.id, "content": result.content}
+                    {"type": "function_call_output", "call_id": call.id, "output": result.content}
+                    if done.response_items
+                    else {"role": "tool", "tool_call_id": call.id, "content": result.content}
                 )
 
     if not reply.strip():

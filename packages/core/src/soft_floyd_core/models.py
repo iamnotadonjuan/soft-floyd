@@ -339,6 +339,8 @@ class CoachMessage(Base):
     )
     role: Mapped[str] = mapped_column(String(16))  # "user" | "assistant"
     content: Mapped[str] = mapped_column(Text)
+    image_mime: Mapped[str | None] = mapped_column(String(32), default=None)
+    image_data: Mapped[bytes | None] = mapped_column(LargeBinary, default=None)
     # Book citations shown under an assistant reply: [{title, page_start, ...}]
     sources: Mapped[list[dict]] = mapped_column(JSON, default=list)
     # TrainingSession ids the coach planned during this turn (exec-plan 0011);

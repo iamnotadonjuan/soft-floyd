@@ -55,3 +55,4 @@ One line per deliberately deferred item: what, why, and when to revisit.
 | 0019 arm64 image is built under QEMU on an x86 runner | Works but is slow | Switch the deploy job to a native `ubuntu-24.04-arm` runner |
 | 0019 no post-deploy smoke check of the CloudFront URL | `deploy-backend.sh` already checks `/api/health` on the instance | If a deploy ever succeeds but the public site is broken |
 | 0019 web has no unit tests | CI runs ESLint and `tsc` only; no Vitest set up | When web logic needs regression tests |
+| 0020 coach image composer lacks signed-in visual review | Core/API tests and web checks passed, but no signed-in browser session was available during implementation | Review attachment selection, preview, send, reload, and mobile layout in EN/ES with a local signed-in account |

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import base64
 import datetime as dt
 import json
 import struct
@@ -9,10 +10,12 @@ import struct
 import pytest
 from fastmcp import Client
 from pydantic import TypeAdapter
+from soft_floyd_core.account_scope import scoped_account
 from soft_floyd_core.activities import service as activities_service
 from soft_floyd_core.coach import memory
 from soft_floyd_core.coach import service as coach
 from soft_floyd_core.coach.guardrail import REFUSAL, classify_scope
+from soft_floyd_core.coach.images import parse_image_data_url
 from soft_floyd_core.coach.tools import run_tool
 from soft_floyd_core.llm.client import (
     CHAT_MODEL,
@@ -41,6 +44,9 @@ from sqlalchemy.orm import Session
 
 NOW = dt.datetime(2026, 9, 23, 12, 0)  # a Wednesday
 CHAT_USAGE = Usage(CHAT_MODEL, 1000, 0, 100)
+PNG_IMAGE = "data:image/png;base64," + base64.b64encode(
+    b"\x89PNG\r\n\x1a\n" + b"small-test-image"
+).decode("ascii")
 
 
 class FakeLLM:
@@ -154,6 +160,89 @@ async def test_follow_up_passes_previous_reply_to_the_classifier(session):
     # History reaches the coach model too.
     sent = llm.stream_calls[0][0]
     assert {"role": "assistant", "content": "Solid week."} in sent
+
+
+async def test_image_is_saved_and_included_in_follow_up_context(session):
+    _seed(session)
+    conv = coach.create_conversation(session)
+    first = FakeLLM(rounds=[_text_round("That looks like a bike setup.")])
+    events = [
+        e
+        async for e in coach.run_turn(
+            session,
+            conv.id,
+            "What can you tell me about this bike?",
+            first,
+            10,
+            image_data_url=PNG_IMAGE,
+        )
+    ]
+    assert events[-1].type == "done"
+    detail = coach.get_conversation(session, conv.id)
+    image_url = detail.messages[0].image_url
+    assert image_url is not None
+    data, mime_type = coach.get_message_image(session, conv.id, detail.messages[0].id)
+    assert mime_type == "image/png"
+    assert data.startswith(b"\x89PNG")
+    assert first.stream_calls[0][0][-1]["content"][1]["image_url"] == PNG_IMAGE
+
+    follow_up = FakeLLM(rounds=[_text_round("Look at the bars.")])
+    await _run(session, conv.id, "And the handlebar?", follow_up)
+    sent = follow_up.stream_calls[0][0]
+    assert any(
+        isinstance(item["content"], list) and item["content"][1]["image_url"] == PNG_IMAGE
+        for item in sent
+    )
+
+
+def test_image_validation_rejects_wrong_format_and_oversized_payload():
+    with pytest.raises(ValueError, match="file type"):
+        parse_image_data_url("data:image/png;base64," + base64.b64encode(b"not an image").decode())
+    with pytest.raises(ValueError, match="5 MB"):
+        parse_image_data_url("data:image/png;base64," + "A" * (7 * 1024 * 1024))
+
+
+def test_image_is_account_owned(session):
+    _seed(session)
+    conv = coach.create_conversation(session)
+    msg = CoachMessage(
+        conversation_id=conv.id,
+        role="user",
+        content="bike",
+        image_mime="image/png",
+        image_data=b"png",
+    )
+    session.add(msg)
+    session.commit()
+    assert coach.get_message_image(session, conv.id, msg.id) == (b"png", "image/png")
+    session.expunge_all()
+    with scoped_account(2), pytest.raises(LookupError):
+        coach.get_message_image(session, conv.id, msg.id)
+
+
+def test_image_route_requires_an_owned_message(client):
+    from soft_floyd_core.db import session_scope
+    from soft_floyd_server.runtime import get_session_factory
+
+    conv = client.post("/api/coach/conversations").json()
+    with session_scope(get_session_factory()) as session:
+        msg = CoachMessage(
+            conversation_id=conv["id"],
+            role="user",
+            content="bike",
+            image_mime="image/png",
+            image_data=b"\x89PNG\r\n\x1a\nimage",
+        )
+        session.add(msg)
+        session.flush()
+        message_id = msg.id
+    response = client.get(f"/api/coach/conversations/{conv['id']}/messages/{message_id}/image")
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "image/png"
+    assert response.content.startswith(b"\x89PNG")
+    assert (
+        client.get(f"/api/coach/conversations/999/messages/{message_id}/image").status_code == 404
+    )
 
 
 async def test_tool_loop_uses_core_data_saves_memory_and_cites_books(session):

@@ -13,7 +13,7 @@ from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from soft_floyd_core.bikes.service import BikeOut
-from soft_floyd_core.llm.client import LLMClient
+from soft_floyd_core.llm.client import IncompleteResponseError, LLMClient
 from soft_floyd_core.llm.schema import to_strict_schema
 from soft_floyd_core.llm.usage import ensure_within_budget, record_usage
 from soft_floyd_core.metrics.service import TrainingLoadOut
@@ -27,7 +27,7 @@ from soft_floyd_core.training.schemas import (
     Workout,
 )
 
-_MAX_COMPLETION_TOKENS = 1500
+_MAX_COMPLETION_TOKENS = 4000
 
 SYSTEM_PROMPT = """\
 You are a cycling coach's session planner. You are given:
@@ -211,19 +211,23 @@ async def generate_session(
         pass  # no OpenAI key for book search — plan without citations
 
     schema = to_strict_schema(GeneratedSession)
-    raw, usage = await llm.chat_structured(
-        [
-            {"role": "system", "content": SYSTEM_PROMPT},
-            {
-                "role": "user",
-                "content": _prompt(request, intent, profile, bike, passages, load, rides),
-            },
-        ],
-        "training_session",
-        schema,
-        max_completion_tokens=_MAX_COMPLETION_TOKENS,
-        temperature=0.4,
-    )
+    try:
+        raw, usage = await llm.chat_structured(
+            [
+                {"role": "system", "content": SYSTEM_PROMPT},
+                {
+                    "role": "user",
+                    "content": _prompt(request, intent, profile, bike, passages, load, rides),
+                },
+            ],
+            "training_session",
+            schema,
+            max_completion_tokens=_MAX_COMPLETION_TOKENS,
+        )
+    except IncompleteResponseError as exc:
+        if exc.usage:
+            record_usage(session, exc.usage)
+        raise
     record_usage(session, usage)
 
     generated = GeneratedSession.model_validate(raw)
@@ -264,28 +268,33 @@ async def generate_rest_explanation(
     except ValueError:
         pass
 
-    raw, usage = await llm.chat_structured(
-        [
-            {
-                "role": "system",
-                "content": (
-                    "You are a cycling coach. The app has already decided that a rest day is "
-                    "appropriate. Explain that choice in 2-4 plain sentences using only the "
-                    "verified ride facts and trusted load shown. Mention uncertainty when history "
-                    "is short or a ride lacks sensor data. You may use a relevant supplied book "
-                    "passage, but do not invent a citation, physiological measurement, route, "
-                    "or medical claim. Do not prescribe a workout."
-                ),
-            },
-            {
-                "role": "user",
-                "content": _prompt(request, intent, profile, None, passages, load, rides),
-            },
-        ],
-        "rest_recommendation",
-        to_strict_schema(RestDraft),
-        max_completion_tokens=400,
-        temperature=0.3,
-    )
+    try:
+        raw, usage = await llm.chat_structured(
+            [
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a cycling coach. The app has already decided that a rest day is "
+                        "appropriate. Explain that choice in 2-4 plain sentences using only the "
+                        "verified ride facts and trusted load shown. Mention uncertainty when "
+                        "history is short or a ride lacks sensor data. You may use a relevant "
+                        "supplied book "
+                        "passage, but do not invent a citation, physiological measurement, route, "
+                        "or medical claim. Do not prescribe a workout."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": _prompt(request, intent, profile, None, passages, load, rides),
+                },
+            ],
+            "rest_recommendation",
+            to_strict_schema(RestDraft),
+            max_completion_tokens=1200,
+        )
+    except IncompleteResponseError as exc:
+        if exc.usage:
+            record_usage(session, exc.usage)
+        raise
     record_usage(session, usage)
     return RestResult(rationale=RestDraft.model_validate(raw).rationale, passages=passages)

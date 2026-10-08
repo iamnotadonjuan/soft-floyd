@@ -169,6 +169,7 @@ export interface CoachMessageOut {
   id: number;
   role: "user" | "assistant";
   content: string;
+  image_url: string | null;
   sources: CoachSourceOut[];
   // Sessions the coach planned in this reply, shown as workout cards.
   training_sessions: TrainingSessionOut[];

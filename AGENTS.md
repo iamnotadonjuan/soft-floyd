@@ -68,6 +68,12 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+- **0020-gpt-6-luna and coach images** (built; live visual review pending):
+  GPT-6 Luna powers coach chat and structured session generation through
+  Responses, with cost accounting for reasoning and cache writes. A rider
+  can attach one image to a coach message and see it after reload; images
+  remain account-owned. See `docs/product-specs/coach-chat.md`.
+
 - **0019-ci-cd** (built; needs the one-time AWS OIDC setup in
   `infra/README.md`): `.github/workflows/ci.yml` runs ESLint + `tsc` (web),
   ruff + pytest (Python) on PRs and pushes to `main`; a passing push to
