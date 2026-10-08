@@ -70,12 +70,13 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
 async function streamCoachMessage(
   conversationId: number,
   text: string,
+  imageDataUrl: string | null,
   onEvent: (event: CoachEvent) => void,
   signal?: AbortSignal,
 ): Promise<void> {
   const response = await send(`/coach/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ text }),
+    body: JSON.stringify({ text, image_data_url: imageDataUrl }),
     signal,
   });
   if (!response.body) throw new ApiError(500, "The coach reply had no body");

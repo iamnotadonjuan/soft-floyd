@@ -1,4 +1,4 @@
-import { type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
+import { type ChangeEvent, type FormEvent, type KeyboardEvent, useEffect, useRef, useState } from "react";
 
 import { api, ApiError } from "../api/client";
 import type {
@@ -46,6 +46,7 @@ export default function Coach() {
   const [messages, setMessages] = useState<CoachMessageOut[]>([]);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [input, setInput] = useState("");
+  const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [notes, setNotes] = useState<CoachMemoryNoteOut[]>([]);
   const [garminConnected, setGarminConnected] = useState(false);
@@ -131,14 +132,34 @@ export default function Coach() {
     }
   }
 
+  async function chooseImage(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) {
+      setError(m.coach.imageTypeError);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      setError(m.coach.imageSizeError);
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => { setImageDataUrl(String(reader.result)); setError(null); };
+    reader.onerror = () => setError(m.coach.imageReadError);
+    reader.readAsDataURL(file);
+  }
+
   async function send(text: string) {
     text = text.trim();
     if (!text || busy) return;
+    const attachedImage = imageDataUrl;
     setError(null);
     setInput("");
+    setImageDataUrl(null);
     setDraft({ text: "", status: null, sources: [], sessions: [] });
     const optimistic: CoachMessageOut = {
-      id: -Date.now(), role: "user", content: text, sources: [], training_sessions: [], created_at: new Date().toISOString(),
+      id: -Date.now(), role: "user", content: text, image_url: attachedImage, sources: [], training_sessions: [], created_at: new Date().toISOString(),
     };
     setMessages((items) => [...items, optimistic]);
     const controller = new AbortController();
@@ -150,7 +171,7 @@ export default function Coach() {
         id = created.id;
         setActiveId(id);
       }
-      await api.streamCoachMessage(id, text, (event) => {
+      await api.streamCoachMessage(id, text, attachedImage, (event) => {
         if (event.type === "delta" && event.text) {
           setDraft((d) => d && { ...d, text: d.text + event.text, status: null });
         } else if (event.type === "tool_status" && event.text) {
@@ -173,6 +194,7 @@ export default function Coach() {
         // A turn refused up front (budget, no API key) was never saved.
         setMessages((items) => items.filter((msg) => msg.id !== optimistic.id));
         setInput(text);
+        setImageDataUrl(attachedImage);
       }
     } finally {
       setDraft(null);
@@ -248,6 +270,7 @@ export default function Coach() {
               {messages.map((msg) => (
                 <article key={msg.id} className="coach-message" data-role={msg.role}>
                   {msg.role === "assistant" ? <CoachText text={msg.content} /> : <p className="whitespace-pre-wrap">{msg.content}</p>}
+                  {msg.image_url ? <img src={msg.image_url} alt={m.coach.attachedImage} className="mt-3 max-h-64 max-w-full rounded-xl object-contain" /> : null}
                   <SourceList sources={msg.sources} />
                   {msg.training_sessions.map((s) => (
                     <div key={s.id} className="mt-4">
@@ -277,6 +300,15 @@ export default function Coach() {
             {error && <p className="notice-error mx-5 mb-3" role="alert">{error}</p>}
 
             <form onSubmit={onSubmit} className="coach-composer">
+              <label className="secondary-button cursor-pointer" aria-label={m.coach.attachImage}>
+                {m.coach.attachImage}
+                <input type="file" accept="image/jpeg,image/png,image/webp" className="sr-only" disabled={busy}
+                  onChange={(event) => { void chooseImage(event); }} />
+              </label>
+              {imageDataUrl ? <div className="flex items-center gap-2">
+                <img src={imageDataUrl} alt={m.coach.attachedImage} className="max-h-16 max-w-20 rounded object-contain" />
+                <button type="button" className="text-sm underline" onClick={() => setImageDataUrl(null)}>{m.coach.removeImage}</button>
+              </div> : null}
               <label htmlFor="coach-input" className="sr-only">{m.coach.messageLabel}</label>
               <textarea id="coach-input" className="form-field" rows={2} maxLength={4000} value={input}
                 placeholder={m.coach.placeholder}
