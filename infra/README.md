@@ -93,12 +93,13 @@ three steps as above). `deploy.yml` can also be run by hand from the Actions tab
 The deploy job is skipped, not failed, until the `AWS_ROLE_ARN` repository
 variable exists. One-time setup:
 
-1. Create the GitHub OIDC identity provider in IAM
-   (`token.actions.githubusercontent.com`, audience `sts.amazonaws.com`).
-2. Create an IAM role whose trust policy allows `sts:AssumeRoleWithWebIdentity`
-   for `repo:iamnotadonjuan/soft-floyd:environment:production` (the deploy job
-   uses the `production` environment), with the permissions Pulumi, ECR, SSM,
-   S3 and CloudFront need.
+1. Run `infra/scripts/bootstrap-github-oidc.sh` with admin AWS credentials. It
+   creates the GitHub OIDC identity provider and an IAM role that only the
+   `production` environment of `iamnotadonjuan/soft-floyd` can assume (the
+   deploy job uses that environment), and prints the role ARN.
+2. The role gets `AdministratorAccess` because Pulumi creates IAM roles,
+   instances, buckets and CloudFront; the trust policy is what restricts it.
+   Narrow it later if you want.
 3. Set repository variables `AWS_ROLE_ARN` and `PULUMI_BACKEND_URL`, and
    secret `PULUMI_CONFIG_PASSPHRASE`.
 4. Optional: add protection rules to the `production` environment, and require
