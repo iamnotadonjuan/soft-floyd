@@ -10,6 +10,7 @@ import tomllib
 from pathlib import Path
 from typing import Any
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, PydanticBaseSettingsSource, SettingsConfigDict
 
 CONFIG_DIR = Path.home() / ".soft-floyd"
@@ -36,16 +37,16 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    openai_api_key: str | None = None
+    openai_api_key: str | None = Field(default=None, repr=False)
     google_client_id: str | None = None
-    google_client_secret: str | None = None
-    jwt_secret: str | None = None
+    google_client_secret: str | None = Field(default=None, repr=False)
+    jwt_secret: str | None = Field(default=None, repr=False)
     web_origin: str = "http://localhost:5173"
     google_redirect_uri: str = "http://localhost:5173/api/auth/google/callback"
     cookie_secure: bool = False  # HTTPS deployment must set this true.
     # When set, /api and /mcp require a matching X-Origin-Verify header
     # (added by CloudFront in the hosted deployment). Unset locally.
-    origin_verify_secret: str | None = None
+    origin_verify_secret: str | None = Field(default=None, repr=False)
     internal_mcp_url: str = "http://127.0.0.1:8000/mcp"
     # Hard stop for all paid LLM calls made by the coach (exec-plan 0007);
     # month-to-date spend is summed from the llm_usage table.

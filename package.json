@@ -8,6 +8,9 @@
     "typecheck": "pnpm --filter soft-floyd-web typecheck"
   },
   "pnpm": {
-    "onlyBuiltDependencies": ["esbuild"]
+    "onlyBuiltDependencies": ["esbuild"],
+    "overrides": {
+      "source-map-js": "^1.2.2"
+    }
   }
 }

@@ -33,6 +33,7 @@ from soft_floyd_server.http_api import router as http_router
 from soft_floyd_server.lifespan import poller_lifespan
 from soft_floyd_server.mcp_server import mcp
 from soft_floyd_server.origin_verify import OriginVerifyMiddleware
+from soft_floyd_server.security_headers import SecurityHeadersMiddleware
 
 mcp_app = mcp.http_app(path="/", stateless_http=True)
 
@@ -50,6 +51,8 @@ app.add_middleware(AccountAuthMiddleware)
 # Added last so it runs first: nothing is processed for a request that
 # bypassed CloudFront. No-op unless SOFT_FLOYD_ORIGIN_VERIFY_SECRET is set.
 app.add_middleware(OriginVerifyMiddleware)
+# Outermost so even rejected auth and origin requests carry safe headers.
+app.add_middleware(SecurityHeadersMiddleware)
 
 app.include_router(auth_router, prefix="/api")
 app.include_router(http_router, prefix="/api")
