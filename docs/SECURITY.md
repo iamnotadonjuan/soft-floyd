@@ -15,9 +15,15 @@ code flow uses state, nonce and PKCE; the backend verifies the signed Google
 ID token and uses its stable `sub` as the account identity. Sign-out revokes
 the server-side session record, which also invalidates its MCP grants.
 Google client credentials and the JWT signing secret come from environment
-or local config; they must not be committed or logged. The signing secret
+or local config; they must not be committed or logged. Secret settings are
+excluded from `Settings`'s diagnostic representation. The signing secret
 must contain at least 32 characters. Local HTTP is only for localhost;
 future remote hosting requires HTTPS and secure cookies.
+Private API and MCP responses use `Cache-Control: no-store` and disable MIME
+sniffing and framing. The hosted CloudFront UI adds a Content Security Policy,
+HSTS, no-referrer, no-sniff and no-framing headers. The UI's inline React
+styles require `style-src 'unsafe-inline'`; scripts remain restricted to the
+same origin.
 
 ## Hosted deployment
 
@@ -54,3 +60,13 @@ to the local web origin, never use wildcard origins, and do not bind the app
 publicly as a shortcut. External MCP client setup and production hardening
 are future work; no long-lived MCP token is issued in this release. The
 OpenAI cost cap is global across all accounts using the configured API key.
+
+## Dependency review (2026-10-08)
+
+`pip-audit` found no known vulnerabilities in installed third-party Python
+packages after updating PyJWT to 2.15.1. `pnpm audit` reports two remaining
+Tailwind 3 build-chain advisories: `braces@3.0.3` has no patched release, and
+`postcss-selector-parser@6.1.4` is below its patched 7.1.6 major release.
+These packages process trusted repository CSS/glob patterns during local and
+CI builds; no rider-supplied CSS or patterns enter that path. Revisit both
+when Tailwind is upgraded or a compatible patch is released.

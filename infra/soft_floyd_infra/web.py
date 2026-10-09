@@ -26,6 +26,19 @@ SPA_REWRITE = """function handler(event) {
 }
 """
 
+UI_CSP = (
+    "default-src 'self'; "
+    "script-src 'self'; "
+    "style-src 'self' 'unsafe-inline'; "
+    "img-src 'self' data: https:; "
+    "connect-src 'self'; "
+    "font-src 'self'; "
+    "object-src 'none'; "
+    "base-uri 'self'; "
+    "form-action 'self'; "
+    "frame-ancestors 'none'"
+)
+
 
 class Web:
     def __init__(
@@ -51,6 +64,20 @@ class Web:
         spa = aws.cloudfront.Function(
             "spa-rewrite", runtime="cloudfront-js-2.0", code=SPA_REWRITE, publish=True
         )
+        security_headers = aws.cloudfront.ResponseHeadersPolicy(
+            "web-security-headers",
+            name=f"soft-floyd-{pulumi.get_stack()}-security",
+            security_headers_config={
+                "content_security_policy": {"content_security_policy": UI_CSP, "override": True},
+                "content_type_options": {"override": True},
+                "frame_options": {"frame_option": "DENY", "override": True},
+                "referrer_policy": {"referrer_policy": "no-referrer", "override": True},
+                "strict_transport_security": {
+                    "access_control_max_age_sec": 31536000,
+                    "override": True,
+                },
+            },
+        )
 
         backend_behavior = {
             "target_origin_id": "api",
@@ -59,6 +86,7 @@ class Web:
             "cached_methods": ["GET", "HEAD"],
             "cache_policy_id": CACHING_DISABLED,
             "origin_request_policy_id": ALL_VIEWER_EXCEPT_HOST,
+            "response_headers_policy_id": security_headers.id,
             # Compression would buffer the SSE coach stream.
             "compress": False,
         }
@@ -96,6 +124,7 @@ class Web:
                 "allowed_methods": ["GET", "HEAD", "OPTIONS"],
                 "cached_methods": ["GET", "HEAD"],
                 "cache_policy_id": CACHING_OPTIMIZED,
+                "response_headers_policy_id": security_headers.id,
                 "compress": True,
                 "function_associations": [
                     {"event_type": "viewer-request", "function_arn": spa.arn}

@@ -14,7 +14,7 @@ dependencies = [
     "fit-tool>=0.9.13",
     "anyio>=4",
     "pypdf>=6,<7",
-    "pyjwt[crypto]>=2.10",
+    "pyjwt[crypto]>=2.15.0",
 ]
 
 [build-system]

@@ -4,6 +4,17 @@ def test_health(client):
     assert response.json() == {"status": "ok"}
 
 
+def test_private_responses_disable_caching_and_sniffing(client):
+    rejected = client.put("/api/profile", json={}, headers={"Origin": "https://example.com"})
+    assert rejected.status_code == 403
+    for response in (client.get("/api/profile"), rejected):
+        assert response.headers["cache-control"] == "no-store"
+        assert response.headers["x-content-type-options"] == "nosniff"
+        assert response.headers["referrer-policy"] == "no-referrer"
+        assert response.headers["x-frame-options"] == "DENY"
+        assert "frame-ancestors 'none'" in response.headers["content-security-policy"]
+
+
 def test_profile_round_trip_and_tier_flip(client):
     # Default profile has no sensors declared beyond the HR-monitor default
     # (has_hr_monitor defaults True) and no bikes yet.
