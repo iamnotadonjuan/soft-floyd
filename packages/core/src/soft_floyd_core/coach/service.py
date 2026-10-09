@@ -73,7 +73,9 @@ class ConversationDetailOut(ConversationOut):
 class CoachEvent(BaseModel):
     """One SSE event. `type` decides which other field is set."""
 
-    type: Literal["delta", "tool_status", "sources", "training_session", "done", "error"]
+    type: Literal[
+        "accepted", "delta", "tool_status", "sources", "training_session", "done", "error"
+    ]
     text: str | None = None
     sources: list[SourceOut] | None = None
     training_session: TrainingSessionOut | None = None
@@ -178,6 +180,23 @@ def check_turn(
     return text
 
 
+def check_retry_turn(
+    session: Session, conversation_id: int, message_id: int, budget_usd: float
+) -> CoachMessage:
+    """Only an unanswered final user message can be retried in place."""
+    _get(session, conversation_id)
+    last = session.scalar(
+        select(CoachMessage)
+        .where(CoachMessage.conversation_id == conversation_id)
+        .order_by(CoachMessage.id.desc())
+        .limit(1)
+    )
+    if last is None or last.id != message_id or last.role != "user":
+        raise ValueError("This message can no longer be retried. Refresh the conversation.")
+    ensure_within_budget(session, budget_usd)
+    return last
+
+
 def rider_context(session: Session, now: dt.datetime) -> str:
     profile = get_profile(session)
     notes = memory.list_notes(session)
@@ -229,25 +248,32 @@ async def run_turn(
     tool_runner: Callable[[str, str], Awaitable[ToolResult]] | None = None,
     context_provider: Callable[[], Awaitable[str]] | None = None,
     image_data_url: str | None = None,
+    retry_message_id: int | None = None,
 ) -> AsyncIterator[CoachEvent]:
-    text = check_turn(session, conversation_id, text, budget_usd, image_data_url)
-    image = parse_image_data_url(image_data_url)
     conv = _get(session, conversation_id)
-    history = list(conv.messages)[-_HISTORY_MESSAGES:]
-
-    session.add(
-        CoachMessage(
+    if retry_message_id is None:
+        text = check_turn(session, conversation_id, text, budget_usd, image_data_url)
+        image = parse_image_data_url(image_data_url)
+        history = list(conv.messages)[-_HISTORY_MESSAGES:]
+        user_message = CoachMessage(
             conversation_id=conv.id,
             role="user",
             content=text,
             image_mime=image.mime_type if image else None,
             image_data=image.data if image else None,
         )
-    )
-    if not history:
-        conv.title = text if len(text) <= _TITLE_CHARS else text[: _TITLE_CHARS - 1] + "…"
-    conv.updated_at = dt.datetime.now(dt.UTC)
-    session.commit()
+        session.add(user_message)
+        if not history:
+            conv.title = text if len(text) <= _TITLE_CHARS else text[: _TITLE_CHARS - 1] + "…"
+        conv.updated_at = dt.datetime.now(dt.UTC)
+        session.commit()
+    else:
+        user_message = check_retry_turn(session, conversation_id, retry_message_id, budget_usd)
+        text = user_message.content
+        session.expire(conv, ["messages"])
+        history = list(conv.messages)[:-1][-_HISTORY_MESSAGES:]
+
+    yield CoachEvent(type="accepted", message=_message_out(user_message, session))
 
     previous_reply = next((m.content for m in reversed(history) if m.role == "assistant"), None)
     try:
@@ -278,7 +304,7 @@ async def run_turn(
                 ),
             },
             *(_model_message(m) for m in history),
-            _model_message_content("user", text, image.data_url if image else None),
+            _model_message(user_message),
         ]
         for round_ in range(_MAX_TOOL_ROUNDS + 1):
             # The last round gets no tools, forcing a written answer.

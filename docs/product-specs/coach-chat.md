@@ -58,11 +58,20 @@ REST (all under `/api`):
 - `GET` and `POST /coach/conversations`
 - `GET` and `DELETE /coach/conversations/{id}`
 - `POST /coach/conversations/{id}/messages` with `{text, image_data_url?}` (text at most 4000 characters; image optional). It returns `text/event-stream` with these events:
+  - `accepted` `{message}` once the user message is saved
   - `delta` `{text}`
   - `tool_status` `{text}`
   - `sources` `{sources}`
   - `done` `{message}`
   - `error` `{text}`
+- A failed streamed turn shows Retry beside its error. Retry posts
+  `{retry_message_id}` to the same route and reuses that saved final user
+  message, including its image, rather than adding a duplicate. The server
+  rejects a retry if another message or a reply has since followed it.
+  A request refused before streaming remains in the composer for editing.
+  If a tool ran before the error, the chat warns that retrying may repeat
+  its changes. A stream that closes without `done` or `error` is treated as
+  a failed turn and offers the same retry action.
 - `GET /coach/memory` and `DELETE /coach/memory/{id}`
 - `GET /coach/conversations/{id}/messages/{message_id}/image` (account-owned image)
 - `GET /training-summary?weeks=`
