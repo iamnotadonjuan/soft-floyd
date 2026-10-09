@@ -15,7 +15,7 @@ in the account-owned conversation, with no assistant reply after it. A
 preflight failure, which never saved a message, can resend normally. The
 chat shows a localized Retry button beside a failed turn, disables it
 while a turn is active, and leaves the original message visible. The
-server logs the exception traceback while returning safe error copy.
+server logs stack frames without local variables while returning safe error copy.
 
 ## Steps
 
@@ -36,11 +36,14 @@ server logs the exception traceback while returning safe error copy.
 
 ## Build status
 
-Implemented on 2026-10-08. `make check` passed (306 Python tests, web lint
+Implemented on 2026-10-08. `make check` passed (308 Python tests, web lint
 and TypeScript; existing web lint warnings remain). Core and REST tests
 cover a failed stream, retrying the saved message and image, one resulting
 assistant message, stale retry rejection and account isolation. The server
-now logs a traceback for unexpected coach failures. A signed-in visual
+now logs stack frames for unexpected coach failures without exposing locals.
+The reported FastMCP citation failure was fixed by accepting Pydantic source
+objects in the web coach bridge; regression tests cover both response forms.
+A signed-in visual
 review remains pending because no local server was running, so this plan
 stays active.
 

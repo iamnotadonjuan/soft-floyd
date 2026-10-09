@@ -5,6 +5,7 @@ rule as mcp_server.py: no domain logic here.
 from __future__ import annotations
 
 import datetime as dt
+import traceback
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Request
@@ -487,7 +488,12 @@ async def send_coach_message(
         except (ValueError, LookupError) as exc:  # the stream is already 200; report in-band
             yield _sse(coach_service.CoachEvent(type="error", text=str(exc)))
         except Exception as exc:
-            _log.warning("coach_turn_failed", error_type=type(exc).__name__, exc_info=True)
+            # Keep the stack but not local variables, which can hold secrets.
+            _log.warning(
+                "coach_turn_failed",
+                error_type=type(exc).__name__,
+                stack="".join(traceback.format_tb(exc.__traceback__)),
+            )
             detail = "The coach hit an error talking to the model. Please try again."
             yield _sse(coach_service.CoachEvent(type="error", text=detail))
 
