@@ -214,6 +214,9 @@ async def _build(
     recent_rides = list_activities(session, limit=_RECENT_RIDES)
     load = get_training_load(session, now=now)
     intent = recommend_intent(request, profile, summary, recent_rides, today=today, load=load)
+    # Every planning entry point, including the form and coach tool, needs
+    # verified ride context. Suggestion already supplies it for its result.
+    verified_rides = rides if rides is not None else _verified_recent_rides(session, recent_rides)
     result = await _run_generator(
         session,
         llm,
@@ -224,7 +227,7 @@ async def _build(
         bike=bike,
         load=load,
         budget_usd=budget_usd,
-        rides=rides,
+        rides=verified_rides,
     )
     return intent, result
 

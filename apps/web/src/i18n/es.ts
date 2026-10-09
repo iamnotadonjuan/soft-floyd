@@ -179,6 +179,8 @@ const es: Messages = {
     startPrompt: "¿Por dónde empezamos?",
     thinking: "Pensando…",
     turnError: "El coach no pudo responder. Inténtalo de nuevo.",
+    retry: "Reintentar",
+    retryMayRepeatActions: "Los cambios que hizo el coach antes del error podrían repetirse.",
     messageLabel: "Escríbele al coach",
     attachImage: "Adjuntar imagen",
     takePhoto: "Tomar foto",

@@ -25,7 +25,9 @@ function StepRow({ step }: { step: WorkoutStep }) {
       <span>
         <strong>{m.training.stepKind[step.kind]}</strong> — {step.name} · {endText(step.end)}
       </span>
-      <span className="body-muted">{target ?? step.cue}</span>
+      <span className="body-muted">
+        {target && <strong className="font-medium">{target} · </strong>}{step.cue}
+      </span>
     </li>
   );
 

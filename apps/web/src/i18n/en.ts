@@ -192,6 +192,8 @@ const en = {
     startPrompt: "Where should we start?",
     thinking: "Thinking…",
     turnError: "The coach couldn't answer. Please try again.",
+    retry: "Retry",
+    retryMayRepeatActions: "Any changes the coach made before the error may happen again.",
     messageLabel: "Message the coach",
     attachImage: "Attach image",
     takePhoto: "Take photo",

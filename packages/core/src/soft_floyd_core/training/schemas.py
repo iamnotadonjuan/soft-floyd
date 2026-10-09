@@ -171,6 +171,7 @@ class DraftTarget(BaseModel):
     low: float | None = None  # % FTP low, or cadence rpm low
     high: float | None = None  # % FTP high, or cadence rpm high
     hr_zone: int | None = None  # 1-5, used when kind == "hr_zone"
+    fallback_hr_zone: int | None = None  # HR alternative if power is unavailable
 
 
 class DraftStep(BaseModel):

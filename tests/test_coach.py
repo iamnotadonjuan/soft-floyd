@@ -130,8 +130,8 @@ async def test_off_topic_message_is_refused_without_calling_the_coach_model(sess
 
     events = await _run(session, conv.id, "Write me a Python script to sort a list", llm)
 
-    assert [e.type for e in events] == ["delta", "done"]
-    assert events[0].text == REFUSAL
+    assert [e.type for e in events] == ["accepted", "delta", "done"]
+    assert events[1].text == REFUSAL
     assert llm.stream_calls == []
     assert _usage_rows(session) == 1  # only the classifier
     detail = coach.get_conversation(session, conv.id)
@@ -193,6 +193,56 @@ async def test_image_is_saved_and_included_in_follow_up_context(session):
         isinstance(item["content"], list) and item["content"][1]["image_url"] == PNG_IMAGE
         for item in sent
     )
+
+
+async def test_failed_turn_retries_the_saved_message_and_image_once(session):
+    _seed(session)
+    conv = coach.create_conversation(session)
+
+    class FailingLLM(FakeLLM):
+        async def chat_stream(self, messages, tools=None):
+            yield TextDelta("Partial answer")
+            raise TypeError("model transport failed")
+
+    accepted = []
+    with pytest.raises(TypeError, match="model transport failed"):
+        async for event in coach.run_turn(
+            session, conv.id, "Look at this setup", FailingLLM(), 10, image_data_url=PNG_IMAGE
+        ):
+            accepted.append(event)
+
+    assert [event.type for event in accepted] == ["accepted", "delta"]
+    user_id = accepted[0].message.id
+    assert [m.role for m in coach.get_conversation(session, conv.id).messages] == ["user"]
+
+    llm = FakeLLM(rounds=[_text_round("The setup looks good.")])
+    events = [
+        event
+        async for event in coach.run_turn(session, conv.id, "", llm, 10, retry_message_id=user_id)
+    ]
+    assert events[0].type == "accepted" and events[0].message.id == user_id
+    assert [m.role for m in coach.get_conversation(session, conv.id).messages] == [
+        "user",
+        "assistant",
+    ]
+    assert llm.stream_calls[0][0][-1]["content"][1]["image_url"] == PNG_IMAGE
+    with pytest.raises(ValueError, match="no longer be retried"):
+        coach.check_retry_turn(session, conv.id, user_id, 10)
+
+
+def test_retry_only_accepts_the_last_user_message_in_its_account(session):
+    _seed(session)
+    conv = coach.create_conversation(session)
+    first = CoachMessage(conversation_id=conv.id, role="user", content="First")
+    second = CoachMessage(conversation_id=conv.id, role="user", content="Second")
+    session.add_all([first, second])
+    session.commit()
+
+    with pytest.raises(ValueError, match="no longer be retried"):
+        coach.check_retry_turn(session, conv.id, first.id, 10)
+    assert coach.check_retry_turn(session, conv.id, second.id, 10).id == second.id
+    with scoped_account(2), pytest.raises(LookupError):
+        coach.check_retry_turn(session, conv.id, second.id, 10)
 
 
 def test_image_validation_rejects_wrong_format_and_oversized_payload():
@@ -710,7 +760,7 @@ def test_rest_streams_a_coach_turn_and_persists_it(client, monkeypatch):
         assert response.status_code == 200
         assert response.headers["content-type"].startswith("text/event-stream")
         events = _parse_sse(response.text)
-        assert [name for name, _ in events] == ["delta", "delta", "done"]
+        assert [name for name, _ in events] == ["accepted", "delta", "delta", "done"]
         assert events[-1][1]["message"]["content"] == "Ride easy today."
 
         detail = client.get(f"/api/coach/conversations/{conv['id']}").json()
@@ -726,6 +776,59 @@ def test_rest_streams_a_coach_turn_and_persists_it(client, monkeypatch):
 
         assert client.delete(f"/api/coach/conversations/{conv['id']}").status_code == 204
         assert client.get(f"/api/coach/conversations/{conv['id']}").status_code == 404
+    finally:
+        engine.dispose()
+
+
+def test_rest_retry_reuses_the_failed_user_message(client, monkeypatch):
+    import httpx2
+    from soft_floyd_server import http_api
+    from soft_floyd_server.main import app
+    from soft_floyd_server.mcp_bridge import CoachMCPBridge
+
+    monkeypatch.setattr(
+        http_api,
+        "CoachMCPBridge",
+        lambda settings, token: CoachMCPBridge(
+            settings,
+            token,
+            lambda **kwargs: httpx2.AsyncClient(transport=httpx2.ASGITransport(app=app), **kwargs),
+        ),
+    )
+    engine, _ = _shared_factory(monkeypatch)
+
+    class FlakyLLM(FakeLLM):
+        failed = False
+
+        async def chat_stream(self, messages, tools=None):
+            if not self.failed:
+                self.failed = True
+                yield TextDelta("Partial answer")
+                raise TypeError("intermittent model failure")
+            async for item in super().chat_stream(messages, tools):
+                yield item
+
+    llm = FlakyLLM(rounds=[_text_round("Ride easy today.")])
+    monkeypatch.setattr(coach, "make_coach_llm", lambda _key: llm)
+    try:
+        conv = client.post("/api/coach/conversations").json()
+        path = f"/api/coach/conversations/{conv['id']}/messages"
+        failed = _parse_sse(client.post(path, json={"text": "What today?"}).text)
+        assert [name for name, _ in failed] == ["accepted", "delta", "error"]
+        user_id = failed[0][1]["message"]["id"]
+
+        retried = _parse_sse(client.post(path, json={"retry_message_id": user_id}).text)
+        assert [name for name, _ in retried] == ["accepted", "delta", "done"]
+        assert retried[0][1]["message"]["id"] == user_id
+        detail = client.get(f"/api/coach/conversations/{conv['id']}").json()
+        assert [m["role"] for m in detail["messages"]] == ["user", "assistant"]
+        assert client.post(path, json={"retry_message_id": user_id}).status_code == 409
+        assert (
+            client.post(
+                path, json={"retry_message_id": user_id, "text": "Changed text"}
+            ).status_code
+            == 400
+        )
     finally:
         engine.dispose()
 

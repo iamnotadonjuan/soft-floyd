@@ -68,17 +68,31 @@ make docs-schema     # regenerate docs/generated/db-schema.md
 
 ## Current state
 
+<<<<<<< Updated upstream
 - **0020-gpt-6-luna and coach images** (built; live visual review pending):
   GPT-6 Luna powers coach chat and structured session generation through
   Responses, with cost accounting for reasoning and cache writes. A rider
   can attach one image to a coach message and see it after reload; images
   remain account-owned. See `docs/product-specs/coach-chat.md`.
 
+=======
+<<<<<<< Updated upstream
+>>>>>>> Stashed changes
 - **0019-ci-cd** (built; needs the one-time AWS OIDC setup in
+=======
+- **0020-gpt-6-luna and coach images** (built; live visual review pending):
+  GPT-6 Luna powers coach chat and structured session generation through
+  Responses, with cost accounting for reasoning and cache writes. A rider
+  can attach one image to a coach message and see it after reload; images
+  remain account-owned. See `docs/product-specs/coach-chat.md`.
+
+- **0019-ci-cd** (built; needs the one-time AWS OIDC and required-check setup in
+>>>>>>> Stashed changes
   `infra/README.md`): `.github/workflows/ci.yml` runs ESLint + `tsc` (web),
   ruff + pytest (Python) on PRs and pushes to `main`; a passing push to
   `main` then calls `deploy.yml`. Deploy is skipped until the `AWS_ROLE_ARN`
-  repository variable exists. `make check` runs the same checks.
+  repository variable exists. `make check` runs the same checks. Protect
+  `main` with the two required CI jobs as described in `infra/README.md`.
 - **0018-first-open-tour** (built; signed-in visual review pending): a six-step spotlight walkthrough starts
   after new-rider setup and can be replayed from Help. The Overview checklist
   remains available. See `docs/product-specs/help-and-first-use.md`.

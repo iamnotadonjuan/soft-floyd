@@ -183,7 +183,7 @@ export interface CoachConversationDetailOut extends CoachConversationOut {
 // One Server-Sent Event from POST /api/coach/conversations/{id}/messages.
 // Fields left unset by the server (exclude_none) are simply absent.
 export interface CoachEvent {
-  type: "delta" | "tool_status" | "sources" | "training_session" | "done" | "error";
+  type: "accepted" | "delta" | "tool_status" | "sources" | "training_session" | "done" | "error";
   text?: string;
   sources?: CoachSourceOut[];
   training_session?: TrainingSessionOut;
