@@ -97,6 +97,8 @@ def to_garmin_payload(workout: Workout) -> dict[str, Any]:
         type_id, key, order = _TARGET_TYPE[target.kind]
         return (
             {"workoutTargetTypeId": type_id, "workoutTargetTypeKey": key, "displayOrder": order},
+            # Garmin Connect uses the range values for a custom target;
+            # zoneNumber would select one of the device's configured zones.
             {"targetValueOne": target.low, "targetValueTwo": target.high},
         )
 
@@ -199,14 +201,20 @@ def to_fit_workout(workout: Workout) -> bytes:
             msg.target_type = WorkoutStepTarget.OPEN
         elif target.kind == "power":
             msg.target_type = WorkoutStepTarget.POWER
-            msg.custom_target_power_low = round(target.low)
-            msg.custom_target_power_high = round(target.high)
+            msg.target_power_zone = 0  # FIT: zero selects a custom range.
+            # FIT reserves 0-1000 for relative %FTP. Absolute watts have
+            # a 1000 offset; fit_tool does not add it for us.
+            msg.custom_target_power_low = round(target.low) + 1000
+            msg.custom_target_power_high = round(target.high) + 1000
         elif target.kind == "hr":
             msg.target_type = WorkoutStepTarget.HEART_RATE
-            msg.custom_target_heart_rate_low = round(target.low)
-            msg.custom_target_heart_rate_high = round(target.high)
+            msg.target_hr_zone = 0
+            # FIT reserves 0-100 for relative % max HR.
+            msg.custom_target_heart_rate_low = round(target.low) + 100
+            msg.custom_target_heart_rate_high = round(target.high) + 100
         else:  # cadence
             msg.target_type = WorkoutStepTarget.CADENCE
+            msg.target_cadence_zone = 0
             msg.custom_target_cadence_low = round(target.low)
             msg.custom_target_cadence_high = round(target.high)
 

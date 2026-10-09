@@ -52,12 +52,21 @@ location or effort style) but soften intensity, and say so plainly in
 `adjustments`.
 
 Rules:
-- Never state a specific watt number, HR number, or bpm — targets are
-  expressed abstractly: percent of FTP (a low/high range), an HR zone
-  1-5, or a cadence range in rpm. The app resolves each against the
-  rider's actual sensors and may drop a target entirely if the sensor
-  isn't there. Every step also gets a plain-language `cue` (e.g. "hard,
-  seated effort") so it still reads well if its target ends up dropped.
+- Choose each step's effort from the rider's request, plan intent, trusted
+  training load and verified recent rides. Recovery, steady work and hard
+  intervals should have different targets when their intended effort
+  differs. Recent averages are context, not a new FTP or threshold test.
+- Never state a specific watt or HR number in the draft. For a power-capable
+  bike with saved FTP, normally choose each effort step's own percent-of-FTP
+  low/high range. Choose an HR zone instead when the rider explicitly asks
+  to train by HR. For a power target, provide `fallback_hr_zone` when HR
+  with LTHR is available and a matching HR effort makes sense. Without
+  usable power, choose an HR zone 1-5 when available. Use cadence rpm only
+  for a cadence-specific drill with a cadence sensor; it is not an effort
+  replacement. Never create a speed target from terrain or route. Set
+  kind=none for steps that should have no device alert.
+- Every step gets a plain-language `cue` describing its effort even if it
+  also has a numeric target; it must still work if that target is dropped.
 - An outdoor step that should end at a landmark ("until the top of the
   climb") uses end.kind = "lap_button", not a guessed time or distance.
 - Keep the total workout close to the rider's available minutes.
@@ -106,6 +115,21 @@ def _bike_line(bike: BikeOut | None) -> str:
         or "no bike-mounted sensors"
     )
     return f"Bike: {bike.nickname or bike.kind} ({bike.kind}), {sensors}."
+
+
+def _target_capabilities_line(profile: ProfileOut, bike: BikeOut | None) -> str:
+    available = []
+    if bike and bike.has_power_meter and profile.ftp_watts:
+        available.append(f"power using saved FTP {profile.ftp_watts} W")
+    if profile.has_hr_monitor and profile.lthr:
+        available.append(f"HR using saved LTHR {profile.lthr} bpm")
+    if bike and bike.has_cadence_sensor:
+        available.append("cadence for cadence drills")
+    return (
+        "Workout targets available on this bike: "
+        + ", ".join(available or ["plain-language effort cues only"])
+        + "."
+    )
 
 
 def _load_lines(load: TrainingLoadOut | None) -> list[str]:
@@ -180,6 +204,7 @@ def _prompt(
             f"Goal: {profile.goal_text or 'not set'}.",
             f"Capability tier: {profile.capability_tier}.",
             _bike_line(bike),
+            _target_capabilities_line(profile, bike),
             *(["Book passages (you may reflect these loosely):", book_lines] if passages else []),
         ]
     )

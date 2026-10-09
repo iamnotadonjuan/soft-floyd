@@ -79,6 +79,12 @@ The LLM's job is narrow: turn that intent plus the rider's own words into
 one concrete, well-formed workout and explain the trade-off in plain
 language — never to invent the intent itself or a sensor value.
 
+It chooses each step's effort using the request, trusted training load and
+verified recent rides. Distinct recovery and work steps may have distinct
+targets. Ride history informs the choice of effort; it does not silently
+recalculate the rider's FTP or threshold heart rate. The same generator is
+used from Training and coach chat.
+
 ## Sensor honesty
 
 Same rule as everywhere else in this app (see
@@ -89,6 +95,10 @@ set `ftp_watts`; only gets an HR-zone target if `has_hr_monitor` *and*
 Without the matching sensor, the step still exists but its target becomes
 a plain-language RPE cue ("hard, steady effort") instead. This is
 enforced in `training/sanitize.py`, independent of what the LLM returns.
+If a power target cannot be used, a suitable HR-zone alternative can be
+used when the rider has an HR monitor and LTHR. Cadence targets are for
+cadence drills, not substitutes for effort. Speed is not inferred from
+terrain or route. The card shows the effort cue alongside a numeric target.
 
 ## Getting it onto a device
 
@@ -106,6 +116,10 @@ enforced in `training/sanitize.py`, independent of what the LLM returns.
   (absolute watts, common ERG-mode trainer software) only when the rider
   has a power meter and FTP set — an ERG-style file without real watts
   would be a fabricated signal.
+
+Garmin Connect and FIT use the concrete watt/bpm/rpm range shown on the
+workout card, rather than a named Garmin zone whose boundaries may differ
+from Soft Floyd's saved anchors.
 
 Wahoo's own cloud push (needs partner API approval) is deferred — see
 `docs/exec-plans/tech-debt-tracker.md`.
