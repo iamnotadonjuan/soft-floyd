@@ -5,6 +5,7 @@ rule as mcp_server.py: no domain logic here.
 from __future__ import annotations
 
 import datetime as dt
+import traceback
 from collections.abc import AsyncIterator
 
 from fastapi import APIRouter, HTTPException, Request
@@ -416,8 +417,9 @@ def delete_coach_conversation(conversation_id: int) -> None:
 
 
 class CoachMessageIn(BaseModel):
-    text: str
+    text: str = ""
     image_data_url: str | None = None
+    retry_message_id: int | None = None
 
 
 def _sse(event: coach_service.CoachEvent) -> str:
@@ -441,19 +443,28 @@ async def send_coach_message(
         )
     with session_scope(get_session_factory()) as session:
         try:
-            coach_service.check_turn(
-                session,
-                conversation_id,
-                data.text,
-                settings.llm_monthly_budget_usd,
-                data.image_data_url,
-            )
+            if data.retry_message_id is None:
+                coach_service.check_turn(
+                    session,
+                    conversation_id,
+                    data.text,
+                    settings.llm_monthly_budget_usd,
+                    data.image_data_url,
+                )
+            else:
+                if data.text or data.image_data_url:
+                    raise HTTPException(status_code=400, detail="Retry cannot change the message")
+                coach_service.check_retry_turn(
+                    session, conversation_id, data.retry_message_id, settings.llm_monthly_budget_usd
+                )
         except LookupError as exc:
             raise HTTPException(status_code=404, detail=str(exc)) from exc
         except BudgetExceededError as exc:
             raise HTTPException(status_code=402, detail=str(exc)) from exc
         except ValueError as exc:
-            raise HTTPException(status_code=400, detail=str(exc)) from exc
+            raise HTTPException(
+                status_code=409 if data.retry_message_id is not None else 400, detail=str(exc)
+            ) from exc
         mcp_token = auth_service.issue_mcp_token(
             session, settings, request.cookies["soft_floyd_session"]
         )
@@ -471,12 +482,18 @@ async def send_coach_message(
                         tool_runner=bridge.run,
                         context_provider=bridge.context,
                         image_data_url=data.image_data_url,
+                        retry_message_id=data.retry_message_id,
                     ):
                         yield _sse(event)
         except (ValueError, LookupError) as exc:  # the stream is already 200; report in-band
             yield _sse(coach_service.CoachEvent(type="error", text=str(exc)))
         except Exception as exc:
-            _log.warning("coach_turn_failed", error_type=type(exc).__name__)
+            # Keep the stack but not local variables, which can hold secrets.
+            _log.warning(
+                "coach_turn_failed",
+                error_type=type(exc).__name__,
+                stack="".join(traceback.format_tb(exc.__traceback__)),
+            )
             detail = "The coach hit an error talking to the model. Please try again."
             yield _sse(coach_service.CoachEvent(type="error", text=detail))
 

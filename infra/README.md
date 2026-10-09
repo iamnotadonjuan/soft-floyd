@@ -102,6 +102,10 @@ variable exists. One-time setup:
    Narrow it later if you want.
 3. Set repository variables `AWS_ROLE_ARN` and `PULUMI_BACKEND_URL`, and
    secret `PULUMI_CONFIG_PASSPHRASE`.
-4. Optional: add protection rules to the `production` environment, and require
-   the `CI` checks on `main` in branch protection.
-
+4. Protect `main` in **Settings → Branches → Add branch protection rule** (or
+   **Settings → Rules → Rulesets**): require status checks before merging,
+   select `Python (ruff + pytest)` and `Web (eslint + tsc)` from GitHub Actions,
+   require the branch to be up to date, and apply the rule to administrators.
+   Do not require `Deploy to AWS`: it is skipped for pull requests. Without
+   this GitHub setting, the workflow reports results but does not block merge.
+5. Optional: add protection rules to the `production` environment.

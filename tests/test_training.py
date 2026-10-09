@@ -30,7 +30,9 @@ from soft_floyd_core.models import (
     RiderProfile,
 )
 from soft_floyd_core.profile.service import ProfileOut
+from soft_floyd_core.rag.service import RideContextOut
 from soft_floyd_core.training import export as export_mod
+from soft_floyd_core.training import generator as generator_mod
 from soft_floyd_core.training import service as training_service
 from soft_floyd_core.training.intent import recommend_intent, recommend_rest
 from soft_floyd_core.training.sanitize import sanitize_workout
@@ -40,6 +42,7 @@ from soft_floyd_core.training.schemas import (
     DraftTarget,
     DraftWorkout,
     SessionChanges,
+    SessionIntent,
     SessionRequest,
     StepEnd,
 )
@@ -182,6 +185,67 @@ def test_power_target_resolved_to_watts():
     target = workout.steps[1].target
     assert target is not None and target.kind == "power"
     assert (target.low, target.high) == (225, 250)
+
+
+def test_distinct_recovery_and_work_targets_keep_their_chosen_intensity():
+    draft = DraftWorkout(
+        name="Recovery then work",
+        est_minutes=20,
+        steps=[
+            DraftStep(
+                kind="recovery",
+                name="Easy",
+                cue="Easy spin",
+                end=StepEnd(kind="time", seconds=600),
+                target=DraftTarget(kind="power_pct_ftp", low=45, high=55),
+            ),
+            DraftStep(
+                kind="interval",
+                name="Threshold",
+                cue="Controlled hard effort",
+                end=StepEnd(kind="time", seconds=600),
+                target=DraftTarget(kind="power_pct_ftp", low=95, high=100),
+            ),
+        ],
+    )
+    workout = sanitize_workout(
+        draft,
+        profile=_profile(ftp_watts=250),
+        bike=_bike(has_power_meter=True),
+        discipline="road",
+        available_minutes=20,
+    )
+    assert [(step.target.low, step.target.high) for step in workout.steps] == [
+        (112, 138),
+        (238, 250),
+    ]
+
+
+def test_power_step_uses_supplied_hr_fallback_when_power_is_unavailable():
+    draft = _draft_workout(DraftTarget(kind="power_pct_ftp", low=90, high=100, fallback_hr_zone=3))
+    workout = sanitize_workout(
+        draft,
+        profile=_profile(ftp_watts=250, lthr=160),
+        bike=_bike(has_power_meter=False),
+        discipline="road",
+        available_minutes=60,
+    )
+    target = workout.steps[1].target
+    assert target is not None and target.kind == "hr"
+    assert (target.low, target.high) == (144, 150)
+
+
+def test_power_step_without_usable_hr_fallback_keeps_the_effort_cue():
+    draft = _draft_workout(DraftTarget(kind="power_pct_ftp", low=90, high=100, fallback_hr_zone=3))
+    workout = sanitize_workout(
+        draft,
+        profile=_profile(ftp_watts=250, lthr=None),
+        bike=_bike(has_power_meter=False),
+        discipline="road",
+        available_minutes=60,
+    )
+    assert workout.steps[1].target is None
+    assert workout.steps[1].cue
 
 
 def test_hr_zone_requires_lthr_not_just_a_strap():
@@ -525,6 +589,72 @@ def test_garmin_payload_shape():
     steps = payload["workoutSegments"][0]["workoutSteps"]
     assert steps[1]["targetType"]["workoutTargetTypeKey"] == "power.zone"
     assert steps[1]["targetValueOne"] == 225
+    assert steps[1]["targetValueTwo"] == 250
+    assert "zoneNumber" not in steps[1]
+
+
+def test_fit_export_custom_targets_encode_absolute_values():
+    power = _power_workout()
+    hr = sanitize_workout(
+        _draft_workout(DraftTarget(kind="hr_zone", hr_zone=3)),
+        profile=_profile(lthr=160),
+        bike=_bike(),
+        discipline="road",
+        available_minutes=60,
+    )
+    for workout, expected_low, expected_high, zone_field, low_field, high_field in (
+        (
+            power,
+            1225,
+            1250,
+            "target_power_zone",
+            "custom_target_power_low",
+            "custom_target_power_high",
+        ),
+        (
+            hr,
+            244,
+            250,
+            "target_hr_zone",
+            "custom_target_heart_rate_low",
+            "custom_target_heart_rate_high",
+        ),
+    ):
+        rows = FitFile.from_bytes(export_mod.to_fit_workout(workout)).to_rows()
+        step = next(row for row in rows if row[0] == "Data" and zone_field in row)
+        assert step[step.index(zone_field) + 1] == 0
+        assert step[step.index(low_field) + 1] == expected_low
+        assert step[step.index(high_field) + 1] == expected_high
+
+
+def test_generator_prompt_exposes_targets_and_verified_ride_context():
+    ride = RideContextOut(
+        activity_id=1,
+        start_time="2026-09-23T08:00:00",
+        bike_type="road",
+        duration_s=3600,
+        distance_m=30000,
+        elev_gain_m=200,
+        avg_hr=145,
+        max_hr=170,
+        avg_power_w=180,
+        avg_cadence=85,
+        sensors_present=["power", "hr", "cadence"],
+        available_metrics=[],
+        data_note=None,
+    )
+    prompt = generator_mod._prompt(
+        _request(route_idea="Short threshold efforts"),
+        SessionIntent(emphasis="threshold", reasons=["Fresh enough for work"], off_schedule=False),
+        _profile(ftp_watts=250, lthr=160),
+        _bike(has_power_meter=True),
+        [],
+        rides=[ride],
+    )
+    assert "power using saved FTP 250 W" in prompt
+    assert "HR using saved LTHR 160 bpm" in prompt
+    assert "recorded average power 180 W" in prompt
+    assert "Short threshold efforts" in prompt
 
 
 def test_fit_export_round_trips_and_validates(tmp_path):
@@ -586,6 +716,9 @@ def test_fit_export_encodes_a_repeat_block_correctly(tmp_path):
     repeat_rows = [row for row in rows if row and "repeat_steps" in row]
     assert repeat_rows, "expected a REPEAT_UNTIL_STEPS_CMPLT meta-step"
     assert repeat_rows[0][repeat_rows[0].index("repeat_steps") + 1] == 4
+    hard = next(row for row in rows if row and "Hard" in row)
+    assert hard[hard.index("custom_target_power_low") + 1] == 1200
+    assert hard[hard.index("custom_target_power_high") + 1] == 1220
 
 
 def test_zwo_and_erg_use_watts_not_fabricated_for_power_riders():
@@ -697,6 +830,46 @@ async def test_plan_session_drops_power_target_for_a_no_power_rider(db_session):
     assert out.available_export_formats == ["fit"]  # no zwo/erg without power
     assert out.status == "planned"
     assert out.bike_id is not None
+
+
+async def test_plan_session_passes_verified_recent_ride_evidence_to_coach(db_session):
+    _seed(db_session, ftp_watts=250, power_bike=True)
+    db_session.add_all(
+        [
+            Activity(
+                garmin_id=801,
+                start_time=NOW - dt.timedelta(days=1),
+                bike_type="road",
+                duration_s=3600,
+                distance_m=30000,
+                avg_power_w=180,
+                has_power_data=True,
+                fit_status="ok",
+            ),
+            Activity(
+                garmin_id=802,
+                start_time=NOW,
+                bike_type="road",
+                duration_s=1800,
+                distance_m=12000,
+                avg_power_w=999,
+                has_power_data=True,
+                fit_status="missing",
+            ),
+        ]
+    )
+    db_session.commit()
+    llm = FakeStructuredLLM(
+        _generated_response({"kind": "power_pct_ftp", "low": 50, "high": 60, "hr_zone": None})
+    )
+    out = await training_service.plan_session(
+        db_session, llm, None, _request(feel="tired"), budget_usd=10.0, now=NOW
+    )
+    prompt = llm.calls[0][1]["content"]
+    assert "recorded average power 180 W" in prompt
+    assert "recorded average power 999 W" not in prompt
+    assert out.intent.emphasis == "recovery"
+    assert out.workout.steps[1].target.low == 125
 
 
 async def test_suggestion_rest_is_unsaved_and_hides_unverified_power(db_session):

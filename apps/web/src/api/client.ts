@@ -73,15 +73,19 @@ async function streamCoachMessage(
   imageDataUrl: string | null,
   onEvent: (event: CoachEvent) => void,
   signal?: AbortSignal,
+  retryMessageId?: number,
 ): Promise<void> {
   const response = await send(`/coach/conversations/${conversationId}/messages`, {
     method: "POST",
-    body: JSON.stringify({ text, image_data_url: imageDataUrl }),
+    body: JSON.stringify(retryMessageId === undefined
+      ? { text, image_data_url: imageDataUrl }
+      : { retry_message_id: retryMessageId }),
     signal,
   });
   if (!response.body) throw new ApiError(500, "The coach reply had no body");
   const reader = response.body.pipeThrough(new TextDecoderStream()).getReader();
   let buffer = "";
+  let terminalEvent = false;
   for (;;) {
     const { value, done } = await reader.read();
     if (done) break;
@@ -91,10 +95,15 @@ async function streamCoachMessage(
       const frame = buffer.slice(0, boundary);
       buffer = buffer.slice(boundary + 2);
       const data = frame.split("\n").find((line) => line.startsWith("data: "));
-      if (data) onEvent(JSON.parse(data.slice(6)) as CoachEvent);
+      if (data) {
+        const event = JSON.parse(data.slice(6)) as CoachEvent;
+        if (event.type === "done" || event.type === "error") terminalEvent = true;
+        onEvent(event);
+      }
       boundary = buffer.indexOf("\n\n");
     }
   }
+  if (!terminalEvent) throw new ApiError(502, "The coach reply stopped unexpectedly. Please retry.");
 }
 
 export const api = {

@@ -43,22 +43,17 @@ def _resolve_target(
 ) -> StepTarget | None:
     if draft.kind == "power_pct_ftp":
         if bike is None or not bike.has_power_meter or not profile.ftp_watts:
-            return None
+            return _resolve_hr_zone(draft.fallback_hr_zone, profile=profile)
         low_pct = draft.low if draft.low is not None else draft.high
         high_pct = draft.high if draft.high is not None else draft.low
         if low_pct is None or high_pct is None:
-            return None
+            return _resolve_hr_zone(draft.fallback_hr_zone, profile=profile)
         low_w = round(profile.ftp_watts * low_pct / 100)
         high_w = round(profile.ftp_watts * high_pct / 100)
         return StepTarget(kind="power", low=min(low_w, high_w), high=max(low_w, high_w))
 
     if draft.kind == "hr_zone":
-        if not profile.has_hr_monitor or not profile.lthr or draft.hr_zone not in _ZONE_PCT_OF_LTHR:
-            return None
-        pct_low, pct_high = _ZONE_PCT_OF_LTHR[draft.hr_zone]
-        return StepTarget(
-            kind="hr", low=round(profile.lthr * pct_low), high=round(profile.lthr * pct_high)
-        )
+        return _resolve_hr_zone(draft.hr_zone, profile=profile)
 
     if draft.kind == "cadence_rpm":
         if bike is None or not bike.has_cadence_sensor or draft.low is None:
@@ -67,6 +62,15 @@ def _resolve_target(
         return StepTarget(kind="cadence", low=min(draft.low, high), high=max(draft.low, high))
 
     return None  # "none"
+
+
+def _resolve_hr_zone(zone: int | None, *, profile: ProfileOut) -> StepTarget | None:
+    if not profile.has_hr_monitor or not profile.lthr or zone not in _ZONE_PCT_OF_LTHR:
+        return None
+    pct_low, pct_high = _ZONE_PCT_OF_LTHR[zone]
+    return StepTarget(
+        kind="hr", low=round(profile.lthr * pct_low), high=round(profile.lthr * pct_high)
+    )
 
 
 def _sanitize_step(draft: DraftStep, *, bike: BikeOut | None, profile: ProfileOut) -> WorkoutStep:

@@ -19,6 +19,14 @@ interface Draft {
   sessions: TrainingSessionOut[];
 }
 
+interface FailedTurn {
+  text: string;
+  imageDataUrl: string | null;
+  conversationId: number | null;
+  retryMessageId: number | null;
+  toolActivity: boolean;
+}
+
 function errorText(e: unknown): string {
   return e instanceof ApiError ? e.message : String(e);
 }
@@ -67,6 +75,7 @@ export default function Coach() {
   const [input, setInput] = useState("");
   const [imageDataUrl, setImageDataUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [failedTurn, setFailedTurn] = useState<FailedTurn | null>(null);
   const [notes, setNotes] = useState<CoachMemoryNoteOut[]>([]);
   const [garminConnected, setGarminConnected] = useState(false);
   const abort = useRef<AbortController | null>(null);
@@ -103,6 +112,7 @@ export default function Coach() {
 
   async function openConversation(id: number) {
     setError(null);
+    setFailedTurn(null);
     setActiveId(id);
     setMessages([]);
     try {
@@ -132,6 +142,7 @@ export default function Coach() {
     setActiveId(null);
     setMessages([]);
     setError(null);
+    setFailedTurn(null);
   }
 
   async function removeConversation(id: number) {
@@ -171,54 +182,100 @@ export default function Coach() {
     reader.readAsDataURL(file);
   }
 
-  async function send(text: string) {
+  async function send(text: string, retry: FailedTurn | null = null) {
     text = text.trim();
     if (!text || busy) return;
-    const attachedImage = imageDataUrl;
+    const attachedImage = retry ? retry.imageDataUrl : imageDataUrl;
+    const retryMessageId = retry?.retryMessageId ?? null;
     setError(null);
-    setInput("");
-    setImageDataUrl(null);
+    setFailedTurn(null);
+    if (!retry) {
+      setInput("");
+      setImageDataUrl(null);
+    } else if (retryMessageId === null) {
+      setInput((current) => current.trim() === text ? "" : current);
+      setImageDataUrl((current) => current === attachedImage ? null : current);
+    }
     setDraft({ text: "", status: null, sources: [], sessions: [] });
-    const optimistic: CoachMessageOut = {
+    const optimistic: CoachMessageOut | null = retryMessageId === null ? {
       id: -Date.now(), role: "user", content: text, image_url: attachedImage, sources: [], training_sessions: [], created_at: new Date().toISOString(),
-    };
-    setMessages((items) => [...items, optimistic]);
+    } : null;
+    if (optimistic) setMessages((items) => [...items, optimistic]);
     const controller = new AbortController();
     abort.current = controller;
+    let acceptedMessageId = retryMessageId;
+    let streamedError: string | null = null;
+    let completed = false;
+    let toolActivity = retry?.toolActivity ?? false;
+    let id = retry?.conversationId ?? activeId;
     try {
-      let id = activeId;
       if (id === null) {
         const created = await api.createCoachConversation();
         id = created.id;
         setActiveId(id);
       }
       await api.streamCoachMessage(id, text, attachedImage, (event) => {
-        if (event.type === "delta" && event.text) {
+        if (event.type === "accepted" && event.message) {
+          acceptedMessageId = event.message.id;
+          if (optimistic) {
+            setMessages((items) => items.map((msg) => msg.id === optimistic.id ? event.message! : msg));
+          }
+        } else if (event.type === "delta" && event.text) {
           setDraft((d) => d && { ...d, text: d.text + event.text, status: null });
         } else if (event.type === "tool_status" && event.text) {
+          toolActivity = true;
           setDraft((d) => d && { ...d, status: event.text ?? null });
         } else if (event.type === "sources" && event.sources) {
           setDraft((d) => d && { ...d, sources: event.sources ?? [] });
         } else if (event.type === "training_session" && event.training_session) {
+          toolActivity = true;
           setDraft((d) => d && { ...d, sessions: [...d.sessions, event.training_session!] });
         } else if (event.type === "done" && event.message) {
+          completed = true;
           setMessages((items) => [...items, event.message!]);
         } else if (event.type === "error") {
-          setError(event.text ?? m.coach.turnError);
+          streamedError = event.text ?? m.coach.turnError;
+          setError(streamedError);
         }
-      }, controller.signal);
-      setConversations(await api.listCoachConversations());
-      refreshNotes();
+      }, controller.signal, retryMessageId ?? undefined);
+      if (streamedError) {
+        setFailedTurn({ text, imageDataUrl: attachedImage, conversationId: id, retryMessageId: acceptedMessageId, toolActivity });
+      } else {
+        api.listCoachConversations().then(setConversations).catch(() => { /* reply succeeded */ });
+        refreshNotes();
+      }
     } catch (e) {
       if (!controller.signal.aborted) {
-        setError(errorText(e));
-        // A turn refused up front (budget, no API key) was never saved.
-        setMessages((items) => items.filter((msg) => msg.id !== optimistic.id));
-        setInput(text);
-        setImageDataUrl(attachedImage);
+        if (id !== null && e instanceof ApiError && e.status === 409) {
+          try {
+            const latest = (await api.getCoachConversation(id)).messages;
+            setMessages(latest);
+            if (latest.at(-1)?.role === "assistant") completed = true;
+          } catch { /* keep the server's retry error visible */ }
+        }
+        if (id !== null && acceptedMessageId === null && !(e instanceof ApiError && e.status < 500)) {
+          try {
+            const latest = (await api.getCoachConversation(id)).messages;
+            setMessages(latest);
+            const last = latest.at(-1);
+            if (last?.role === "user" && last.content === text) acceptedMessageId = last.id;
+            if (last?.role === "assistant" && latest.at(-2)?.content === text) completed = true;
+          } catch { /* keep the unsent text available */ }
+        }
+        setError(completed ? null : errorText(e));
+        if (optimistic && acceptedMessageId === null) {
+          // A turn refused before the acknowledgement was not saved.
+          setMessages((items) => items.filter((msg) => msg.id !== optimistic.id));
+          setInput(text);
+          setImageDataUrl(attachedImage);
+        }
+        if (!completed && !(e instanceof ApiError && e.status < 500)) {
+          setFailedTurn({ text, imageDataUrl: attachedImage, conversationId: id, retryMessageId: acceptedMessageId, toolActivity });
+        }
       }
     } finally {
       setDraft(null);
+      abort.current = null;
     }
   }
 
@@ -318,7 +375,12 @@ export default function Coach() {
               <div ref={threadEnd} />
             </div>
 
-            {error && <p className="notice-error mx-5 mb-3" role="alert">{error}</p>}
+            {error && <div className="notice-error mx-5 mb-3 flex flex-wrap items-center gap-3" role="alert">
+              <span>{error}</span>
+              {failedTurn && <button type="button" className="text-sm font-semibold underline"
+                disabled={busy} onClick={() => void send(failedTurn.text, failedTurn)}>{m.coach.retry}</button>}
+              {failedTurn?.toolActivity && <small>{m.coach.retryMayRepeatActions}</small>}
+            </div>}
 
             <form onSubmit={onSubmit} className="coach-composer">
               {imageDataUrl ? <div className="flex items-center gap-2">
