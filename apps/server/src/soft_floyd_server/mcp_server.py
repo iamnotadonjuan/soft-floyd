@@ -8,6 +8,7 @@ from datetime import datetime
 
 from fastmcp import FastMCP
 from soft_floyd_core.activities import service as activities_service
+from soft_floyd_core.analysis import service as analysis_service
 from soft_floyd_core.bikes import service as bikes_service
 from soft_floyd_core.coach import memory as coach_memory
 from soft_floyd_core.coach import service as coach_service
@@ -162,6 +163,40 @@ def get_activity(activity_id: int) -> activities_service.ActivityDetailOut | Non
     """
     with session_scope(get_session_factory()) as session:
         return activities_service.get_activity(session, activity_id)
+
+
+@mcp.tool
+def get_ride_analysis(activity_id: int) -> analysis_service.RideAnalysisOut:
+    """The stored AI summary of one ride (null `analysis` if none yet) with
+    its sensor-gated metrics. Free: makes no LLM call."""
+    with session_scope(get_session_factory()) as session:
+        return analysis_service.get_ride_analysis(session, activity_id)
+
+
+@mcp.tool
+async def analyze_ride(
+    activity_id: int, language: str = "en", regenerate: bool = False
+) -> analysis_service.RideAnalysisOut:
+    """Write (and store) an AI summary of one ride: what went well, what to
+    improve, and a next step, from that ride's own verified sensor data.
+    Returns the stored one without an LLM call unless `regenerate` is true.
+    `language` is "en" or "es". Same monthly LLM budget as the coach.
+    """
+    if language not in ("en", "es"):
+        raise ValueError('language must be "en" or "es"')
+    settings = get_settings()
+    llm = analysis_service.make_analysis_llm(settings.openai_api_key)
+    if llm is None:
+        raise ValueError("SOFT_FLOYD_OPENAI_API_KEY is required to analyze a ride")
+    with session_scope(get_session_factory()) as session:
+        return await analysis_service.analyze_ride(
+            session,
+            llm,
+            activity_id,
+            language=language,  # type: ignore[arg-type]
+            budget_usd=settings.llm_monthly_budget_usd,
+            regenerate=regenerate,
+        )
 
 
 @mcp.tool

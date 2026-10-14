@@ -12,6 +12,7 @@ from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel
 from soft_floyd_core.activities import service as activities_service
+from soft_floyd_core.analysis import service as analysis_service
 from soft_floyd_core.auth import service as auth_service
 from soft_floyd_core.bikes import service as bikes_service
 from soft_floyd_core.coach import memory as coach_memory
@@ -26,7 +27,7 @@ from soft_floyd_core.garmin.sync import (
     NoPendingLoginError,
     SyncResult,
 )
-from soft_floyd_core.llm.client import LLMClient
+from soft_floyd_core.llm.client import IncompleteResponseError, LLMClient
 from soft_floyd_core.llm.usage import BudgetExceededError
 from soft_floyd_core.log import get_logger
 from soft_floyd_core.metrics import service as metrics_service
@@ -85,6 +86,51 @@ def get_activity(activity_id: int) -> activities_service.ActivityDetailOut:
     if detail is None:
         raise HTTPException(status_code=404, detail="Activity not found")
     return detail
+
+
+class RideAnalysisIn(BaseModel):
+    language: analysis_service.Language = "en"
+    regenerate: bool = False
+
+
+@router.get("/activities/{activity_id}/analysis", response_model=analysis_service.RideAnalysisOut)
+def get_ride_analysis(activity_id: int) -> analysis_service.RideAnalysisOut:
+    with session_scope(get_session_factory()) as session:
+        try:
+            return analysis_service.get_ride_analysis(session, activity_id)
+        except analysis_service.ActivityNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Activity not found") from exc
+
+
+@router.post("/activities/{activity_id}/analysis", response_model=analysis_service.RideAnalysisOut)
+async def analyze_ride(
+    activity_id: int, data: RideAnalysisIn | None = None
+) -> analysis_service.RideAnalysisOut:
+    data = data or RideAnalysisIn()
+    settings = get_settings()
+    llm = analysis_service.make_analysis_llm(settings.openai_api_key)
+    if llm is None:
+        raise HTTPException(
+            status_code=400, detail="SOFT_FLOYD_OPENAI_API_KEY is required to analyze a ride"
+        )
+    with session_scope(get_session_factory()) as session:
+        try:
+            return await analysis_service.analyze_ride(
+                session,
+                llm,
+                activity_id,
+                language=data.language,
+                budget_usd=settings.llm_monthly_budget_usd,
+                regenerate=data.regenerate,
+            )
+        except analysis_service.ActivityNotFoundError as exc:
+            raise HTTPException(status_code=404, detail="Activity not found") from exc
+        except BudgetExceededError as exc:
+            raise HTTPException(status_code=402, detail=str(exc)) from exc
+        except (IncompleteResponseError, analysis_service.AnalysisRejectedError) as exc:
+            raise HTTPException(
+                status_code=502, detail="The analysis could not be generated. Try again."
+            ) from exc
 
 
 @router.post("/sync/garmin", response_model=SyncResult)

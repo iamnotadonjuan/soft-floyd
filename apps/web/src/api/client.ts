@@ -16,6 +16,7 @@ import type {
   LoginStartResult,
   ProfileIn,
   ProfileOut,
+  RideAnalysisOut,
   SessionChangesIn,
   SessionRequestIn,
   SessionStatus,
@@ -121,6 +122,12 @@ export const api = {
     return request<ActivitySummaryOut[]>(`/activities?${params}`);
   },
   getActivity: (id: number) => request<ActivityDetailOut>(`/activities/${id}`),
+  getRideAnalysis: (id: number) => request<RideAnalysisOut>(`/activities/${id}/analysis`),
+  analyzeRide: (id: number, language: string, regenerate = false) =>
+    request<RideAnalysisOut>(`/activities/${id}/analysis`, {
+      method: "POST",
+      body: JSON.stringify({ language, regenerate }),
+    }),
 
   listBikes: () => request<BikeOut[]>("/bikes"),
   addBike: (data: BikeIn) => request<BikeOut>("/bikes", { method: "POST", body: JSON.stringify(data) }),

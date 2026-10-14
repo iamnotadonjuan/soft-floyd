@@ -3,6 +3,7 @@ import { useEffect, useState } from "react";
 import { api } from "../api/client";
 import type { ActivityDetailOut } from "../api/types";
 import { rideDate, rideDistance, rideDuration, rideTitle } from "../components/activityFormat";
+import RideAnalysisCard from "../components/RideAnalysisCard";
 import { useI18n } from "../i18n/I18nProvider";
 
 export default function RideDetail({ id, onBack }: { id: number; onBack: () => void }) {
@@ -43,6 +44,8 @@ export default function RideDetail({ id, onBack }: { id: number; onBack: () => v
               {ride.fit_status === "ok" && ride.sensors_present.includes("cadence") && ride.avg_cadence !== null &&
                 <Stat label={m.rideDetail.avgCadence} value={`${ride.avg_cadence} rpm`} />}
             </section>
+
+            <RideAnalysisCard key={ride.id} activityId={ride.id} />
 
             <section className="surface-soft mt-5 p-5">
               <h2 className="font-semibold text-[#30553c]">{m.rideDetail.recordedHeading}</h2>

@@ -19,6 +19,7 @@ from soft_floyd_core.models import (
     Lap,
     LLMUsageRecord,
     Record,
+    RideAnalysis,
     RiderProfile,
     TrainingSession,
 )
@@ -30,6 +31,7 @@ OWNED_MODELS = (
     Activity,
     Lap,
     Record,
+    RideAnalysis,
     GarminSyncState,
     CoachConversation,
     CoachMessage,

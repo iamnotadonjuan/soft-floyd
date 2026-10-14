@@ -1,16 +1,20 @@
 # Post-Ride Analysis
 
-Status: **not implemented.** Depends on
+Status: **in progress** — see
+[exec-plan 0023](../exec-plans/active/0023-ride-ai-summary.md). Depends on
 [garmin-sync.md](garmin-sync.md) and
 [../design-docs/training-signal-model.md](../design-docs/training-signal-model.md).
-Write an exec-plan before starting.
 
 ## Intended behavior
 
-Shortly after a ride syncs, the coach (Soft Floyd persona — see
-`docs/design-docs/core-beliefs.md` belief 6) produces a short analysis:
-what the ride was, how it compares to recent history, and one or two
-concrete observations tied to the rider's stated goal.
+On the ride page the rider taps "Analyze this ride" and the coach (Soft
+Floyd persona — see `docs/design-docs/core-beliefs.md` belief 6) produces a
+short analysis: what went well, what to improve, one concrete thing to try
+next time, and how the ride compares to recent rides of the same type. It
+is shown next to deterministic metrics computed from the ride's own
+streams. The analysis is saved per ride and can be regenerated. It is
+generated on demand, not automatically after sync (auto-analysis is
+deferred).
 
 ## Hard constraint
 

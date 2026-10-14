@@ -149,6 +149,48 @@ export interface ActivityDetailOut extends ActivitySummaryOut {
   available_metrics: string[];
 }
 
+// AI ride summary (exec-plan 0023) — mirrors soft_floyd_core.analysis.*.
+export interface RideMetricsOut {
+  duration_s: number;
+  distance_km: number;
+  elev_gain_m: number;
+  climb_m_per_km: number | null;
+  avg_speed_kmh: number | null;
+  avg_power_w: number | null;
+  max_power_w: number | null;
+  normalized_power_w: number | null;
+  variability_index: number | null;
+  intensity_factor: number | null;
+  tss: number | null;
+  avg_hr: number | null;
+  max_hr: number | null;
+  hr_zone_minutes: Record<string, number> | null;
+  hr_drift_pct: number | null;
+  load: number | null;
+  load_basis: string | null;
+  lap_count: number;
+  lap_variation_pct: number | null;
+  lap_variation_basis: string | null;
+  sensors_present: string[];
+  notes: string[];
+}
+
+export interface RideAnalysisDraft {
+  headline: string;
+  went_well: string[];
+  to_improve: string[];
+  next_time: string;
+  data_caveat: string | null;
+}
+
+export interface RideAnalysisOut {
+  activity_id: number;
+  language: string | null;
+  analysis: RideAnalysisDraft | null;
+  generated_at: string | null;
+  metrics: RideMetricsOut;
+}
+
 // Coach agent (exec-plan 0007) — mirrors soft_floyd_core.coach.*.
 export interface CoachSourceOut {
   book_id: number;
