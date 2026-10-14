@@ -603,7 +603,9 @@ async def test_get_training_load_tool_reports_load_and_its_basis(session):
     session.add(
         Activity(
             id=11,
-            start_time=NOW - dt.timedelta(days=1),
+            # get_training_load reads the real clock, so anchor to it: a ride
+            # dated from the fixed NOW eventually counts as weeks of history.
+            start_time=dt.datetime.now(dt.UTC).replace(tzinfo=None) - dt.timedelta(days=1),
             duration_s=3600,
             fit_status="ok",
             has_hr_data=False,
