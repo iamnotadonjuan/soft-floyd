@@ -63,7 +63,8 @@ def test_get_before_generating_has_metrics_but_no_analysis(client, mtb_fit_path)
     assert "power" not in body["metrics"]["sensors_present"]
 
 
-def test_unknown_ride_is_404(client):
+def test_unknown_ride_is_404(client, monkeypatch):
+    _install(monkeypatch, FakeAnalysisLLM())  # CI has no API key; reach the lookup
     assert client.get("/api/activities/999/analysis").status_code == 404
     assert client.post("/api/activities/999/analysis", json={}).status_code == 404
 
