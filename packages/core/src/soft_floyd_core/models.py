@@ -235,6 +235,25 @@ class Record(Base):
     activity: Mapped[Activity] = relationship(back_populates="records")
 
 
+class RideAnalysis(Base):
+    """The AI summary of one ride (exec-plan 0023), generated on demand and
+    kept so reopening the ride is free. `draft` is the model's narrative;
+    `metrics_snapshot` is the deterministic, sensor-gated metrics the
+    narrative was written from."""
+
+    __tablename__ = "ride_analysis"
+    __table_args__ = (UniqueConstraint("account_id", "activity_id"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    account_id: Mapped[int] = mapped_column(ForeignKey("account.id"), index=True)
+    activity_id: Mapped[int] = mapped_column(ForeignKey("activity.id", ondelete="CASCADE"))
+    language: Mapped[str] = mapped_column(String(8), default="en")
+    draft: Mapped[dict] = mapped_column(JSON)
+    metrics_snapshot: Mapped[dict] = mapped_column(JSON)
+    created_at: Mapped[dt.datetime] = mapped_column(default=_utcnow)
+    updated_at: Mapped[dt.datetime] = mapped_column(default=_utcnow, onupdate=_utcnow)
+
+
 class GarminSyncState(Base):
     """One row per account for durable sync health — not just a cursor.
 
