@@ -10,7 +10,7 @@ After a new rider finishes the existing onboarding summary, the dashboard shows 
 
 Help is available from the signed-in header and during onboarding. It explains Overview, Training, Coach, Settings, and the next steps after setup. Its FAQ covers Garmin connection and limited history, missing sensors, training load confidence, workout exports, and Coach availability. Content describes only shipped behavior and is translated in English and Spanish.
 
-Each Settings group and the fitness, fatigue, and form tiles have a tappable `?` explanation. These are keyboard-operable disclosures, not hover-only tooltips. Help remains usable without Garmin or any recorded rides. No backend, API, or schema change is involved.
+Each Settings group and the fitness, fatigue, and form tiles have a tappable `?` explanation. These are keyboard-operable disclosures, not hover-only tooltips. Opening one closes any other open `?` explanation; tapping the open one closes it. Help remains usable without Garmin or any recorded rides. No backend, API, or schema change is involved.
 
 ## Acceptance
 
