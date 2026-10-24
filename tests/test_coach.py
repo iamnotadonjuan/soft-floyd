@@ -301,7 +301,7 @@ async def test_tool_loop_uses_core_data_saves_memory_and_cites_books(session):
     session.add(
         Activity(
             id=7,
-            start_time=dt.datetime(2026, 9, 21, 8),
+            start_time=dt.datetime.now(dt.UTC).replace(tzinfo=None) - dt.timedelta(days=2),
             bike_type="road",
             duration_s=7200,
             distance_m=60000,
